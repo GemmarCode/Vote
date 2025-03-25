@@ -1,0 +1,303 @@
+{% extends 'admin_base.html' %}
+
+{% block admin_content %}
+<div class="d-flex">
+    <!-- Main Content -->
+    <div class="flex-grow-1 p-4" style="background-color: #D1ECFF;">
+        <div class="container-fluid">
+            <h1 class="mb-4" style="color: #1E5470;">Manage Candidates</h1>
+
+            <!-- Pending Candidates -->
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h5 class="card-title mb-0 text-white">Pending National Candidates</h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_candidates.national %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Name</th>
+                                    <th>Position</th>
+                                    <th>College</th>
+                                    <th>Department</th>
+                                    <th>Platform</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for candidate in pending_candidates.national %}
+                                <tr>
+                                    <td>
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" alt="Candidate Photo" 
+                                                 style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;">
+                                        {% else %}
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                                 style="width: 40px; height: 40px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ candidate.user.get_full_name }}</td>
+                                    <td>{{ candidate.get_position_display }}</td>
+                                    <td>{{ candidate.get_college_display }}</td>
+                                    <td>{{ candidate.department }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" 
+                                                data-bs-target="#platformModal{{ candidate.id }}">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <form method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="candidate_id" value="{{ candidate.id }}">
+                                            <button type="submit" name="action" value="approve" 
+                                                    class="btn btn-sm btn-success">
+                                                <i class="fas fa-check me-1"></i>Approve
+                                            </button>
+                                            <button type="submit" name="action" value="reject" 
+                                                    class="btn btn-sm btn-danger">
+                                                <i class="fas fa-times me-1"></i>Reject
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center mb-0">No pending national candidates</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h5 class="card-title mb-0 text-white">Pending Local Candidates</h5>
+                </div>
+                <div class="card-body">
+                    {% if pending_candidates.local %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Name</th>
+                                    <th>Position</th>
+                                    <th>College</th>
+                                    <th>Department</th>
+                                    <th>Platform</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for candidate in pending_candidates.local %}
+                                <tr>
+                                    <td>
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" alt="Candidate Photo" 
+                                                 style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;">
+                                        {% else %}
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                                 style="width: 40px; height: 40px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ candidate.user.get_full_name }}</td>
+                                    <td>{{ candidate.get_position_display }}</td>
+                                    <td>{{ candidate.get_college_display }}</td>
+                                    <td>{{ candidate.department }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" 
+                                                data-bs-target="#platformModal{{ candidate.id }}">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <form method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="candidate_id" value="{{ candidate.id }}">
+                                            <button type="submit" name="action" value="approve" 
+                                                    class="btn btn-sm btn-success">
+                                                <i class="fas fa-check me-1"></i>Approve
+                                            </button>
+                                            <button type="submit" name="action" value="reject" 
+                                                    class="btn btn-sm btn-danger">
+                                                <i class="fas fa-times me-1"></i>Reject
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center mb-0">No pending local candidates</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Approved Candidates -->
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h5 class="card-title mb-0 text-white">Approved National Candidates</h5>
+                </div>
+                <div class="card-body">
+                    {% if approved_candidates.national %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Name</th>
+                                    <th>Position</th>
+                                    <th>College</th>
+                                    <th>Department</th>
+                                    <th>Platform</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for candidate in approved_candidates.national %}
+                                <tr>
+                                    <td>
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" alt="Candidate Photo" 
+                                                 style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;">
+                                        {% else %}
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                                 style="width: 40px; height: 40px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ candidate.user.get_full_name }}</td>
+                                    <td>{{ candidate.get_position_display }}</td>
+                                    <td>{{ candidate.get_college_display }}</td>
+                                    <td>{{ candidate.department }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" 
+                                                data-bs-target="#platformModal{{ candidate.id }}">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <form method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="candidate_id" value="{{ candidate.id }}">
+                                            <button type="submit" name="action" value="reject" 
+                                                    class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash me-1"></i>Remove
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center mb-0">No approved national candidates</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h5 class="card-title mb-0 text-white">Approved Local Candidates</h5>
+                </div>
+                <div class="card-body">
+                    {% if approved_candidates.local %}
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Photo</th>
+                                    <th>Name</th>
+                                    <th>Position</th>
+                                    <th>College</th>
+                                    <th>Department</th>
+                                    <th>Platform</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for candidate in approved_candidates.local %}
+                                <tr>
+                                    <td>
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" alt="Candidate Photo" 
+                                                 style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;">
+                                        {% else %}
+                                            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                                 style="width: 40px; height: 40px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ candidate.user.get_full_name }}</td>
+                                    <td>{{ candidate.get_position_display }}</td>
+                                    <td>{{ candidate.get_college_display }}</td>
+                                    <td>{{ candidate.department }}</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info" data-bs-toggle="modal" 
+                                                data-bs-target="#platformModal{{ candidate.id }}">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </button>
+                                    </td>
+                                    <td>
+                                        <form method="post" class="d-inline">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="candidate_id" value="{{ candidate.id }}">
+                                            <button type="submit" name="action" value="reject" 
+                                                    class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash me-1"></i>Remove
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <p class="text-center mb-0">No approved local candidates</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Platform Modal -->
+{% for candidate in pending_candidates.national|add:pending_candidates.local|add:approved_candidates.national|add:approved_candidates.local %}
+<div class="modal fade" id="platformModal{{ candidate.id }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">{{ candidate.user.get_full_name }}'s Platform</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <h6>Platform:</h6>
+                <p>{{ candidate.platform|linebreaks }}</p>
+                {% if candidate.achievements %}
+                <h6>Achievements:</h6>
+                <p>{{ candidate.achievements|linebreaks }}</p>
+                {% endif %}
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% endblock %} 

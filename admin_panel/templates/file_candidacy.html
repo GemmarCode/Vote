@@ -1,0 +1,218 @@
+{% extends 'admin_base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        {% include 'admin_sidebar.html' %}
+        
+        <!-- Main Content -->
+        <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+            <div class="container">
+                <div class="row justify-content-center">
+                    <div class="col-md-10">
+                        <div class="card shadow">
+                            <div class="card-body">
+                                <h2 class="card-title mb-4">File Candidacy for User</h2>
+                                
+                                {% if messages %}
+                                    {% for message in messages %}
+                                        <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                            {{ message }}
+                                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                        </div>
+                                    {% endfor %}
+                                {% endif %}
+
+                                <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
+                                    {% csrf_token %}
+                                    
+                                    <!-- User Selection -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">Select User</h5>
+                                        <div class="row">
+                                            <div class="col-md-12">
+                                                <select class="form-select" name="user" required>
+                                                    <option value="">Select a user...</option>
+                                                    {% for user in users %}
+                                                        <option value="{{ user.id }}">{{ user.get_full_name }} ({{ user.username }})</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Position Information -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">Position Details</h5>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Election Level*</label>
+                                                <select class="form-select" name="election_level" id="electionLevel" required onchange="updatePositions()">
+                                                    <option value="">Select Level</option>
+                                                    <option value="national">National</option>
+                                                    <option value="local">Local</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Position*</label>
+                                                <select class="form-select" name="position" id="position" required>
+                                                    <option value="">Select Position</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 mb-3">
+                                                <label class="form-label">Platform/Agenda*</label>
+                                                <textarea class="form-control" name="platform" rows="4" required 
+                                                          placeholder="Share the candidate's plans and goals..."></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Academic Information -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">Academic Information</h5>
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">College*</label>
+                                                <select class="form-select" name="college" required>
+                                                    <option value="">Select College</option>
+                                                    {% for code, name in college_choices %}
+                                                        <option value="{{ code }}">{{ name }}</option>
+                                                    {% endfor %}
+                                                </select>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Department*</label>
+                                                <input type="text" class="form-control" name="department" required>
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label class="form-label">Year Level*</label>
+                                                <select class="form-select" name="year_level" required>
+                                                    <option value="">Select Year Level</option>
+                                                    <option value="1st">1st Year</option>
+                                                    <option value="2nd">2nd Year</option>
+                                                    <option value="3rd">3rd Year</option>
+                                                    <option value="4th">4th Year</option>
+                                                    <option value="5th">5th Year</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 mb-3">
+                                                <label class="form-label">Achievements*</label>
+                                                <textarea class="form-control" name="achievements" rows="4" required 
+                                                          placeholder="List the candidate's academic and leadership achievements..."></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Profile Picture -->
+                                    <div class="mb-4">
+                                        <h5 class="mb-3">Profile Picture</h5>
+                                        <div class="row">
+                                            <div class="col-12">
+                                                <div class="d-flex justify-content-center mb-3">
+                                                    <img id="preview" src="{% static 'images/default-profile.png' %}" 
+                                                         class="rounded-circle" 
+                                                         style="width: 150px; height: 150px; object-fit: cover; border: 3px solid #34729C;">
+                                                </div>
+                                                <div class="input-group">
+                                                    <input type="file" class="form-control" name="photo" 
+                                                           accept="image/*" required
+                                                           onchange="previewImage(this);">
+                                                    <label class="input-group-text">
+                                                        <i class="fas fa-upload"></i>
+                                                    </label>
+                                                </div>
+                                                <div class="form-text text-center">Upload a clear, professional photo</div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="fas fa-paper-plane me-2"></i>Submit Application
+                                        </button>
+                                        <a href="{% url 'admin_panel:dashboard' %}" class="btn btn-secondary">
+                                            <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                                        </a>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+function previewImage(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('preview').src = e.target.result;
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+}
+
+function updatePositions() {
+    const electionLevel = document.getElementById('electionLevel').value;
+    const positionSelect = document.getElementById('position');
+    
+    positionSelect.innerHTML = '<option value="">Select Position</option>';
+    
+    const positions = {
+        'national': [
+            ['PRESIDENT', 'President'],
+            ['VICE_PRESIDENT', 'Vice President'],
+            ['SECRETARY', 'Secretary'],
+            ['TREASURER', 'Treasurer'],
+            ['AUDITOR', 'Auditor'],
+            ['PIO', 'Public Information Officer'],
+            ['REPRESENTATIVE', 'Representative'],
+            ['GOVERNOR', 'Governor'],
+            ['VICE_GOVERNOR', 'Vice Governor'],
+            ['SEC_GOVERNOR', 'Secretary'],
+            ['TRES_GOVERNOR', 'Treasurer'],
+            ['AUD_GOVERNOR', 'Auditor'],
+            ['PIO_GOVERNOR', 'Public Information Officer']
+        ],
+        'local': [
+            ['MAYOR', 'Mayor'],
+            ['VICE_MAYOR', 'Vice Mayor'],
+            ['SEC_LOCAL', 'Secretary'],
+            ['TRES_LOCAL', 'Treasurer'],
+            ['AUD_LOCAL', 'Auditor'],
+            ['PIO_LOCAL', 'Public Information Officer'],
+            ['REP_LOCAL', 'Representative']
+        ]
+    };
+
+    if (positions[electionLevel]) {
+        positions[electionLevel].forEach(([code, display]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = display;
+            positionSelect.appendChild(option);
+        });
+    }
+}
+
+// Form validation
+(function () {
+    'use strict'
+    const forms = document.querySelectorAll('.needs-validation')
+    Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+            }
+            form.classList.add('was-validated')
+        }, false)
+    })
+})()
+</script>
+{% endblock %} 

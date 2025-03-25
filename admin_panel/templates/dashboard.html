@@ -1,0 +1,255 @@
+{% extends 'admin_base.html' %}
+
+{% block admin_content %}
+<div class="row">
+    <!-- Stats Cards -->
+    <div class="col-md-3 mb-4">
+        <div class="admin-card p-4">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
+                    <i class="fas fa-users fa-2x" style="color: #34729C;"></i>
+                </div>
+                <div>
+                    <h3 class="mb-0" style="color: #34729C;">{{ total_users }}</h3>
+                    <p class="text-muted mb-0">Total Users</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="admin-card p-4">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
+                    <i class="fas fa-user-tie fa-2x" style="color: #34729C;"></i>
+                </div>
+                <div>
+                    <h3 class="mb-0" style="color: #34729C;">{{ total_candidates }}</h3>
+                    <p class="text-muted mb-0">Total Candidates</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="admin-card p-4">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
+                    <i class="fas fa-vote-yea fa-2x" style="color: #34729C;"></i>
+                </div>
+                <div>
+                    <h3 class="mb-0" style="color: #34729C;">{{ total_votes }}</h3>
+                    <p class="text-muted mb-0">Total Votes</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-4">
+        <div class="admin-card p-4">
+            <div class="d-flex align-items-center">
+                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
+                    <i class="fas fa-chart-pie fa-2x" style="color: #34729C;"></i>
+                </div>
+                <div>
+                    <h3 class="mb-0" style="color: #34729C;">{{ voter_turnout }}%</h3>
+                    <p class="text-muted mb-0">Voter Turnout</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Vote Trends Graph -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="admin-card p-4">
+            <h4 class="mb-4" style="color: #34729C;">
+                <i class="fas fa-chart-line me-2"></i>National Candidates Vote Trends
+            </h4>
+            <div style="position: relative; height: 400px; width: 100%;">
+                <canvas id="voteTrendsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Activity -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="admin-card p-4">
+            <h4 class="mb-4" style="color: #34729C;">Recent Activity</h4>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in recent_activities %}
+                        <tr>
+                            <td>{{ activity.created_at }}</td>
+                            <td>{{ activity.action }}</td>
+                            <td>{{ activity.details }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">No recent activity</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart.js and Moment.js -->
+<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const voteTrendsData = {{ vote_trends|safe }};
+    const ctx = document.getElementById('voteTrendsChart').getContext('2d');
+    
+    // Check if there's data to display
+    if (!voteTrendsData || Object.keys(voteTrendsData).length === 0) {
+        const noDataText = document.createElement('p');
+        noDataText.textContent = 'No vote data available for national candidates';
+        noDataText.style.textAlign = 'center';
+        noDataText.style.color = '#6c757d';
+        noDataText.style.marginTop = '20px';
+        ctx.canvas.parentNode.appendChild(noDataText);
+        return;
+    }
+    
+    // Generate colors for each candidate
+    const colors = [
+        '#34729C', '#6CB1DA', '#1E5470', '#CBEAEC', '#D1ECFF',
+        '#2C6085', '#5A9BC0', '#183D54', '#A8D5D8', '#B0D9F2'
+    ];
+    
+    // Prepare datasets
+    const datasets = [];
+    let colorIndex = 0;
+    
+    for (const [candidate, data] of Object.entries(voteTrendsData)) {
+        // Ensure data is properly formatted
+        const validData = data.filter(point => point.timestamp && point.count !== undefined);
+        
+        datasets.push({
+            label: candidate,
+            data: validData.map(point => ({
+                x: moment(point.timestamp).toDate(),
+                y: parseInt(point.count) || 0
+            })),
+            borderColor: colors[colorIndex % colors.length],
+            backgroundColor: colors[colorIndex % colors.length] + '20',
+            borderWidth: 2,
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6
+        });
+        colorIndex++;
+    }     
+    // Create the chart
+    const chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            datasets: datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: 'index'
+            },
+            scales: {
+                x: {
+                    type: 'time',
+                    time: {
+                        unit: 'hour',
+                        displayFormats: {
+                            hour: 'MMM D, HH:mm'
+                        },
+                        tooltipFormat: 'MMM D, HH:mm'
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Time',
+                        color: '#34729C',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    }
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Number of Votes',
+                        color: '#34729C',
+                        font: {
+                            size: 14,
+                            weight: 'bold'
+                        }
+                    },
+                    ticks: {
+                        stepSize: 1,
+                        precision: 0
+                    }
+                }
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20,
+                        font: {
+                            size: 12
+                        },
+                        color: '#34729C'
+                    }
+                },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    titleColor: '#34729C',
+                    titleFont: {
+                        weight: 'bold'
+                    },
+                    bodyColor: '#34729C',
+                    borderColor: '#34729C',
+                    borderWidth: 1,
+                    padding: 10,
+                    callbacks: {
+                        title: function(context) {
+                            return moment(context[0].parsed.x).format('MMM D, HH:mm');
+                        },
+                        label: function(context) {
+                            return `${context.dataset.label}: ${context.parsed.y} votes`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %} 

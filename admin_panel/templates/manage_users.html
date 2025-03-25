@@ -1,0 +1,282 @@
+{% extends 'admin_base.html' %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #34729C;">Manage Users</h1>
+        <a href="{% url 'admin_panel:register_user' %}" class="btn btn-primary">
+            <i class="fas fa-user-plus me-2"></i>Register New User
+        </a>
+    </div>
+
+    <!-- Search Bar -->
+    <div class="admin-card p-3 mb-4">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="search-wrapper">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="searchInput" class="form-control search-input" placeholder="Search users...">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <select class="form-select glassmorphism-input" id="filterCollege">
+                    <option value="">All Colleges</option>
+                    <option value="CAS">College of Arts and Sciences</option>
+                    <option value="CAF">College of Agriculture and Forestry</option>
+                    <option value="CCJE">College of Criminal Justice Education</option>
+                    <option value="CBA">College of Business Administration</option>
+                    <option value="CTED">College of Teacher Education</option>
+                    <option value="CIT">College of Industrial Technology</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Messages -->
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- New Users Section -->
+    <div class="admin-card mb-4">
+        <div class="card-body p-4">
+            <h5 class="mb-4" style="color: #34729C;">
+                <i class="fas fa-user-clock me-2"></i>New Users Awaiting Activation
+                <span class="badge rounded-pill bg-warning text-dark ms-2">{{ new_users|length }}</span>
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>College</th>
+                            <th>Registration Date</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in new_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="user-avatar me-3">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    {{ user.username }}
+                                </div>
+                            </td>
+                            <td>{{ user.get_full_name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.userprofile.get_college_display }}</td>
+                            <td>{{ user.date_joined|date:"M d, Y" }}</td>
+                            <td class="text-end">
+                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to activate the account for {{ user.username }}?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <input type="hidden" name="action" value="activate">
+                                    <button type="submit" class="btn btn-success btn-sm">
+                                        <i class="fas fa-check me-1"></i>Activate
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="text-center text-muted">No new users awaiting activation</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- All Users Section -->
+    <div class="admin-card">
+        <div class="card-body p-4">
+            <h5 class="mb-4" style="color: #34729C;">
+                <i class="fas fa-users me-2"></i>All Users
+                <span class="badge rounded-pill bg-primary ms-2">{{ all_users|length }}</span>
+            </h5>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Username</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>College</th>
+                            <th>Status</th>
+                            <th>Last Login</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in all_users %}
+                        <tr>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="user-avatar me-3">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    {{ user.username }}
+                                </div>
+                            </td>
+                            <td>{{ user.get_full_name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>{{ user.userprofile.get_college_display }}</td>
+                            <td>
+                                {% if user.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-warning">Inactive</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ user.last_login|date:"M d, Y H:i"|default:"Never" }}</td>
+                            <td class="text-end">
+                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to {% if user.is_active %}deactivate{% else %}activate{% endif %} the account for {{ user.username }}?');">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="user_id" value="{{ user.id }}">
+                                    <input type="hidden" name="action" value="{% if user.is_active %}deactivate{% else %}activate{% endif %}">
+                                    <button type="submit" class="btn {% if user.is_active %}btn-warning{% else %}btn-success{% endif %} btn-sm">
+                                        {% if user.is_active %}
+                                            <i class="fas fa-ban me-1"></i>Deactivate
+                                        {% else %}
+                                            <i class="fas fa-check me-1"></i>Activate
+                                        {% endif %}
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" class="text-center text-muted">No users found</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.user-avatar {
+    width: 35px;
+    height: 35px;
+    background: rgba(52, 114, 156, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #34729C;
+}
+
+.admin-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    border: 1px solid rgba(52, 114, 156, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.table th {
+    border-bottom: 1px solid rgba(52, 114, 156, 0.1);
+    color: #34729C;
+    font-weight: 600;
+    padding: 1rem;
+}
+
+.table td {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(52, 114, 156, 0.05);
+}
+
+.table tr:hover {
+    background: rgba(52, 114, 156, 0.02);
+}
+
+.search-wrapper {
+    position: relative;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #34729C;
+}
+
+.search-input {
+    padding-left: 35px;
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(52, 114, 156, 0.1);
+    border-radius: 8px;
+}
+
+.search-input:focus {
+    background: white;
+    border-color: #34729C;
+    box-shadow: 0 0 0 0.2rem rgba(52, 114, 156, 0.25);
+}
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('searchInput');
+    const filterCollege = document.getElementById('filterCollege');
+    const tables = document.querySelectorAll('table');
+    
+    console.log('DEBUG - Number of tables found:', tables.length);
+    tables.forEach((table, index) => {
+        const rows = table.querySelectorAll('tbody tr');
+        console.log(`DEBUG - Table ${index + 1} number of rows:`, rows.length);
+    });
+
+    function filterTables() {
+        const searchTerm = searchInput.value.toLowerCase();
+        const selectedCollege = filterCollege.value;
+        console.log('DEBUG - Filtering with:', { searchTerm, selectedCollege });
+
+        tables.forEach(table => {
+            const rows = table.querySelectorAll('tbody tr');
+            console.log('DEBUG - Processing rows:', rows.length);
+            
+            rows.forEach(row => {
+                if (row.cells.length <= 1) return; // Skip empty state rows
+                
+                const username = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+                const fullName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                const email = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                const college = row.querySelector('td:nth-child(4)').textContent;
+
+                const matchesSearch = username.includes(searchTerm) || 
+                                    fullName.includes(searchTerm) || 
+                                    email.includes(searchTerm);
+                                    
+                const matchesCollege = !selectedCollege || college.includes(selectedCollege);
+
+                row.style.display = (matchesSearch && matchesCollege) ? '' : 'none';
+            });
+
+            // Show/hide empty state message
+            const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
+            const emptyMessage = table.querySelector('tbody tr td[colspan]')?.parentElement;
+            if (emptyMessage) {
+                emptyMessage.style.display = visibleRows.length ? 'none' : '';
+            }
+        });
+    }
+
+    searchInput.addEventListener('input', filterTables);
+    filterCollege.addEventListener('change', filterTables);
+});
+</script>
+{% endblock %} 

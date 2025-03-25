@@ -1,0 +1,93 @@
+<!-- Admin Sidebar -->
+<div class="sidebar" style="background: rgba(52, 114, 156, 0.9); min-height: 100vh; width: 250px; position: fixed; left: 0; top: 0; padding-top: 20px;">
+    <div class="d-flex justify-content-center align-items-center mb-4">
+        <i class="fas fa-user-shield fa-2x text-white me-2"></i>
+        <h4 class="text-white mb-0">Admin Panel</h4>
+    </div>
+    
+    <ul class="nav flex-column">
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
+               href="{% url 'admin_panel:dashboard' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-tachometer-alt me-2"></i>
+                Dashboard
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'manage_users' %}active{% endif %}" 
+               href="{% url 'admin_panel:manage_users' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-users me-2"></i>
+                Manage Users
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'manage_candidates' %}active{% endif %}" 
+               href="{% url 'admin_panel:manage_candidates' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-user-tie me-2"></i>
+                Manage Candidates
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'manage_elections' %}active{% endif %}" 
+               href="{% url 'admin_panel:manage_elections' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-vote-yea me-2"></i>
+                Manage Elections
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'results' %}active{% endif %}" 
+               href="{% url 'admin_panel:results' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-chart-bar me-2"></i>
+                Election Results
+            </a>
+        </li>
+    </ul>
+
+    <div class="mt-auto" style="position: absolute; bottom: 20px; width: 100%; padding: 0 25px;">
+        <a href="{% url 'logout' %}" class="btn btn-light w-100">
+            <i class="fas fa-sign-out-alt me-2"></i>
+            Logout
+        </a>
+    </div>
+</div>
+
+<style>
+.sidebar .nav-link {
+    transition: all 0.3s ease;
+    border-radius: 8px;
+    margin: 5px 15px;
+}
+
+.sidebar .nav-link:hover, .sidebar .nav-link.active {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateX(5px);
+}
+
+.sidebar .nav-link.active {
+    background: rgba(255, 255, 255, 0.2);
+    font-weight: bold;
+}
+
+/* Custom scrollbar for sidebar */
+.sidebar::-webkit-scrollbar {
+    width: 5px;
+}
+
+.sidebar::-webkit-scrollbar-track {
+    background: rgba(209, 236, 255, 0.1);
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 4px;
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.4);
+}
+</style> 

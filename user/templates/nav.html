@@ -1,0 +1,79 @@
+<!-- Navigation -->
+{% load static %}
+<nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #34729C;">
+    <div class="container">
+        <a class="navbar-brand" href="{% url 'home' %}">
+            <img src="{% static 'images/logo.png' %}" alt="Logo" height="40">
+            Smart Vote
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav me-auto">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'home' %}">Home</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'candidates' %}">Candidates</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'results' %}">Results</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'vote' %}">Vote</a>
+                </li>
+            </ul>
+            <ul class="navbar-nav">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'admin_panel_login' %}">
+                        <i class="fas fa-lock me-1"></i>Admin Access
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
+<style>
+.hover-effect {
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.hover-effect:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+}
+
+.hover-effect::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 0;
+    height: 2px;
+    background-color: #D1ECFF;
+    transition: all 0.3s ease;
+    transform: translateX(-50%);
+}
+
+.hover-effect:hover::after {
+    width: 80%;
+}
+
+@media (max-width: 991.98px) {
+    .navbar-nav {
+        padding: 1rem 0;
+    }
+    
+    .nav-item {
+        margin: 0.5rem 0;
+    }
+    
+    .hover-effect::after {
+        display: none;
+    }
+}
+</style>

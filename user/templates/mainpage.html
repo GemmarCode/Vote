@@ -1,0 +1,401 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+{% include 'nav.html' %}
+
+<!-- Hero Section -->
+<div class="hero-section py-5" style="background: linear-gradient(135deg, #34729C, #6CB1DA);">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-6 text-center text-lg-start mb-4 mb-lg-0">
+                <h1 class="display-4 fw-bold text-white mb-3">NORSU-BSC Web-Based Voting System</h1>
+                <p class="lead text-white-75 mb-4">Your secure and efficient university election platform with face recognition technology.</p>
+                <div class="d-grid gap-2 d-sm-flex">
+                    <a href="{% url 'candidates' %}" class="btn btn-lg px-4" style="background-color: #CBEAEC; color: #1E5470;">
+                        <i class="fas fa-users me-2"></i>View Candidates
+                    </a>
+                    <a href="{% url 'file_candidacy' %}" class="btn btn-lg px-4" style="background-color: #D1ECFF; color: #1E5470;">
+                        <i class="fas fa-file-alt me-2"></i>File Candidacy
+                    </a>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+</div>
+
+<!-- Add this right after the header section -->
+{% if election_settings.candidacy_deadline %}
+<div class="container mt-4">
+    <div class="countdown-container">
+        <div class="countdown-header">
+            <div class="countdown-title">
+                <i class="fas fa-hourglass-half countdown-icon"></i>
+                <h4>Filing of Candidacy Deadline</h4>
+            </div>
+            <p class="countdown-subtitle">
+                <i class="far fa-calendar-alt"></i>
+                {{ election_settings.candidacy_deadline|date:"F d, Y" }} at {{ election_settings.candidacy_deadline|date:"h:i A" }}
+            </p>
+        </div>
+        
+        <div id="countdown" class="countdown-grid">
+            <!-- Time units will be inserted here by JavaScript -->
+        </div>
+    </div>
+</div>
+
+<style>
+.countdown-container {
+    background: #ffffff;
+    border-radius: 20px;
+    padding: 2rem;
+    box-shadow: 
+        20px 20px 60px rgba(52, 114, 156, 0.2),
+        -20px -20px 60px rgba(255, 255, 255, 0.8);
+    position: relative;
+    overflow: hidden;
+}
+
+.countdown-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #34729C, #6CB1DA, #34729C);
+    background-size: 200% 100%;
+    animation: gradientMove 3s linear infinite;
+}
+
+@keyframes gradientMove {
+    0% { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+}
+
+.countdown-header {
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.countdown-title {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.countdown-icon {
+    font-size: 2rem;
+    color: #34729C;
+    animation: hourglassFlip 2s infinite;
+}
+
+@keyframes hourglassFlip {
+    0% { transform: rotate(0deg); }
+    50% { transform: rotate(180deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.countdown-title h4 {
+    color: #34729C;
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin: 0;
+}
+
+.countdown-subtitle {
+    color: #6c757d;
+    font-size: 1.1rem;
+    margin: 0;
+}
+
+.countdown-subtitle i {
+    margin-right: 0.5rem;
+    color: #34729C;
+}
+
+.countdown-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1.5rem;
+    padding: 1rem;
+}
+
+.countdown-unit {
+    background: #ffffff;
+    border-radius: 15px;
+    padding: 1.5rem;
+    text-align: center;
+    box-shadow: 
+        8px 8px 16px rgba(52, 114, 156, 0.15),
+        -8px -8px 16px rgba(255, 255, 255, 0.8);
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s ease;
+}
+
+.countdown-unit::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(145deg, #34729C, #6CB1DA);
+    opacity: 0.1;
+    transition: opacity 0.3s ease;
+}
+
+.countdown-unit:hover {
+    transform: translateY(-5px);
+}
+
+.countdown-unit:hover::before {
+    opacity: 0.2;
+}
+
+.countdown-number {
+    font-size: 3.5rem;
+    font-weight: 800;
+    color: #34729C;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    margin: 0;
+    line-height: 1;
+    position: relative;
+}
+
+.countdown-label {
+    color: #6c757d;
+    font-size: 1rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 0.5rem;
+    position: relative;
+}
+
+.countdown-ended {
+    background: linear-gradient(145deg, #dc3545, #ff6b6b);
+    color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    font-size: 2rem;
+    font-weight: 800;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3);
+    animation: pulseEnd 2s infinite;
+}
+
+@keyframes pulseEnd {
+    0% { transform: scale(1); box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3); }
+    50% { transform: scale(1.05); box-shadow: 0 15px 30px rgba(220, 53, 69, 0.4); }
+    100% { transform: scale(1); box-shadow: 0 10px 20px rgba(220, 53, 69, 0.3); }
+}
+</style>
+
+<script>
+// Set the date we're counting down to
+const countDownDate = new Date("{{ election_settings.candidacy_deadline|date:'Y-m-d H:i:s' }}").getTime();
+
+// Update the countdown every 1 second
+const countdownTimer = setInterval(function() {
+    // Get today's date and time
+    const now = new Date().getTime();
+    
+    // Find the distance between now and the countdown date
+    const distance = countDownDate - now;
+    
+    // Time calculations for days, hours, minutes and seconds
+    const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+    
+    // Create the countdown HTML
+    const countdownHTML = distance < 0 ? 
+        '<div class="countdown-ended"><i class="fas fa-clock me-3"></i>Filing of Candidacy Has Ended</div>' :
+        `
+        <div class="countdown-unit">
+            <p class="countdown-number">${String(days).padStart(2, '0')}</p>
+            <p class="countdown-label">Days</p>
+        </div>
+        <div class="countdown-unit">
+            <p class="countdown-number">${String(hours).padStart(2, '0')}</p>
+            <p class="countdown-label">Hours</p>
+        </div>
+        <div class="countdown-unit">
+            <p class="countdown-number">${String(minutes).padStart(2, '0')}</p>
+            <p class="countdown-label">Minutes</p>
+        </div>
+        <div class="countdown-unit">
+            <p class="countdown-number">${String(seconds).padStart(2, '0')}</p>
+            <p class="countdown-label">Seconds</p>
+        </div>
+        `;
+    
+    // Display the countdown
+    document.getElementById("countdown").innerHTML = countdownHTML;
+    
+    // If the countdown is finished, clear the interval
+    if (distance < 0) {
+        clearInterval(countdownTimer);
+    }
+}, 1000);
+</script>
+{% endif %}
+
+<!-- Features Section -->
+<div class="py-5" style="background-color: #D1ECFF;">
+    <div class="container">
+        <h2 class="text-center mb-5 fw-bold" style="color: #1E5470;">Negros Oriental State University</h2>
+        <div class="row g-4">
+            <!-- Feature 1 -->
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm" style="background-color: #CBEAEC;">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-graduation-cap fa-3x" style="color: #34729C;"></i>
+                        </div>
+                        <h4 class="card-title mb-3" style="color: #1E5470;">Mission</h4>
+                        <p class="card-text" style="color: #34729C;">Negros Oriental State University delivers global excellence through advanced instruction, impactful research, and sustainable extension, with strategic partnerships and modern infrastructure shaping effective leaders to serve the Philippine society and the world.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Feature 2 -->
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm" style="background-color: #CBEAEC;">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-lightbulb fa-3x" style="color: #34729C;"></i>
+                        </div>
+                        <h4 class="card-title mb-3" style="color: #1E5470;">Vision</h4>
+                        <p class="card-text" style="color: #34729C;">A globally recognized state university.</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Feature 3 -->
+            <div class="col-md-4">
+                <div class="card h-100 border-0 shadow-sm" style="background-color: #CBEAEC;">
+                    <div class="card-body text-center p-4">
+                        <div class="feature-icon mb-3">
+                            <i class="fas fa-star fa-3x" style="color: #34729C;"></i>
+                        </div>
+                        <h4 class="card-title mb-3" style="color: #1E5470;">Core Values</h4>
+                        <p class="card-text" style="color: #34729C;">𝐒pirituality
+                            𝐇onesty
+                            𝐈nnovation
+                            𝐍urturance
+                            𝐄xcellence</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Quick Links Section -->
+<div class="py-5" style="background-color: #CBEAEC;">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8 text-center">
+                <h2 class="mb-4 fw-bold" style="color: #1E5470;">Quick Links</h2>
+                <div class="d-grid gap-3">
+                    <a href="{% url 'candidates' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
+                        <i class="fas fa-list-alt me-2"></i>View All Candidates
+                    </a>
+                    <a href="{% url 'file_candidacy' %}" class="btn btn-lg" style="background-color: #6CB1DA; color: white;">
+                        <i class="fas fa-file-signature me-2"></i>File Your Candidacy
+                    </a>
+                    <a href="{% url 'results' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
+                        <i class="fas fa-chart-bar me-2"></i>View Election Results
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Election Timeline -->
+<div class="py-5" style="background-color: #D1ECFF;">
+    <div class="container">
+        <h2 class="text-center mb-5 fw-bold" style="color: #1E5470;">Election Timeline</h2>
+        <div class="row">
+            <div class="col-md-12">
+                <div class="timeline">
+                    <div class="card border-0 shadow-sm mb-3" style="background-color: #CBEAEC;">
+                        <div class="card-body">
+                            <h5 class="card-title" style="color: #34729C;">Filing of Candidacy</h5>
+                            <p class="card-text">March 1-15, 2024</p>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-sm mb-3" style="background-color: #CBEAEC;">
+                        <div class="card-body">
+                            <h5 class="card-title" style="color: #34729C;">Campaign Period</h5>
+                            <p class="card-text">March 16-31, 2024</p>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-sm mb-3" style="background-color: #CBEAEC;">
+                        <div class="card-body">
+                            <h5 class="card-title" style="color: #34729C;">Election Day</h5>
+                            <p class="card-text">April 1, 2024</p>
+                        </div>
+                    </div>
+                    <div class="card border-0 shadow-sm" style="background-color: #CBEAEC;">
+                        <div class="card-body">
+                            <h5 class="card-title" style="color: #34729C;">Results Announcement</h5>
+                            <p class="card-text">April 2, 2024</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.text-white-75 {
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.feature-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: #D1ECFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.timeline .card {
+    border-left: 4px solid #34729C;
+    margin-left: 20px;
+}
+
+.card {
+    transition: transform 0.2s ease-in-out;
+}
+
+.card:hover {
+    transform: translateY(-5px);
+}
+
+.btn {
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+</style>
+{% endblock %}

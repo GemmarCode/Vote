@@ -1,0 +1,121 @@
+{% extends 'admin_base.html' %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 style="color: #34729C;">Manage Elections</h1>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="admin-card">
+        <div class="card-body p-4">
+            <h5 class="mb-4" style="color: #34729C;">
+                <i class="fas fa-clock me-2"></i>Election Timeline Settings
+            </h5>
+
+            <form method="POST" class="needs-validation" novalidate>
+                {% csrf_token %}
+                
+                <!-- Candidacy Filing Deadline -->
+                <div class="mb-4">
+                    <label for="candidacy_deadline" class="form-label">Candidacy Filing Deadline</label>
+                    <input type="datetime-local" 
+                           class="form-control" 
+                           id="candidacy_deadline" 
+                           name="candidacy_deadline"
+                           value="{{ settings.candidacy_deadline|date:'Y-m-d\TH:i' }}"
+                           required>
+                    <div class="form-text">Current status: 
+                        {% if settings.is_candidacy_open %}
+                            <span class="badge bg-success">Open</span>
+                        {% else %}
+                            <span class="badge bg-danger">Closed</span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Voting Period -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label for="voting_start" class="form-label">Voting Start Date</label>
+                        <input type="datetime-local" 
+                               class="form-control" 
+                               id="voting_start" 
+                               name="voting_start"
+                               value="{{ settings.voting_start|date:'Y-m-d\TH:i' }}"
+                               required>
+                    </div>
+                    <div class="col-md-6">
+                        <label for="voting_end" class="form-label">Voting End Date</label>
+                        <input type="datetime-local" 
+                               class="form-control" 
+                               id="voting_end" 
+                               name="voting_end"
+                               value="{{ settings.voting_end|date:'Y-m-d\TH:i' }}"
+                               required>
+                    </div>
+                    <div class="col-12 mt-2">
+                        <div class="form-text">Voting status: 
+                            {% if settings.is_voting_open %}
+                                <span class="badge bg-success">Open</span>
+                            {% else %}
+                                <span class="badge bg-danger">Closed</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Save Settings
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-card {
+    background: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    border: 1px solid rgba(52, 114, 156, 0.1);
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.form-control {
+    background: rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(52, 114, 156, 0.1);
+    border-radius: 8px;
+}
+
+.form-control:focus {
+    background: white;
+    border-color: #34729C;
+    box-shadow: 0 0 0 0.2rem rgba(52, 114, 156, 0.25);
+}
+</style>
+
+<script>
+// Form validation
+(function () {
+    'use strict'
+    var forms = document.querySelectorAll('.needs-validation')
+    Array.prototype.slice.call(forms).forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            if (!form.checkValidity()) {
+                event.preventDefault()
+                event.stopPropagation()
+            }
+            form.classList.add('was-validated')
+        }, false)
+    })
+})()
+</script>
+{% endblock %} 

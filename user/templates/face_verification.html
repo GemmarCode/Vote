@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <div class="card shadow">
+                <div class="card-header text-white text-center py-4" style="background-color: #34729C;">
+                    <h3 class="mb-0">Face Verification Required</h3>
+                </div>
+                <div class="card-body p-4">
+                    {% if messages %}
+                        {% for message in messages %}
+                            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                                {{ message }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                    
+                    <div class="text-center mb-4">
+                        <p class="lead">Please verify your identity using face recognition to access voting.</p>
+                    </div>
+
+                    <div class="text-center mb-4">
+                        <video id="webcam" class="rounded-3 shadow-sm" width="100%" autoplay playsinline style="transform: scaleX(-1);"></video>
+                        <canvas id="canvas" style="display: none;"></canvas>
+                    </div>
+
+                    <form id="verificationForm" method="POST" class="text-center">
+                        {% csrf_token %}
+                        <input type="hidden" name="face_data" id="face_data">
+                        <button type="button" id="captureBtn" class="btn btn-lg text-white mb-3" style="background-color: #34729C;">
+                            <i class="fas fa-camera me-2"></i>Capture and Verify
+                        </button>
+                    </form>
+                </div>
+                <div class="card-footer bg-light text-center py-3">
+                    <div class="text-muted">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Make sure your face is clearly visible and well-lit
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('webcam');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('captureBtn');
+    const form = document.getElementById('verificationForm');
+    const faceDataInput = document.getElementById('face_data');
+
+    // Access webcam
+    navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'  // Use front camera
+        } 
+    })
+    .then(stream => {
+        video.srcObject = stream;
+    })
+    .catch(err => {
+        console.error("Error accessing webcam:", err);
+        alert("Error accessing webcam. Please make sure you have granted camera permissions.");
+    });
+
+    // Capture and submit
+    captureBtn.addEventListener('click', function() {
+        // Set canvas size to match video
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        // Get the canvas context
+        const ctx = canvas.getContext('2d');
+        
+        // Flip the context horizontally
+        ctx.scale(-1, 1);
+        ctx.translate(-canvas.width, 0);
+        
+        // Draw the video frame
+        ctx.drawImage(video, 0, 0);
+        
+        // Reset transform
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        
+        // Convert to base64
+        const imageData = canvas.toDataURL('image/jpeg');
+        faceDataInput.value = imageData;
+        
+        // Submit the form
+        form.submit();
+    });
+});
+</script>
+
+<style>
+.card {
+    border: none;
+    border-radius: 15px;
+}
+
+.card-header {
+    border-radius: 15px 15px 0 0 !important;
+}
+
+.card-footer {
+    border-radius: 0 0 15px 15px !important;
+    border-top: 1px solid rgba(0,0,0,0.05);
+}
+
+#webcam {
+    width: 100%;
+    max-width: 500px;
+    border-radius: 10px;
+}
+
+.btn:hover {
+    background-color: #2c6185 !important;
+}
+
+.alert {
+    border-radius: 10px;
+}
+</style>
+{% endblock %} 

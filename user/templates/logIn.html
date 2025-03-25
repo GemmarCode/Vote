@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="min-vh-100 d-flex align-items-center" style="background-color: #D1ECFF;">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow-lg border-0">
+                    <div class="card-header text-center py-4" style="background: linear-gradient(135deg, #34729C, #6CB1DA);">
+                        <h2 class="text-white mb-0">Face Recognition Login</h2>
+                    </div>
+                    <div class="card-body p-4">
+                        {% if messages %}
+                            {% for message in messages %}
+                                <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+                                    {{ message }}
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+
+                        <form method="POST" id="loginForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="face_login" value="1">
+                            <input type="hidden" name="face_data" id="face_data">
+                            
+                            <div class="text-center mb-4">
+                                <div id="camera-container" class="mx-auto" style="width: 400px; height: 300px; border-radius: 10px; overflow: hidden; background-color: #f8f9fa;">
+                                    <video id="video" width="400" height="300" autoplay playsinline style="transform: scaleX(-1);"></video>
+                                    <canvas id="canvas" width="400" height="300" style="display: none;"></canvas>
+                                </div>
+                                <p class="text-muted mt-2">Please position your face in the camera view</p>
+                            </div>
+
+                            <div class="d-grid gap-2">
+                                <button type="button" id="captureBtn" class="btn btn-lg" style="background-color: #34729C; color: white;">
+                                    <i class="fas fa-camera me-2"></i>Capture and Login
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureBtn = document.getElementById('captureBtn');
+    const loginForm = document.getElementById('loginForm');
+    const faceDataInput = document.getElementById('face_data');
+    
+    // Access webcam
+    navigator.mediaDevices.getUserMedia({ video: true })
+        .then(stream => {
+            video.srcObject = stream;
+        })
+        .catch(err => {
+            console.error("Error accessing webcam:", err);
+            alert("Error accessing webcam. Please make sure your camera is connected and you have granted permission to use it.");
+        });
+    
+    // Capture and submit
+    captureBtn.addEventListener('click', function() {
+        // Draw video frame to canvas
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        
+        // Get image data
+        const imageData = canvas.toDataURL('image/jpeg');
+        faceDataInput.value = imageData;
+        
+        // Submit form
+        loginForm.submit();
+    });
+});
+</script>
+{% endblock %}

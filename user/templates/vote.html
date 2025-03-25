@@ -1,0 +1,319 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+<!-- Face Verification Modal -->
+<div class="modal fade" id="faceVerificationModal" data-bs-backdrop="static" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="background-color: #CBEAEC;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #34729C, #6CB1DA);">
+                <h5 class="modal-title text-white">
+                    <i class="fas fa-camera me-2"></i>Face Verification Required
+                </h5>
+                <a href="{% url 'home' %}" class="btn-close btn-close-white" id="closeModalBtn" aria-label="Close" onclick="stopCamera()"></a>
+            </div>
+            <div class="modal-body text-center">
+                <div class="mb-3">
+                    <div id="camera-container" class="rounded overflow-hidden mx-auto" 
+                         style="max-width: 400px; background-color: #D1ECFF;">
+                        <video id="video" class="w-100" playsinline autoplay style="transform: scaleX(-1);"></video>
+                        <canvas id="canvas" class="d-none"></canvas>
+                    </div>
+                </div>
+                <p class="text-muted mb-3">Please position your face in the camera for verification</p>
+                <div id="verification-status" class="alert d-none"></div>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'home' %}" id="backButton" class="btn btn-lg flex-grow-1" style="background-color: #6CB1DA; color: white;" onclick="stopCamera()">
+                        <i class="fas fa-arrow-left me-2"></i>Back
+                    </a>
+                    <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #34729C; color: white;">
+                        <i class="fas fa-check-circle me-2"></i>Verify Identity
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Voting Content (initially hidden) -->
+<div id="votingContent" class="d-none">
+    <div class="bg-gradient py-4" style="background: linear-gradient(135deg, #34729C, #6CB1DA);">
+        <div class="container">
+            <h1 class="text-center text-white mb-0 fw-bold">Cast Your Vote</h1>
+        </div>
+    </div>
+
+    <div class="container-fluid py-5" style="background-color: #D1ECFF;">
+        <!-- Universal National Positions -->
+        <div class="mb-5">
+            <div class="d-flex align-items-center mb-4">
+                <h2 class="mb-0 fw-bold" style="color: #1E5470;">National Positions</h2>
+                <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #6EC1D1;"></div>
+            </div>
+            
+            {% for position, candidates in national_candidates.items %}
+            {% if position == 'President' or position == 'Vice President' or position == 'Secretary' or position == 'Treasurer' or position == 'Auditor' or position == 'Public Information Officer' or position == 'Representative' %}
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h3 class="card-title mb-0 text-white">{{ position }}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for candidate in candidates %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" 
+                                                 class="rounded-circle" 
+                                                 style="width: 120px; height: 120px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center"
+                                                 style="width: 120px; height: 120px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user fa-3x" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <h5 class="mb-1">{{ candidate.user.get_full_name }}</h5>
+                                    <p class="text-muted mb-2">{{ candidate.college }}</p>
+                                    <button class="btn w-100 vote-btn" 
+                                            data-candidate-id="{{ candidate.id }}"
+                                            style="background-color: #34729C; color: white;">
+                                        <i class="fas fa-vote-yea me-2"></i>Vote
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- College-Specific National Positions -->
+        <div class="mb-5">
+            <div class="d-flex align-items-center mb-4">
+                <h2 class="mb-0 fw-bold" style="color: #1E5470;">College Positions</h2>
+                <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #6EC1D1;"></div>
+            </div>
+            
+            {% for position, candidates in national_candidates.items %}
+            {% if position == 'Governor' or position == 'Vice Governor' or position == 'Secretary (College)' or position == 'Treasurer (College)' or position == 'Auditor (College)' or position == 'Public Information Officer (College)' %}
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h3 class="card-title mb-0 text-white">{{ position }}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for candidate in candidates %}
+                        {% if candidate.college == user.userprofile.college %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" 
+                                                 class="rounded-circle" 
+                                                 style="width: 120px; height: 120px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center"
+                                                 style="width: 120px; height: 120px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user fa-3x" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <h5 class="mb-1">{{ candidate.user.get_full_name }}</h5>
+                                    <p class="text-muted mb-2">{{ candidate.college }}</p>
+                                    <button class="btn w-100 vote-btn" 
+                                            data-candidate-id="{{ candidate.id }}"
+                                            style="background-color: #34729C; color: white;">
+                                        <i class="fas fa-vote-yea me-2"></i>Vote
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Department and Year Level Specific Positions -->
+        <div>
+            <div class="d-flex align-items-center mb-4">
+                <h2 class="mb-0 fw-bold" style="color: #1E5470;">Department Positions</h2>
+                <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #6EC1D1;"></div>
+            </div>
+            
+            {% for position, candidates in local_candidates.items %}
+            <div class="card mb-4" style="background-color: #CBEAEC;">
+                <div class="card-header py-3" style="background-color: #34729C;">
+                    <h3 class="card-title mb-0 text-white">{{ position }}</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for candidate in candidates %}
+                        {% if candidate.department == user.userprofile.department and candidate.year_level == user.userprofile.year_level %}
+                        <div class="col-md-4 mb-3">
+                            <div class="card h-100 border-0 shadow-sm">
+                                <div class="card-body text-center">
+                                    <div class="mb-3">
+                                        {% if candidate.photo %}
+                                            <img src="{{ candidate.photo.url }}" 
+                                                 class="rounded-circle" 
+                                                 style="width: 120px; height: 120px; object-fit: cover;">
+                                        {% else %}
+                                            <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center"
+                                                 style="width: 120px; height: 120px; background-color: #D1ECFF;">
+                                                <i class="fas fa-user fa-3x" style="color: #34729C;"></i>
+                                            </div>
+                                        {% endif %}
+                                    </div>
+                                    <h5 class="mb-1">{{ candidate.user.get_full_name }}</h5>
+                                    <p class="text-muted mb-2">{{ candidate.college }}</p>
+                                    <p class="small mb-3">{{ candidate.department }} - Year {{ candidate.year_level }}</p>
+                                    <button class="btn w-100 vote-btn" 
+                                            data-candidate-id="{{ candidate.id }}"
+                                            style="background-color: #34729C; color: white;">
+                                        <i class="fas fa-vote-yea me-2"></i>Vote
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let video = null;
+let canvas = null;
+let stream = null;
+let isVerified = false;
+
+// Define stopCamera as a global function so it can be called from onclick
+function stopCamera() {
+    console.log('Stopping camera');
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
+}
+
+// Show face verification modal on page load
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
+    modal.show();
+    initializeCamera();
+});
+
+// Initialize camera
+async function initializeCamera() {
+    try {
+        video = document.getElementById('video');
+        canvas = document.getElementById('canvas');
+        stream = await navigator.mediaDevices.getUserMedia({ 
+            video: {
+                width: { ideal: 640 },
+                height: { ideal: 480 }
+            }
+        });
+        video.srcObject = stream;
+    } catch (err) {
+        console.error('Error accessing camera:', err);
+        showVerificationStatus('Error accessing camera. Please ensure camera permissions are granted.', 'danger');
+    }
+}
+
+// Handle verification button click
+document.getElementById('verifyButton').addEventListener('click', async function() {
+    try {
+        const verificationStatus = document.getElementById('verification-status');
+        verificationStatus.classList.remove('d-none');
+        verificationStatus.className = 'alert alert-info';
+        verificationStatus.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+
+        // Capture current frame
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext('2d');
+        
+        // Draw the video frame to match the mirrored display
+        ctx.scale(-1, 1);
+        ctx.drawImage(video, -canvas.width, 0);
+        ctx.scale(-1, 1); // Reset scale
+        
+        const imageData = canvas.toDataURL('image/jpeg', 1.0);
+
+        // Send to server for verification
+        const response = await fetch('/api/verify-face/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({ 
+                face_data: imageData,
+                type: 'verify'
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.verified === 'true') {  // Check for string 'true'
+            verificationStatus.className = 'alert alert-success';
+            verificationStatus.innerHTML = '<i class="fas fa-check-circle me-2"></i>Verification successful!';
+            isVerified = true;
+            
+            // Stop camera and hide modal after 1 second
+            setTimeout(() => {
+                stopCamera();
+                bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal')).hide();
+                document.getElementById('votingContent').classList.remove('d-none');
+            }, 1000);
+        } else {
+            let errorMessage = result.message || 'Verification failed. Please try again.';
+            showVerificationStatus(errorMessage, 'danger');
+        }
+    } catch (err) {
+        console.error('Error during verification:', err);
+        showVerificationStatus('Error during verification. Please try again.', 'danger');
+    }
+});
+
+function showVerificationStatus(message, type) {
+    const status = document.getElementById('verification-status');
+    status.classList.remove('d-none');
+    status.className = `alert alert-${type}`;
+    status.innerHTML = message;
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %} 
