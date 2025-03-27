@@ -21,6 +21,7 @@ from django.utils import timezone
 from datetime import timedelta
 import os
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 
 LOGIN_URL = 'login'  # or whatever your login URL name is
 
@@ -35,77 +36,6 @@ def home_view(request):
         'election_settings': election_settings
     }
     return render(request, 'mainpage.html', context)
-
-def login_view(request):
-    if request.method == 'POST':
-        # Only handle face login
-        face_data = request.POST.get('face_data')
-        if not face_data:
-            messages.error(request, 'No face data received. Please try again.')
-            return redirect('login')
-
-        try:
-            print("\n=== Starting Face Login Process ===")
-            
-            # Process the captured image
-            captured_face = process_webcam_image(face_data)
-            
-            if captured_face is not None:
-                print("Successfully processed login image")
-                print(f"Captured face shape: {captured_face.shape}")
-                
-                # Get all users with face data
-                user_profiles = UserProfile.objects.filter(face_data__isnull=False).all()
-                print(f"Found {len(list(user_profiles))} users with face data")
-                
-                # Try to match with stored face data
-                matched_user = None
-                highest_similarity = 0
-                
-                for profile in user_profiles:
-                    stored_face = profile.get_face_data()
-                    if stored_face is not None:
-                        # Calculate similarity between captured face and stored face
-                        similarity = calculate_face_similarity(captured_face, stored_face)
-                        print(f"Similarity with {profile.user.username}: {similarity}")
-                        
-                        # Update if this is the best match so far
-                        if similarity > highest_similarity and similarity > 0.8:  # 80% similarity threshold
-                            highest_similarity = similarity
-                            matched_user = profile.user
-                
-                if matched_user:
-                    print(f"Matched user: {matched_user.username}")
-                    
-                    # Check if user is active
-                    if not matched_user.is_active:
-                        messages.error(request, 'Your account is not active. Please contact the administrator.')
-                        return redirect('login')
-                    
-                    # Log the user in
-                    login(request, matched_user)
-                    messages.success(request, f'Welcome back, {matched_user.first_name}!')
-                    
-                    # Redirect based on user type
-                    if matched_user.is_superuser:
-                        return redirect('admin_panel:dashboard')
-                    else:
-                        return redirect('home')
-                else:
-                    messages.error(request, 'Face not recognized. Please try again.')
-            else:
-                messages.error(request, 'Could not process face image. Please try again.')
-        
-        except Exception as e:
-            print(f"Login error: {str(e)}")
-            print(traceback.format_exc())  # Full error traceback
-            messages.error(request, 'An error occurred during face recognition. Please try again.')
-    
-    return render(request, 'login.html')
-
-def logout_view(request):
-    logout(request)
-    return redirect('login')
 
 def candidates_view(request):
     # Get only approved candidates
@@ -122,17 +52,17 @@ def candidates_view(request):
     # First, handle national candidates
     national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
     for candidate in all_candidates.filter(position__in=national_positions):
-        position_name = position_names.get(candidate.position, candidate.position)
-        if position_name not in national_candidates:
-            national_candidates[position_name] = []
-        national_candidates[position_name].append(candidate)
+            position_name = position_names.get(candidate.position, candidate.position)
+            if position_name not in national_candidates:
+                national_candidates[position_name] = []
+            national_candidates[position_name].append(candidate)
     
     # Then, organize local candidates by college
     local_positions = [pos[0] for pos in Candidate.LOCAL_POSITIONS]
     for college_code, college_name in UserProfile.COLLEGES:
         college_candidates[college_name] = {}
         college_local_candidates = all_candidates.filter(
-            college=college_code,
+            college=college_code, 
             position__in=local_positions
         )
         
@@ -203,127 +133,6 @@ def results_view(request):
     }
     
     return render(request, 'results.html', context)
-
-def file_candidacy(request):
-    try:
-        user_profile = UserProfile.objects.get(user=request.user)
-        
-        initial_data = {
-            'first_name': request.user.first_name,
-            'last_name': request.user.last_name,
-            'student_id': user_profile.student_id,
-            'college': user_profile.college,
-            'department': user_profile.department,
-            'year_level': user_profile.year_level,
-            'gender': user_profile.gender,
-            'age': user_profile.age,
-            'contact_number': user_profile.contact_number,
-            'get_college_display': dict(UserProfile.COLLEGES).get(user_profile.college, user_profile.college)
-        }
-        
-        if request.method == 'POST':
-            # Get form data
-            position = request.POST.get('position')
-            platform = request.POST.get('platform')
-            achievements = request.POST.get('achievements')
-            photo = request.FILES.get('photo')
-
-            # Validate required fields
-            if not all([position, platform]):
-                messages.error(request, "Please fill all required fields")
-                return render(request, 'file_candidacy.html', {'initial_data': initial_data})
-
-            # Create new candidate (not approved by default)
-            candidate = Candidate.objects.create(
-                user=request.user,
-                position=position.upper(),  # Store the position code in uppercase
-                college=user_profile.college,
-                department=user_profile.department,
-                year_level=user_profile.year_level,
-                platform=platform,
-                photo=photo,
-                achievements=achievements if achievements else None,
-                approved=False  # Set to False by default
-            )
-
-            messages.success(request, "Your candidacy has been filed successfully! Please wait for admin approval.")
-            return redirect('candidates')
-
-        return render(request, 'file_candidacy.html', {'initial_data': initial_data})
-        
-    except UserProfile.DoesNotExist:
-        messages.error(request, 'User profile not found. Please complete registration first.')
-        return redirect('home')
-    except Exception as e:
-        messages.error(request, f'Error: {str(e)}')
-        return redirect('home')
-
-def profile_settings(request):
-    user_profile = UserProfile.objects.get(user=request.user)
-    try:
-        candidate = Candidate.objects.get(user=request.user)
-        is_candidate = True
-    except Candidate.DoesNotExist:
-        candidate = None
-        is_candidate = False
-    
-    if request.method == 'POST':
-        if 'update_profile' in request.POST:
-            try:
-                # Update User model fields
-                request.user.first_name = request.POST.get('first_name')
-                request.user.last_name = request.POST.get('last_name')
-                request.user.email = request.POST.get('email')
-                request.user.save()
-                
-                # Update UserProfile fields
-                user_profile.student_id = request.POST.get('student_id')
-                user_profile.college = request.POST.get('college')
-                user_profile.department = request.POST.get('department')
-                user_profile.year_level = request.POST.get('year_level')
-                user_profile.gender = request.POST.get('gender')
-                
-                # Convert age to integer and validate
-                try:
-                    age = int(request.POST.get('age', '0'))
-                    if 16 <= age <= 99:  # Validate age range
-                        user_profile.age = age
-                    else:
-                        raise ValueError("Age must be between 16 and 99")
-                except ValueError as e:
-                    raise ValueError("Invalid age value. Please enter a number between 16 and 99.")
-                
-                user_profile.contact_number = request.POST.get('contact_number')
-                
-                # Handle profile picture upload
-                if 'profile_picture' in request.FILES:
-                    user_profile.profile_picture = request.FILES['profile_picture']
-                
-                user_profile.save()
-                messages.success(request, 'Profile updated successfully!')
-                
-            except ValueError as e:
-                messages.error(request, str(e))
-            except Exception as e:
-                messages.error(request, f'Error updating profile: {str(e)}')
-                
-        elif 'withdraw_candidacy' in request.POST:
-            try:
-                if candidate:
-                    candidate.delete()
-                    messages.success(request, 'Your candidacy has been withdrawn successfully.')
-                    is_candidate = False
-            except Exception as e:
-                messages.error(request, f'Error withdrawing candidacy: {str(e)}')
-                
-        return redirect('profile_settings')
-    
-    context = {
-        'user_profile': user_profile,
-        'is_candidate': is_candidate,
-        'candidate': candidate
-    }
-    return render(request, 'profile_settings.html', context)
 
 def voting_view(request):
     if request.method == 'POST':
@@ -409,7 +218,7 @@ def voting_view(request):
                             return redirect('admin_panel:dashboard')
                         else:
                             print("🏠 Redirecting to home")
-                            return redirect('home')
+                            return redirect('mainpage')
                     except UserProfile.DoesNotExist:
                         print("❌ No UserProfile found for student ID:", best_match_student_id)
                         messages.error(request, 'No matching user account found.')
@@ -431,73 +240,104 @@ def voting_view(request):
     # If GET request or verification failed, show the face verification form
     return render(request, 'face_verification.html')
 
+@login_required
 def verify_face(request):
     if request.method == 'POST':
         try:
-            # Get the captured image data
-            image_data = request.POST.get('imageData')
-            captured_face = process_webcam_image(image_data)
+            data = json.loads(request.body)
+            face_data = data.get('face_data')
+            verification_type = data.get('type', 'verify')
+
+            if not face_data:
+                return JsonResponse({
+                    'verified': 'false',
+                    'message': 'No face data provided'
+                })
+
+            # Process the face data
+            captured_face = process_webcam_image(face_data)
             
-            # Get all face images from the face_data directory
-            best_match_score = 0
-            best_match_student_id = None
-            
-            # Loop through all images in the face_data directory
-            for filename in os.listdir(settings.FACE_DATA_DIR):
-                if filename.endswith(('.jpg', '.jpeg', '.png')):
-                    # Extract student ID from filename (e.g., "2021001.jpg" -> "2021001")
-                    student_id = os.path.splitext(filename)[0]
+            if captured_face is not None:
+                # Get the user's stored face data
+                user_profile = UserProfile.objects.get(user=request.user)
+                
+                if not user_profile.face_data:
+                    return JsonResponse({
+                        'verified': 'false',
+                        'message': 'No face data found for your account. Please contact the administrator.'
+                    })
+
+                # Convert stored face data to bytes if it's not already
+                stored_face_data = user_profile.face_data
+                if isinstance(stored_face_data, str):
+                    stored_face_data = stored_face_data.encode('utf-8')
+
+                # Compare faces with enhanced 3D verification
+                if compare_faces(captured_face, stored_face_data):
+                    # Additional 3D verification checks
+                    face_mesh = cv2.FaceDetectorYN.create(
+                        "face_detection_yunet_2023mar.onnx",
+                        "",
+                        (320, 320),
+                        0.9,
+                        0.3,
+                        5000
+                    )
                     
-                    # Load and process the stored face image
-                    stored_face_path = os.path.join(settings.FACE_DATA_DIR, filename)
-                    stored_face = cv2.imread(stored_face_path, cv2.IMREAD_GRAYSCALE)
-                    stored_face = cv2.resize(stored_face, (200, 200))
+                    # Detect 3D landmarks
+                    _, faces = face_mesh.detect(captured_face)
                     
-                    # Calculate similarity
-                    similarity = calculate_face_similarity(captured_face, stored_face)
-                    
-                    # Update best match if this is the highest similarity so far
-                    if similarity > best_match_score:
-                        best_match_score = similarity
-                        best_match_student_id = student_id
-            
-            # If we found a match above the threshold
-            if best_match_score >= 0.8:  # 80% similarity threshold
-                try:
-                    # Get the user profile with matching student ID
-                    user_profile = UserProfile.objects.get(student_id=best_match_student_id)
-                    user = user_profile.user
-                    
-                    # Check if user is active
-                    if user.is_active:
-                        # Log the user in
-                        login(request, user)
-                        # Store verification status in session
-                        request.session['face_verified'] = True
-                        return JsonResponse({'success': True})
+                    if faces is not None and len(faces) > 0:
+                        # Extract 3D landmarks
+                        landmarks = faces[0][4:].reshape(-1, 3)
+                        
+                        # Calculate face orientation
+                        nose_tip = landmarks[4]
+                        left_eye = landmarks[1]
+                        right_eye = landmarks[0]
+                        
+                        # Check if face is relatively straight
+                        eye_line = np.linalg.norm(right_eye - left_eye)
+                        nose_offset = abs(nose_tip[2] - (left_eye[2] + right_eye[2]) / 2)
+                        
+                        if nose_offset < eye_line * 0.1:  # Face is relatively straight
+                            return JsonResponse({
+                                'verified': 'true',
+                                'message': 'Face verification successful'
+                            })
+                        else:
+                            return JsonResponse({
+                                'verified': 'false',
+                                'message': 'Please look straight at the camera'
+                            })
                     else:
                         return JsonResponse({
-                            'success': False,
-                            'error': 'User account is not active'
+                            'verified': 'false',
+                            'message': 'Could not detect 3D face landmarks'
                         })
-                except UserProfile.DoesNotExist:
+                else:
                     return JsonResponse({
-                        'success': False,
-                        'error': 'No matching user found'
+                        'verified': 'false',
+                        'message': 'Face verification failed. Please try again.'
                     })
             else:
                 return JsonResponse({
-                    'success': False,
-                    'error': 'Face verification failed - no match found'
+                    'verified': 'false',
+                    'message': 'No face detected in the image'
                 })
-                
+        
         except Exception as e:
+            print(f"Face verification error: {str(e)}")
+            print(traceback.format_exc())
             return JsonResponse({
-                'success': False,
-                'error': f'An error occurred during face recognition: {str(e)}'
+                'verified': 'false',
+                'message': 'An error occurred during face verification'
             })
-    
-    return render(request, 'face_verification.html')
+
+    return JsonResponse({
+        'verified': 'false',
+        'message': 'Invalid request method'
+    })
 
 def cast_vote(request, candidate_id):
     # Check if face is verified
@@ -553,7 +393,6 @@ def admin_dashboard(request):
     }
     
     return render(request, 'admin/admin_dashboard.html', context)
-
 def admin_panel_login(request):
     # Always logout any existing session when accessing admin login
     logout(request)

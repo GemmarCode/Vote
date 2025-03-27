@@ -7,7 +7,7 @@ from django.contrib import messages
 from django.db.models import Count
 from django.utils import timezone
 from .models import AdminActivity
-from django.contrib.auth import get_user_model
+from django.contrib.auth import get_user_model, authenticate, login, logout
 from django.db.models.functions import TruncHour
 from datetime import timedelta, datetime
 import json
@@ -146,47 +146,43 @@ def process_face_photo(photo_file, student_id):
         temp_path = default_storage.save(f'temp/{photo_file.name}', ContentFile(photo_file.read()))
         temp_file = os.path.join(settings.MEDIA_ROOT, temp_path)
         
-        # Read the image
-        img = cv2.imread(temp_file)
+        # Read the image with high quality
+        img = cv2.imread(temp_file, cv2.IMREAD_UNCHANGED)
         if img is None:
             raise ValueError("Could not read image file")
         
-        # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Resize to standard size (200x200)
-        face_data = cv2.resize(gray, (200, 200))
-        
-        # Save processed face data
+        # Save original photo with high quality
         face_path = os.path.join('face_data', f'{student_id}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), face_data)
+        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), img, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        
+        # Convert to grayscale and normalize
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
         
         # Clean up temp file
         os.remove(temp_file)
         
-        return face_data.tobytes()
+        return gray.tobytes()
     except Exception as e:
         raise ValueError(f"Error processing photo: {str(e)}")
 
 def process_photo_from_path(photo_path, student_id):
     """Process photo from a file path and convert it to face data"""
     try:
-        # Read the image
-        img = cv2.imread(photo_path)
+        # Read the image with high quality
+        img = cv2.imread(photo_path, cv2.IMREAD_UNCHANGED)
         if img is None:
             raise ValueError("Could not read image file")
         
-        # Convert to grayscale
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        
-        # Resize to standard size (200x200)
-        face_data = cv2.resize(gray, (200, 200))
-        
-        # Save processed face data
+        # Save original photo with high quality
         face_path = os.path.join('face_data', f'{student_id}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), face_data)
+        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), img, [cv2.IMWRITE_JPEG_QUALITY, 100])
         
-        return face_data.tobytes()
+        # Convert to grayscale and normalize
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+        
+        return gray.tobytes()
     except Exception as e:
         raise ValueError(f"Error processing photo: {str(e)}")
 
@@ -382,28 +378,8 @@ def results(request):
 def import_users(request):
     if request.method == 'POST' and request.FILES.get('excel_file'):
         excel_file = request.FILES['excel_file']
-        photos_zip = request.FILES.get('photos_zip')
-        
-        # Create a temporary directory for extracting ZIP file
-        temp_dir = None
-        photo_dict = {}
         
         try:
-            if photos_zip:
-                # Create temporary directory
-                temp_dir = tempfile.mkdtemp()
-                
-                # Extract ZIP file
-                with zipfile.ZipFile(photos_zip, 'r') as zip_ref:
-                    zip_ref.extractall(temp_dir)
-                
-                # Create dictionary of photos by student ID
-                for root, dirs, files in os.walk(temp_dir):
-                    for file in files:
-                        if file.lower().endswith(('.jpg', '.jpeg', '.png')):
-                            student_id = Path(file).stem  # Get filename without extension
-                            photo_dict[student_id] = os.path.join(root, file)
-            
             # Read the Excel file
             df = pd.read_excel(excel_file)
             
@@ -455,21 +431,10 @@ def import_users(request):
                             error_count += 1
                             continue
                         
-                        # Process photo if available
-                        face_data = None
-                        student_id = str(row['student_id'])
-                        if student_id in photo_dict:
-                            try:
-                                face_data = process_photo_from_path(photo_dict[student_id], student_id)
-                            except ValueError as e:
-                                errors.append(f"Row {index + 2}: Error processing photo: {str(e)}")
-                                error_count += 1
-                                continue
-                        
                         # Create user
                         user = User.objects.create_user(
-                            username=student_id,
-                            password=student_id,  # Default password is the student ID
+                            username=str(row['student_id']),
+                            password=str(row['student_id']),  # Default password is the student ID
                             first_name=row['student_name'],
                             is_active=False
                         )
@@ -477,14 +442,14 @@ def import_users(request):
                         # Create user profile
                         UserProfile.objects.create(
                             user=user,
-                            student_id=student_id,
+                            student_id=str(row['student_id']),
                             college=row['college'],
                             department=row['course'],  # Using course as department
                             year_level=str(year_level),  # Convert to string since the model expects string
                             gender=row['sex'],  # Using sex as gender
                             age=18,  # Default age
                             contact_number='N/A',  # Default contact number
-                            face_data=face_data
+                            face_data=None  # Will be updated later with photo import
                         )
                         
                         created_count += 1
@@ -511,13 +476,114 @@ def import_users(request):
                     messages.error(request, error)
             
         except Exception as e:
-            messages.error(request, f'Error processing files: {str(e)}')
+            messages.error(request, f'Error processing Excel file: {str(e)}')
+        
+        return redirect('admin_panel:manage_users')
+    
+    return redirect('admin_panel:register_user')
+
+@login_required
+@user_passes_test(is_admin)
+def import_photos(request):
+    if request.method == 'POST' and request.FILES.get('photos_zip'):
+        photos_zip = request.FILES['photos_zip']
+        temp_dir = None
+        
+        try:
+            # Create temporary directory
+            temp_dir = tempfile.mkdtemp()
+            
+            # Extract ZIP file
+            with zipfile.ZipFile(photos_zip, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # Initialize counters
+            processed_count = 0
+            error_count = 0
+            errors = []
+            
+            # Process each photo in the extracted directory
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        try:
+                            student_id = Path(file).stem  # Get filename without extension
+                            photo_path = os.path.join(root, file)
+                            
+                            # Check if user exists
+                            try:
+                                user = User.objects.get(username=student_id)
+                                user_profile = UserProfile.objects.get(user=user)
+                                
+                                # Process and save the photo
+                                face_data = process_photo_from_path(photo_path, student_id)
+                                user_profile.face_data = face_data
+                                user_profile.save()
+                                
+                                processed_count += 1
+                                
+                            except User.DoesNotExist:
+                                errors.append(f"Photo '{file}': User with ID '{student_id}' not found")
+                                error_count += 1
+                                continue
+                            except UserProfile.DoesNotExist:
+                                errors.append(f"Photo '{file}': User profile for ID '{student_id}' not found")
+                                error_count += 1
+                                continue
+                            except ValueError as e:
+                                errors.append(f"Photo '{file}': {str(e)}")
+                                error_count += 1
+                                continue
+                            
+                        except Exception as e:
+                            errors.append(f"Error processing photo '{file}': {str(e)}")
+                            error_count += 1
+            
+            # Log the admin activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='UPDATE',
+                action_model='UserProfile',
+                description=f"Imported photos for {processed_count} users"
+            )
+            
+            # Show success/error messages
+            if processed_count > 0:
+                messages.success(request, f'Successfully processed photos for {processed_count} users')
+            
+            if error_count > 0:
+                messages.warning(request, f'Failed to process {error_count} photos')
+                for error in errors:
+                    messages.error(request, error)
+            
+        except Exception as e:
+            messages.error(request, f'Error processing ZIP file: {str(e)}')
         
         finally:
-            # Clean up temporary directory if it was created
+            # Clean up temporary directory
             if temp_dir and os.path.exists(temp_dir):
                 shutil.rmtree(temp_dir)
         
         return redirect('admin_panel:manage_users')
     
     return redirect('admin_panel:register_user')
+
+def admin_panel_login(request):
+    # Always logout any existing session when accessing admin login
+    logout(request)
+    
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None and user.is_staff:
+            login(request, user)
+            messages.success(request, 'Welcome to Admin Panel!')
+            return redirect('admin_panel:dashboard')
+        else:
+            messages.error(request, 'Invalid admin credentials.')
+            return redirect('admin_panel:admin_panel_login')
+            
+    return render(request, 'admin_panel_login.html')

@@ -4,48 +4,82 @@ import base64
 from io import BytesIO
 from PIL import Image
 
-def process_webcam_image(base64_image):
-    """
-    Process a base64 encoded image from webcam into a numpy array.
-    Returns a grayscale face image of size 200x200.
-    """
+def process_webcam_image(image_data):
+    """Process base64 image data from webcam."""
     try:
-        print("\n=== Processing Webcam Image ===")
-        # Remove data URL prefix if present
-        if ',' in base64_image:
-            print("📝 Removing data URL prefix")
-            base64_image = base64_image.split(',')[1]
+        # Remove the data URL prefix if present
+        if ',' in image_data:
+            image_data = image_data.split(',')[1]
         
-        # Decode base64 string
-        print("🔄 Decoding base64 image")
-        image_bytes = base64.b64decode(base64_image)
-        
-        # Convert to PIL Image
-        print("🖼️ Converting to PIL Image")
+        # Decode base64 image data
+        image_bytes = base64.b64decode(image_data)
         image = Image.open(BytesIO(image_bytes))
         
-        # Convert to numpy array
-        print("🔢 Converting to numpy array")
-        image_array = np.array(image)
+        # Convert to OpenCV format
+        image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
         
-        # Convert to grayscale if image is RGB
-        if len(image_array.shape) == 3:
-            print("⚫ Converting to grayscale")
-            image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2GRAY)
+        # Convert to grayscale
+        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
         # Resize to standard size
-        print("📐 Resizing to 200x200")
-        image_array = cv2.resize(image_array, (200, 200))
+        gray = cv2.resize(gray, (200, 200))
         
-        print(f"✅ Successfully processed image. Shape: {image_array.shape}")
-        return image_array
-        
+        return gray
     except Exception as e:
-        print(f"❌ Error processing webcam image: {str(e)}")
-        print("Traceback:")
-        import traceback
-        traceback.print_exc()
+        print(f"Error processing webcam image: {str(e)}")
         return None
+
+def compare_faces(captured_face, stored_face_data):
+    """Compare captured face with stored face data."""
+    try:
+        # Convert stored face data to numpy array
+        stored_face = np.frombuffer(stored_face_data, dtype=np.uint8)
+        stored_face = cv2.imdecode(stored_face, cv2.IMREAD_GRAYSCALE)
+        stored_face = cv2.resize(stored_face, (200, 200))
+        
+        # Calculate similarity using structural similarity index
+        score = cv2.compareSSIM(captured_face, stored_face)
+        
+        # Return True if similarity is above threshold
+        return score >= 0.8
+    except Exception as e:
+        print(f"Error comparing faces: {str(e)}")
+        return False
+
+def verify_3d_face(image):
+    """Verify 3D face landmarks and orientation."""
+    try:
+        # Initialize face detector
+        face_mesh = cv2.FaceDetectorYN.create(
+            "face_detection_yunet_2023mar.onnx",
+            "",
+            (320, 320),
+            0.9,
+            0.3,
+            5000
+        )
+        
+        # Detect 3D landmarks
+        _, faces = face_mesh.detect(image)
+        
+        if faces is not None and len(faces) > 0:
+            # Extract 3D landmarks
+            landmarks = faces[0][4:].reshape(-1, 3)
+            
+            # Calculate face orientation
+            nose_tip = landmarks[4]
+            left_eye = landmarks[1]
+            right_eye = landmarks[0]
+            
+            # Check if face is relatively straight
+            eye_line = np.linalg.norm(right_eye - left_eye)
+            nose_offset = abs(nose_tip[2] - (left_eye[2] + right_eye[2]) / 2)
+            
+            return nose_offset < eye_line * 0.1
+        return False
+    except Exception as e:
+        print(f"Error in 3D face verification: {str(e)}")
+        return False
 
 def calculate_face_similarity(face1, face2):
     """
@@ -94,23 +128,6 @@ def calculate_face_similarity(face1, face2):
         import traceback
         traceback.print_exc()
         return 0.0
-
-def compare_faces(face1, face2, threshold=0.8):
-    """
-    Compare two faces and return True if they match above the threshold.
-    """
-    try:
-        print(f"\n=== Comparing Faces (threshold: {threshold:.2%}) ===")
-        similarity = calculate_face_similarity(face1, face2)
-        result = similarity >= threshold
-        print(f"{'✅ Match found!' if result else '❌ No match'} (Score: {similarity:.2%})")
-        return result
-    except Exception as e:
-        print(f"❌ Error comparing faces: {str(e)}")
-        print("Traceback:")
-        import traceback
-        traceback.print_exc()
-        return False
 
 def local_binary_pattern(image, n_points, radius, method='uniform'):
     """Calculate Local Binary Pattern for face texture analysis"""

@@ -19,7 +19,7 @@
                         {% endfor %}
                     {% endif %}
                     
-                    <form method="POST" action="{% url 'admin_panel_login' %}">
+                    <form method="POST" action="{% url 'admin_panel:admin_panel_login' %}">
                         {% csrf_token %}
                         <div class="mb-4">
                             <label for="username" class="form-label">Admin Username</label>

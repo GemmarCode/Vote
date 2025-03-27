@@ -16,7 +16,7 @@
             </div>
         </div>
     </div>
-    
+
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
             <div class="d-flex align-items-center">
@@ -28,8 +28,8 @@
                     <p class="text-muted mb-0">Total Candidates</p>
                 </div>
             </div>
-        </div>
-    </div>
+                        </div>
+                    </div>
     
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
@@ -42,8 +42,8 @@
                     <p class="text-muted mb-0">Total Votes</p>
                 </div>
             </div>
-        </div>
-    </div>
+                        </div>
+                    </div>
     
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
@@ -56,9 +56,9 @@
                     <p class="text-muted mb-0">Voter Turnout</p>
                 </div>
             </div>
-        </div>
-    </div>
-</div>
+                        </div>
+                    </div>
+                </div>
 
 <!-- Vote Trends Graph -->
 <div class="row mt-4">
@@ -69,39 +69,39 @@
             </h4>
             <div style="position: relative; height: 400px; width: 100%;">
                 <canvas id="voteTrendsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
-    </div>
-</div>
 
-<!-- Recent Activity -->
+            <!-- Recent Activity -->
 <div class="row mt-4">
     <div class="col-12">
         <div class="admin-card p-4">
             <h4 class="mb-4" style="color: #34729C;">Recent Activity</h4>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Time</th>
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
                             <th>Action</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for activity in recent_activities %}
-                        <tr>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity in recent_activities %}
+                                <tr>
                             <td>{{ activity.created_at }}</td>
-                            <td>{{ activity.action }}</td>
-                            <td>{{ activity.details }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
+                                    <td>{{ activity.action }}</td>
+                                    <td>{{ activity.details }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
                             <td colspan="3" class="text-center">No recent activity</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
             </div>
         </div>
     </div>

@@ -12,10 +12,10 @@
                 <h1 class="display-4 fw-bold text-white mb-3">NORSU-BSC Web-Based Voting System</h1>
                 <p class="lead text-white-75 mb-4">Your secure and efficient university election platform with face recognition technology.</p>
                 <div class="d-grid gap-2 d-sm-flex">
-                    <a href="{% url 'candidates' %}" class="btn btn-lg px-4" style="background-color: #CBEAEC; color: #1E5470;">
+                    <a href="{% url 'user:candidates' %}" class="btn btn-lg px-4" style="background-color: #CBEAEC; color: #1E5470;">
                         <i class="fas fa-users me-2"></i>View Candidates
                     </a>
-                    <a href="{% url 'file_candidacy' %}" class="btn btn-lg px-4" style="background-color: #D1ECFF; color: #1E5470;">
+                    <a href="{% url 'user:file_candidacy' %}" class="btn btn-lg px-4" style="background-color: #D1ECFF; color: #1E5470;">
                         <i class="fas fa-file-alt me-2"></i>File Candidacy
                     </a>
                 </div>
@@ -308,13 +308,13 @@ const countdownTimer = setInterval(function() {
             <div class="col-md-8 text-center">
                 <h2 class="mb-4 fw-bold" style="color: #1E5470;">Quick Links</h2>
                 <div class="d-grid gap-3">
-                    <a href="{% url 'candidates' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
+                    <a href="{% url 'user:candidates' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
                         <i class="fas fa-list-alt me-2"></i>View All Candidates
                     </a>
-                    <a href="{% url 'file_candidacy' %}" class="btn btn-lg" style="background-color: #6CB1DA; color: white;">
+                    <a href="{% url 'user:file_candidacy' %}" class="btn btn-lg" style="background-color: #6CB1DA; color: white;">
                         <i class="fas fa-file-signature me-2"></i>File Your Candidacy
                     </a>
-                    <a href="{% url 'results' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
+                    <a href="{% url 'user:results' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
                         <i class="fas fa-chart-bar me-2"></i>View Election Results
                     </a>
                 </div>
