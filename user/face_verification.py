@@ -10,6 +10,7 @@ import base64
 import os
 from .models import UserProfile
 import json
+from .face_utils import FaceRecognition
 
 @login_required
 def verify_face(request):
@@ -37,9 +38,6 @@ def verify_face(request):
             if img is None:
                 return JsonResponse({'verified': 'false', 'message': 'Could not read image'})
             
-            # Convert to grayscale
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            
             # Get the user's stored face data
             user_profile = UserProfile.objects.get(user=request.user)
             if not user_profile.face_data:
@@ -47,42 +45,35 @@ def verify_face(request):
             
             # Convert stored face data back to numpy array
             stored_face = np.frombuffer(user_profile.face_data, dtype=np.uint8)
+            stored_face = cv2.imdecode(stored_face, cv2.IMREAD_COLOR)
             
-            # Resize the uploaded image to match stored face dimensions
-            stored_face = stored_face.reshape(-1, gray.shape[1])
-            gray = cv2.resize(gray, (stored_face.shape[1], stored_face.shape[0]))
+            # Initialize face recognition system
+            face_recognition = FaceRecognition()
             
-            # Normalize both images
-            gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
-            stored_face = cv2.normalize(stored_face, None, 0, 255, cv2.NORM_MINMAX)
+            # Compare faces using multiple methods
+            embedding_similarity, icp_score = face_recognition.compare_faces(img, stored_face)
             
-            # Calculate similarity using multiple methods
-            # 1. Structural Similarity Index (SSIM)
-            ssim_score = cv2.compareSSIM(gray, stored_face)
-            
-            # 2. Histogram comparison
-            hist1 = cv2.calcHist([gray], [0], None, [256], [0, 256])
-            hist2 = cv2.calcHist([stored_face], [0], None, [256], [0, 256])
-            hist_score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-            
-            # 3. Template matching
-            template_score = cv2.matchTemplate(gray, stored_face, cv2.TM_CCOEFF_NORMED)[0][0]
-            
-            # Calculate weighted average of all scores
-            # Give more weight to SSIM as it's generally more reliable
-            final_score = (0.5 * ssim_score + 0.3 * hist_score + 0.2 * template_score) * 100
+            # Calculate final score (weighted combination)
+            final_score = (0.7 * embedding_similarity + 0.3 * icp_score) * 100
             
             # Clean up temporary file
             os.remove(temp_file)
             
             # More lenient threshold (60% instead of 80%)
             if final_score >= 60:
-                return JsonResponse({'verified': 'true', 'score': round(final_score, 2)})
+                return JsonResponse({
+                    'verified': 'true',
+                    'score': round(final_score, 2),
+                    'embedding_similarity': round(embedding_similarity * 100, 2),
+                    'icp_score': round(icp_score, 2)
+                })
             else:
                 return JsonResponse({
                     'verified': 'false',
                     'message': f'Face verification failed. Match score: {round(final_score, 2)}%',
-                    'score': round(final_score, 2)
+                    'score': round(final_score, 2),
+                    'embedding_similarity': round(embedding_similarity * 100, 2),
+                    'icp_score': round(icp_score, 2)
                 })
                 
         except Exception as e:

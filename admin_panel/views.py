@@ -24,6 +24,7 @@ import zipfile
 import tempfile
 import shutil
 from pathlib import Path
+from user.face_utils import FaceRecognition
 
 # Create your views here.
 
@@ -151,12 +152,20 @@ def process_face_photo(photo_file, student_id):
         if img is None:
             raise ValueError("Could not read image file")
         
+        # Initialize face recognition system
+        face_recognition = FaceRecognition()
+        
+        # Preprocess and align face
+        aligned = face_recognition.align_face(img)
+        if aligned is None:
+            raise ValueError("No face detected in image")
+        
         # Save original photo with high quality
         face_path = os.path.join('face_data', f'{student_id}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), img, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), aligned, [cv2.IMWRITE_JPEG_QUALITY, 100])
         
-        # Convert to grayscale and normalize
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Convert to grayscale and normalize for storage
+        gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
         gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
         
         # Clean up temp file
@@ -174,12 +183,20 @@ def process_photo_from_path(photo_path, student_id):
         if img is None:
             raise ValueError("Could not read image file")
         
+        # Initialize face recognition system
+        face_recognition = FaceRecognition()
+        
+        # Preprocess and align face
+        aligned = face_recognition.align_face(img)
+        if aligned is None:
+            raise ValueError("No face detected in image")
+        
         # Save original photo with high quality
         face_path = os.path.join('face_data', f'{student_id}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), img, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), aligned, [cv2.IMWRITE_JPEG_QUALITY, 100])
         
-        # Convert to grayscale and normalize
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        # Convert to grayscale and normalize for storage
+        gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
         gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
         
         return gray.tobytes()
