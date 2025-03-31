@@ -1,63 +1,64 @@
 import os
 import sys
+from django.core.management import execute_from_command_line
+from django.core.servers import basehttp
 import ssl
 import socket
+import logging
 
-# Add the project directory to the Python path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+class SecureHTTPServer(basehttp.HTTPServer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.socket = ssl.wrap_socket(
+            self.socket,
+            keyfile="key.pem",
+            certfile="cert.pem",
+            server_side=True
+        )
 
-# Set the Django settings module
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smartvote.settings')
+class SecureWSGIServer(basehttp.WSGIServer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.socket = ssl.wrap_socket(
+            self.socket,
+            keyfile="key.pem",
+            certfile="cert.pem",
+            server_side=True
+        )
 
-# Import Django and set up the application
-import django
-django.setup()
+def is_port_available(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            s.bind(('', port))
+            return True
+        except OSError:
+            return False
 
-from django.core.management import call_command
-from django.core.servers.basehttp import WSGIServer
-from django.core.wsgi import get_wsgi_application
-
-def get_local_ip():
-    """Get the local IP address of the machine"""
+def main():
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'smartvote.settings')
+    
+    # Check if SSL certificates exist
+    if not (os.path.exists('cert.pem') and os.path.exists('key.pem')):
+        print("SSL certificates not found. Generating new ones...")
+        from generate_cert import generate_self_signed_cert
+        generate_self_signed_cert()
+    
+    # Check if port 8443 is available
+    port = 8443
+    if not is_port_available(port):
+        print(f"Port {port} is already in use. Please free up the port or use a different one.")
+        sys.exit(1)
+    
     try:
-        # Create a socket connection to an external server
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Doesn't need to be reachable
-        s.connect(('8.8.8.8', 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except Exception:
-        return '127.0.0.1'
-
-def run_ssl_server(host='0.0.0.0', port=8000):
-    # Get the WSGI application
-    application = get_wsgi_application()
-    
-    # Import the SSL-enabled server
-    from werkzeug.serving import run_simple
-    
-    # Run the server with SSL
-    run_simple(
-        host, 
-        port, 
-        application,
-        ssl_context=(
-            'cert.pem',  # Path to certificate file
-            'key.pem'    # Path to key file
-        ),
-        use_reloader=True
-    )
+        # Override the default server class
+        basehttp.WSGIServer = SecureWSGIServer
+        basehttp.HTTPServer = SecureHTTPServer
+        
+        # Run the server
+        execute_from_command_line(['manage.py', 'runserver', f'0.0.0.0:{port}'])
+    except Exception as e:
+        print(f"Error starting server: {e}")
+        sys.exit(1)
 
 if __name__ == '__main__':
-    local_ip = get_local_ip()
-    print(f"Starting SSL server at https://{local_ip}:8000/")
-    print(f"You can also access it at https://localhost:8000/")
-    print("Using certificate: cert.pem")
-    print("Using key: key.pem")
-    print("Quit the server with CTRL-C")
-    
-    try:
-        run_ssl_server()
-    except KeyboardInterrupt:
-        print("\nServer stopped.") 
+    main() 

@@ -38,8 +38,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'user','sslserver','django_extensions',
-    'admin_panel',
+    'user',
+    'sslserver',
+    'django_extensions',
+    'admin_panel'
 ]
 
 STATIC_URL = '/static/'
@@ -58,7 +60,7 @@ MIDDLEWARE = [
 ]
 
 # SSL/HTTPS Settings
-SECURE_SSL_REDIRECT = False  # Set to True in production
+SECURE_SSL_REDIRECT = True  # Redirect all HTTP traffic to HTTPS
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
@@ -66,6 +68,14 @@ SECURE_HSTS_SECONDS = 31536000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_BROWSER_XSS_FILTER = True
+
+# Development settings
+if DEBUG:
+    SECURE_SSL_REDIRECT = False  # Don't redirect in development
+    SESSION_COOKIE_SECURE = False
+    CSRF_COOKIE_SECURE = False
+    SECURE_HSTS_SECONDS = 0  # Disable HSTS in development
 
 ROOT_URLCONF = 'smartvote.urls'
 

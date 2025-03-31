@@ -6,7 +6,7 @@ from django.http import JsonResponse
 from .models import UserProfile, Candidate, Vote, VotingPhase
 from admin_panel.models import ElectionSettings
 from django.core.exceptions import ValidationError
-from .face_utils import process_webcam_image, calculate_face_similarity, compare_faces
+from .face_utils import process_webcam_image, verify_voter_face
 import cv2
 import numpy as np
 from django.db import transaction
@@ -170,14 +170,14 @@ def voting_view(request):
                         
                         # Load and process stored face image
                         stored_image_path = os.path.join(settings.FACE_DATA_DIR, filename)
-                        stored_image = cv2.imread(stored_image_path, cv2.IMREAD_GRAYSCALE)
+                        stored_image = cv2.imread(stored_image_path)
                         
                         if stored_image is not None:
-                            stored_image = cv2.resize(stored_image, (200, 200))
                             print(f"📊 Stored image shape: {stored_image.shape}")
                             
-                            # Calculate similarity
-                            similarity = calculate_face_similarity(captured_face, stored_image)
+                            # Verify face using InsightFace
+                            verification_result = verify_voter_face(captured_face, stored_image)
+                            similarity = verification_result['distance']
                             print(f"📊 Similarity score with {student_id}: {similarity:.2%}")
                             
                             # Update best match if this is better
@@ -193,8 +193,8 @@ def voting_view(request):
                 print(f"🎓 Best match student ID: {best_match_student_id}")
                 
                 # If we found a match above threshold
-                if best_match_score >= 0.8:  # 80% similarity threshold
-                    print("✅ Match found above threshold (80%)")
+                if best_match_score >= 0.6:  # 60% similarity threshold for InsightFace
+                    print("✅ Match found above threshold (60%)")
                     try:
                         # Find user with matching student ID
                         user_profile = UserProfile.objects.get(student_id=best_match_student_id)
@@ -217,14 +217,14 @@ def voting_view(request):
                             print("👑 Redirecting to admin panel (superuser)")
                             return redirect('admin_panel:dashboard')
                         else:
-                            print("🏠 Redirecting to home")
-                            return redirect('mainpage')
+                            print("🏠 Redirecting to voting page")
+                            return redirect('user:candidates')  # Use the correct URL namespace
                     except UserProfile.DoesNotExist:
                         print("❌ No UserProfile found for student ID:", best_match_student_id)
                         messages.error(request, 'No matching user account found.')
                         return redirect('vote')
                 else:
-                    print("❌ No match found above threshold (80%)")
+                    print("❌ No match found above threshold (60%)")
                     messages.error(request, 'Face not recognized. Please try again.')
             else:
                 print("❌ Failed to process captured image")
@@ -272,49 +272,14 @@ def verify_face(request):
                 if isinstance(stored_face_data, str):
                     stored_face_data = stored_face_data.encode('utf-8')
 
-                # Compare faces with enhanced 3D verification
-                if compare_faces(captured_face, stored_face_data):
-                    # Additional 3D verification checks
-                    face_mesh = cv2.FaceDetectorYN.create(
-                        "face_detection_yunet_2023mar.onnx",
-                        "",
-                        (320, 320),
-                        0.9,
-                        0.3,
-                        5000
-                    )
-                    
-                    # Detect 3D landmarks
-                    _, faces = face_mesh.detect(captured_face)
-                    
-                    if faces is not None and len(faces) > 0:
-                        # Extract 3D landmarks
-                        landmarks = faces[0][4:].reshape(-1, 3)
-                        
-                        # Calculate face orientation
-                        nose_tip = landmarks[4]
-                        left_eye = landmarks[1]
-                        right_eye = landmarks[0]
-                        
-                        # Check if face is relatively straight
-                        eye_line = np.linalg.norm(right_eye - left_eye)
-                        nose_offset = abs(nose_tip[2] - (left_eye[2] + right_eye[2]) / 2)
-                        
-                        if nose_offset < eye_line * 0.1:  # Face is relatively straight
-                            return JsonResponse({
-                                'verified': 'true',
-                                'message': 'Face verification successful'
-                            })
-                        else:
-                            return JsonResponse({
-                                'verified': 'false',
-                                'message': 'Please look straight at the camera'
-                            })
-                    else:
-                        return JsonResponse({
-                            'verified': 'false',
-                            'message': 'Could not detect 3D face landmarks'
-                        })
+                # Verify face using InsightFace
+                verification_result = verify_voter_face(captured_face, stored_face_data)
+                
+                if verification_result['verified']:
+                    return JsonResponse({
+                        'verified': 'true',
+                        'message': 'Face verification successful'
+                    })
                 else:
                     return JsonResponse({
                         'verified': 'false',
