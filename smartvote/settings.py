@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     'user',
     'sslserver',
     'django_extensions',
-    'admin_panel'
+    'admin_panel',
+    'rest_framework'
 ]
 
 STATIC_URL = '/static/'

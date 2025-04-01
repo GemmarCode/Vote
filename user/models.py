@@ -5,6 +5,9 @@ import numpy as np
 import pickle
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
+import insightface
+from insightface.app import FaceAnalysis
+import os
 
 # Create your models here.
 
@@ -31,21 +34,12 @@ class UserProfile(models.Model):
         ('CIT', 'College of Industrial Technology'),
     ]
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    student_id = models.CharField(max_length=20, unique=True)
-    college = models.CharField(max_length=10, choices=COLLEGES)
-    department = models.CharField(max_length=100)
+    student_number = models.CharField(max_length=20, unique=True)
+    student_name = models.CharField(max_length=100, null=True, blank=True)
+    sex = models.CharField(max_length=1, choices=GENDER_CHOICES)
     year_level = models.CharField(max_length=20, choices=YEAR_LEVEL_CHOICES)
-    gender = models.CharField(max_length=1, choices=GENDER_CHOICES)
-    age = models.IntegerField(validators=[
-        MinValueValidator(16),
-        MaxValueValidator(99)
-    ])
-    contact_number = models.CharField(max_length=15)
-    face_data = models.BinaryField(null=True, blank=True, editable=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    profile_picture = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
+    course = models.CharField(max_length=100)
+    college = models.CharField(max_length=10, choices=COLLEGES)
 
     class Meta:
         db_table = 'user_profile'
@@ -53,17 +47,7 @@ class UserProfile(models.Model):
         verbose_name_plural = 'User Profiles'
 
     def __str__(self):
-        return f"{self.user.username}'s Profile"
-
-    def save(self, *args, **kwargs):
-        # Validate age
-        if self.age < 16 or self.age > 99:
-            raise ValueError("Age must be between 16 and 99")
-        
-        # Validate student ID format if needed
-        # Add any other custom validation here
-        
-        super().save(*args, **kwargs)
+        return f"{self.student_name} - {self.student_number}"
 
     def get_college_display(self):
         return dict(self.COLLEGES).get(self.college, self.college)
@@ -87,70 +71,58 @@ class UserProfile(models.Model):
             return None
 
 class Candidate(models.Model):
-    # National Positions
+    # Position Constants
     NATIONAL_POSITIONS = [
-        ('PRESIDENT', 'President'),
-        ('VICE_PRESIDENT', 'Vice President'),
-        ('SECRETARY', 'Secretary'),
-        ('TREASURER', 'Treasurer'),
-        ('AUDITOR', 'Auditor'),
-        ('PIO', 'Public Information Officer'),
-        ('REPRESENTATIVE', 'Representative'),
-        ('GOVERNOR', 'Governor'),
-        ('VICE_GOVERNOR', 'Vice Governor'),
-        ('SEC_GOVERNOR', 'Secretary'),
-        ('TRES_GOVERNOR', 'Treasurer'),
-        ('AUD_GOVERNOR', 'Auditor'),
-        ('PIO_GOVERNOR', 'Public Information Officer')
+        ('President', 'President'),
+        ('Vice President', 'Vice President'),
+        ('Secretary', 'Secretary'),
+        ('Treasurer', 'Treasurer'),
+        ('Auditor', 'Auditor'),
+        ('Public Information Officer', 'Public Information Officer'),
+        ('Representative', 'Representative'),
     ]
-
-    # Local Positions
+    
+    COLLEGE_POSITIONS = [
+        ('Governor', 'Governor'),
+        ('Vice Governor', 'Vice Governor'),
+        ('Secretary (College)', 'Secretary (College)'),
+        ('Treasurer (College)', 'Treasurer (College)'),
+        ('Auditor (College)', 'Auditor (College)'),
+        ('Public Information Officer (College)', 'Public Information Officer (College)'),
+    ]
+    
     LOCAL_POSITIONS = [
-        ('MAYOR', 'Mayor'),
-        ('VICE_MAYOR', 'Vice Mayor'),
-        ('SEC_LOCAL', 'Secretary'),
-        ('TRES_LOCAL', 'Treasurer'),
-        ('AUD_LOCAL', 'Auditor'),
-        ('PIO_LOCAL', 'Public Information Officer'),
-        ('REP_LOCAL', 'Representative')
+        ('Department Representative', 'Department Representative'),
     ]
-
-    # All positions combined
-    POSITION_CHOICES = NATIONAL_POSITIONS + LOCAL_POSITIONS
-
-    COLLEGE_CHOICES = [
-        ('CAS', 'College of Arts and Sciences'),
-        ('CAF', 'College of Agriculture and Forestry'),
-        ('CCJE', 'College of Criminal Justice Education'),
-        ('CBA', 'College of Business Administration'),
-        ('CTED', 'College of Teacher Education'),
-        ('CIT', 'College of Industrial Technology'),
-    ]
-
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    
+    POSITION_CHOICES = NATIONAL_POSITIONS + COLLEGE_POSITIONS + LOCAL_POSITIONS
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     position = models.CharField(max_length=50, choices=POSITION_CHOICES)
-    college = models.CharField(max_length=100, choices=COLLEGE_CHOICES)
-    platform = models.TextField()
-    achievements = models.TextField(null=True, blank=True)
-    photo = models.ImageField(upload_to='candidate_photos/', null=True, blank=True)
+    college = models.CharField(max_length=100, blank=True, null=True)
+    department = models.CharField(max_length=100, blank=True, null=True)
+    year_level = models.IntegerField(blank=True, null=True)
+    photo = models.ImageField(upload_to='candidate_photos/', blank=True, null=True)
+    approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    department = models.CharField(max_length=100)
-    year_level = models.CharField(max_length=20)
-    approved = models.BooleanField(default=False)
-
-    @property
-    def is_national(self):
-        """Check if the candidate is running for a national position"""
-        return self.position in [pos[0] for pos in self.NATIONAL_POSITIONS]
-
-    @property
-    def is_local(self):
-        """Check if the candidate is running for a local position"""
-        return any(position[0] == self.position for position in self.LOCAL_POSITIONS)
+    
+    class Meta:
+        ordering = ['position', 'college', 'department', 'year_level']
+        unique_together = [
+            ('position', 'college', 'department', 'year_level')
+        ]
 
     def __str__(self):
-        return f"{self.user.get_full_name()} - {self.get_position_display()}"
+        name = f"{self.user.get_full_name()} - {self.position}"
+        if self.college:
+            name += f" ({self.college}"
+            if self.department:
+                name += f", {self.department}"
+            if self.year_level:
+                name += f", Year {self.year_level}"
+            name += ")"
+        return name
 
 def capture_face():
     """Capture face and return encoding"""
@@ -247,4 +219,54 @@ class VotingPhase(models.Model):
             return False
         now = timezone.now()
         return self.start_date <= now <= self.end_date
+
+class CandidateProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='candidate_profile')
+    position = models.CharField(max_length=100)
+    achievements = models.TextField(help_text="List the candidate's achievements, one per line")
+    platform = models.TextField(help_text="Describe the candidate's platform and goals")
+    photo = models.ImageField(upload_to='candidate_photos/', null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.position}"
+
+    class Meta:
+        ordering = ['-created_at']
+
+class FaceData(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='face_data')
+    face_embedding = models.BinaryField()  # Store face embedding as binary data
+    face_image = models.ImageField(upload_to='face_data/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.face_embedding and self.face_image:
+            # Initialize face analyzer
+            app = FaceAnalysis(name='buffalo_l')
+            app.prepare(ctx_id=-1, det_size=(640, 640))
+            
+            # Read and process the image
+            img = insightface.data.load_image(self.face_image.path)
+            faces = app.get(img)
+            
+            if len(faces) == 1:
+                # Get the face embedding
+                face = faces[0]
+                self.face_embedding = face.embedding.tobytes()
+            else:
+                raise ValueError("Image must contain exactly one face")
+        
+        super().save(*args, **kwargs)
+
+    def get_embedding(self):
+        if self.face_embedding:
+            return np.frombuffer(self.face_embedding, dtype=np.float32)
+        return None
+
+    def __str__(self):
+        return f"Face data for {self.user.username}"
 

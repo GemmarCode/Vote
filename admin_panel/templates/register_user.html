@@ -25,7 +25,7 @@
                             <label for="excel_file">Excel File</label>
                             <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx, .xls" required>
                             <small class="form-text text-muted">
-                                Excel file should have columns: student_id, student_name, sex, year_level, course, college
+                                Excel file should have columns: student_number, student_name, sex, year_level, course, college
                             </small>
                         </div>
                         <button type="submit" class="btn btn-success">
@@ -66,10 +66,10 @@
                     <form method="POST" class="needs-validation" enctype="multipart/form-data" novalidate>
                         {% csrf_token %}
                         <div class="form-group mb-3">
-                            <label for="student_id">Student ID</label>
-                            <input type="text" class="form-control" id="student_id" name="student_id" required>
+                            <label for="student_number">Student Number</label>
+                            <input type="text" class="form-control" id="student_number" name="student_number" required>
                             <div class="invalid-feedback">
-                                Please provide a student ID.
+                                Please provide a student number.
                             </div>
                         </div>
                         

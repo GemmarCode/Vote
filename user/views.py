@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import UserProfile, Candidate, Vote, VotingPhase
+from .models import UserProfile, Candidate, Vote, VotingPhase, FaceData
 from admin_panel.models import ElectionSettings
 from django.core.exceptions import ValidationError
 from .face_utils import process_webcam_image, verify_voter_face
@@ -22,6 +22,12 @@ from datetime import timedelta
 import os
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from django.views.decorators.http import require_http_methods
+import insightface
+from insightface.app import FaceAnalysis
+from django.views.decorators.csrf import csrf_exempt
 
 LOGIN_URL = 'login'  # or whatever your login URL name is
 
@@ -136,173 +142,244 @@ def results_view(request):
 
 def voting_view(request):
     if request.method == 'POST':
-        print("\n=== Starting Face Recognition Process ===")
-        # Handle face verification for voting
-        face_data = request.POST.get('face_data')
-        if not face_data:
-            print("❌ Error: No face data received")
-            messages.error(request, 'No face data received. Please try again.')
-            return redirect('vote')
-
         try:
-            print("📸 Processing captured webcam image...")
+            # Get the face data from the request
+            data = json.loads(request.body)
+            face_data = data.get('face_data')
+            
+            if not face_data:
+                return JsonResponse({
+                    'verified': False,
+                    'message': 'No face data provided'
+                }, status=400)
+            
             # Process the captured image
             captured_face = process_webcam_image(face_data)
             
-            if captured_face is not None:
-                print("✅ Successfully processed captured image")
-                print(f"📊 Captured image shape: {captured_face.shape}")
-                
-                # Variables to track best match
-                best_match_score = 0
-                best_match_student_id = None
-                
-                print(f"\n🔍 Searching for matches in: {settings.FACE_DATA_DIR}")
-                # Loop through all images in the face_data directory
-                face_files = os.listdir(settings.FACE_DATA_DIR)
-                print(f"📁 Found {len(face_files)} files in face_data directory")
-                
-                for filename in face_files:
-                    if filename.endswith(('.jpg', '.jpeg', '.png')):
-                        # Get student ID from filename
-                        student_id = os.path.splitext(filename)[0]
-                        print(f"\n⏳ Processing {filename} (Student ID: {student_id})")
-                        
-                        # Load and process stored face image
-                        stored_image_path = os.path.join(settings.FACE_DATA_DIR, filename)
-                        stored_image = cv2.imread(stored_image_path)
-                        
-                        if stored_image is not None:
-                            print(f"📊 Stored image shape: {stored_image.shape}")
-                            
-                            # Verify face using InsightFace
-                            verification_result = verify_voter_face(captured_face, stored_image)
-                            similarity = verification_result['distance']
-                            print(f"📊 Similarity score with {student_id}: {similarity:.2%}")
-                            
-                            # Update best match if this is better
-                            if similarity > best_match_score:
-                                best_match_score = similarity
-                                best_match_student_id = student_id
-                                print(f"✨ New best match! Student ID: {student_id} (Score: {similarity:.2%})")
-                        else:
-                            print(f"❌ Failed to load image: {filename}")
-                
-                print(f"\n=== Face Recognition Results ===")
-                print(f"🏆 Best match score: {best_match_score:.2%}")
-                print(f"🎓 Best match student ID: {best_match_student_id}")
-                
-                # If we found a match above threshold
-                if best_match_score >= 0.6:  # 60% similarity threshold for InsightFace
-                    print("✅ Match found above threshold (60%)")
-                    try:
-                        # Find user with matching student ID
-                        user_profile = UserProfile.objects.get(student_id=best_match_student_id)
-                        matched_user = user_profile.user
-                        print(f"👤 Found matching user: {matched_user.username}")
-                        
-                        # Check if user is active
-                        if not matched_user.is_active:
-                            print("❌ User account is not active")
-                            messages.error(request, 'Your account is not active. Please contact the administrator.')
-                            return redirect('vote')
-                        
-                        # Log the user in
-                        login(request, matched_user)
-                        print(f"✅ Successfully logged in user: {matched_user.username}")
-                        messages.success(request, f'Welcome back, {matched_user.first_name}!')
-                        
-                        # Redirect based on user type
-                        if matched_user.is_superuser:
-                            print("👑 Redirecting to admin panel (superuser)")
-                            return redirect('admin_panel:dashboard')
-                        else:
-                            print("🏠 Redirecting to voting page")
-                            return redirect('user:candidates')  # Use the correct URL namespace
-                    except UserProfile.DoesNotExist:
-                        print("❌ No UserProfile found for student ID:", best_match_student_id)
-                        messages.error(request, 'No matching user account found.')
-                        return redirect('vote')
-                else:
-                    print("❌ No match found above threshold (60%)")
-                    messages.error(request, 'Face not recognized. Please try again.')
-            else:
-                print("❌ Failed to process captured image")
-                messages.error(request, 'Could not process face image. Please try again.')
-        
-        except Exception as e:
-            print(f"❌ Error during face recognition: {str(e)}")
-            print("Traceback:")
-            import traceback
-            traceback.print_exc()
-            messages.error(request, f'An error occurred during face recognition: {str(e)}')
-    
-    # If GET request or verification failed, show the face verification form
-    return render(request, 'face_verification.html')
-
-@login_required
-def verify_face(request):
-    if request.method == 'POST':
-        try:
-            data = json.loads(request.body)
-            face_data = data.get('face_data')
-            verification_type = data.get('type', 'verify')
-
-            if not face_data:
+            if captured_face is None:
                 return JsonResponse({
-                    'verified': 'false',
-                    'message': 'No face data provided'
-                })
-
-            # Process the face data
-            captured_face = process_webcam_image(face_data)
+                    'verified': False,
+                    'message': 'Failed to process captured image'
+                }, status=400)
             
-            if captured_face is not None:
-                # Get the user's stored face data
-                user_profile = UserProfile.objects.get(user=request.user)
+            # Get all face data from database
+            all_face_data = FaceData.objects.all()
+            
+            # Compare with stored embeddings
+            best_match = None
+            best_distance = float('inf')
+            
+            for stored_face in all_face_data:
+                stored_embedding = stored_face.get_embedding()
+                if stored_embedding is not None:
+                    # Get face embedding from stored image
+                    stored_image = cv2.imread(stored_face.face_image.path)
+                    if stored_image is not None:
+                        verification_result = verify_voter_face(captured_face, stored_image)
+                        if verification_result['distance'] < best_distance:
+                            best_distance = verification_result['distance']
+                            best_match = stored_face
+            
+            # Set threshold for face matching (adjust as needed)
+            threshold = 0.6
+            
+            if best_match and best_distance < threshold:
+                # Face verified successfully
+                login(request, best_match.user)
+                request.session['face_verified'] = True
                 
-                if not user_profile.face_data:
-                    return JsonResponse({
-                        'verified': 'false',
-                        'message': 'No face data found for your account. Please contact the administrator.'
-                    })
-
-                # Convert stored face data to bytes if it's not already
-                stored_face_data = user_profile.face_data
-                if isinstance(stored_face_data, str):
-                    stored_face_data = stored_face_data.encode('utf-8')
-
-                # Verify face using InsightFace
-                verification_result = verify_voter_face(captured_face, stored_face_data)
+                # Get voting data
+                national_candidates = get_national_candidates()
+                local_candidates = get_local_candidates(best_match.user.userprofile)
                 
-                if verification_result['verified']:
-                    return JsonResponse({
-                        'verified': 'true',
-                        'message': 'Face verification successful'
-                    })
-                else:
-                    return JsonResponse({
-                        'verified': 'false',
-                        'message': 'Face verification failed. Please try again.'
-                    })
+                return JsonResponse({
+                    'verified': True,
+                    'message': 'Face verification successful',
+                    'user_id': best_match.user.id,
+                    'username': best_match.user.username
+                })
             else:
                 return JsonResponse({
-                    'verified': 'false',
-                    'message': 'No face detected in the image'
-                })
-        
+                    'verified': False,
+                    'message': 'Face verification failed. Please try again.'
+                }, status=400)
+                
         except Exception as e:
-            print(f"Face verification error: {str(e)}")
+            print(f"Error during face verification: {str(e)}")
             print(traceback.format_exc())
             return JsonResponse({
-                'verified': 'false',
-                'message': 'An error occurred during face verification'
-            })
-
-    return JsonResponse({
-        'verified': 'false',
-        'message': 'Invalid request method'
+                'verified': False,
+                'message': f'Error during face verification: {str(e)}'
+            }, status=500)
+    
+    # For GET requests, show the face verification modal
+    return render(request, 'vote.html', {
+        'show_verification_modal': True
     })
+
+def get_national_candidates():
+    """Get all national candidates"""
+    candidates = Candidate.objects.filter(approved=True)
+    national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
+    return {c.position: c for c in candidates.filter(position__in=national_positions)}
+
+def get_local_candidates(user_profile):
+    """Get local candidates based on user's college and department"""
+    candidates = Candidate.objects.filter(approved=True)
+    local_positions = [pos[0] for pos in Candidate.LOCAL_POSITIONS]
+    
+    # Filter candidates based on user's college and department
+    college_candidates = candidates.filter(
+        position__in=local_positions,
+        college=user_profile.college
+    )
+    
+    department_candidates = candidates.filter(
+        position__in=local_positions,
+        college=user_profile.college,
+        department=user_profile.department,
+        year_level=user_profile.year_level
+    )
+    
+    return {
+        'college': {c.position: c for c in college_candidates},
+        'department': {c.position: c for c in department_candidates}
+    }
+
+@csrf_exempt
+def verify_face(request):
+    try:
+        # Add debug logging
+        print("Starting face verification")
+        print("Request method:", request.method)
+        print("Content type:", request.headers.get('Content-Type'))
+        
+        # Parse JSON data
+        try:
+            data = json.loads(request.body)
+            print("Successfully parsed JSON data")
+        except json.JSONDecodeError as e:
+            print("JSON decode error:", str(e))
+            return JsonResponse({
+                'verified': False,
+                'message': 'Invalid JSON data'
+            }, status=400)
+        
+        face_data = data.get('face_data')
+        if not face_data:
+            print("No face data in request")
+            return JsonResponse({
+                'verified': False,
+                'message': 'No face data provided'
+            }, status=400)
+            
+        # Process the captured image
+        try:
+            print("Processing webcam image")
+            captured_face = process_webcam_image(face_data)
+            print("Captured face shape:", captured_face.shape if captured_face is not None else None)
+        except Exception as e:
+            print("Error processing webcam image:", str(e))
+            return JsonResponse({
+                'verified': False,
+                'message': f'Error processing image: {str(e)}'
+            }, status=400)
+        
+        if captured_face is None:
+            print("Failed to process captured image")
+            return JsonResponse({
+                'verified': False,
+                'message': 'Failed to process captured image'
+            }, status=400)
+            
+        # Get all face images from the face_data directory
+        face_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        print(f"Checking faces in directory: {face_dir}")
+        
+        if not os.path.exists(face_dir):
+            print("Face data directory does not exist")
+            return JsonResponse({
+                'verified': False,
+                'message': 'Face data directory not found'
+            }, status=400)
+            
+        face_files = [f for f in os.listdir(face_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
+        print(f"Found {len(face_files)} face files")
+        
+        best_match = None
+        best_distance = float('inf')
+        
+        # Loop through all images in the directory
+        for filename in face_files:
+            try:
+                student_number = os.path.splitext(filename)[0]
+                print(f"Processing file: {filename} (Student Number: {student_number})")
+                
+                stored_image_path = os.path.join(face_dir, filename)
+                stored_image = cv2.imread(stored_image_path)
+                
+                if stored_image is not None:
+                    print(f"Successfully loaded stored image: {filename}")
+                    verification_result = verify_voter_face(captured_face, stored_image)
+                    print(f"Verification distance for {student_number}: {verification_result['distance']}")
+                    
+                    if verification_result['distance'] < best_distance:
+                        best_distance = verification_result['distance']
+                        best_match = student_number
+                else:
+                    print(f"Failed to load image: {filename}")
+            except Exception as e:
+                print(f"Error processing {filename}: {str(e)}")
+                continue
+        
+        # Set threshold for face matching
+        threshold = 0.6
+        print(f"Best match: {best_match}, Distance: {best_distance}, Threshold: {threshold}")
+        
+        if best_match and best_distance < threshold:
+            try:
+                user_profile = UserProfile.objects.get(student_number=best_match)
+                print(f"Found matching user profile for student number: {best_match}")
+                
+                # Get the user by username (which is the student number)
+                user = User.objects.get(username=best_match)
+                print(f"Found matching user: {user.username}")
+                
+                request.session['face_verified'] = True
+                request.session['verified_user_id'] = user.id
+                
+                return JsonResponse({
+                    'verified': True,
+                    'message': 'Face verification successful',
+                    'user_id': user.id,
+                    'username': user.username
+                })
+            except UserProfile.DoesNotExist:
+                print(f"No user profile found for student number: {best_match}")
+                return JsonResponse({
+                    'verified': False,
+                    'message': 'User profile not found for matched face'
+                }, status=400)
+            except User.DoesNotExist:
+                print(f"No user found for student number: {best_match}")
+                return JsonResponse({
+                    'verified': False,
+                    'message': 'User not found for matched face'
+                }, status=400)
+        else:
+            print("Face verification failed")
+            return JsonResponse({
+                'verified': False,
+                'message': 'Face verification failed. Please try again.'
+            }, status=400)
+            
+    except Exception as e:
+        print("Unexpected error:", str(e))
+        print(traceback.format_exc())
+        return JsonResponse({
+            'verified': False,
+            'message': f'Error during face verification: {str(e)}'
+        }, status=500)
 
 def cast_vote(request, candidate_id):
     # Check if face is verified
@@ -358,6 +435,7 @@ def admin_dashboard(request):
     }
     
     return render(request, 'admin/admin_dashboard.html', context)
+
 def admin_panel_login(request):
     # Always logout any existing session when accessing admin login
     logout(request)
@@ -377,3 +455,64 @@ def admin_panel_login(request):
             return redirect('admin_panel_login')
             
     return render(request, 'admin_panel_login.html')
+
+@api_view(['GET'])
+def check_voting_availability(request):
+    """Check if voting is currently available"""
+    try:
+        voting_phase = VotingPhase.objects.first()
+        if not voting_phase:
+            return Response({
+                'available': False,
+                'message': 'Voting period has not been set up yet.'
+            })
+        
+        now = timezone.now()
+        if now < voting_phase.start_time:
+            return Response({
+                'available': False,
+                'message': 'Voting period has not started yet.'
+            })
+        elif now > voting_phase.end_time:
+            return Response({
+                'available': False,
+                'message': 'Voting period has ended.'
+            })
+        
+        # Check if there are any candidates
+        if not Candidate.objects.filter(approved=True).exists():
+            return Response({
+                'available': False,
+                'message': 'No candidates available for voting.'
+            })
+        
+        return Response({
+            'available': True,
+            'message': 'Voting is available.'
+        })
+    except Exception as e:
+        return Response({
+            'available': False,
+            'message': str(e)
+        }, status=500)
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        
+        if user is not None:
+            login(request, user)
+            messages.success(request, 'Successfully logged in!')
+            return redirect('user:mainpage')
+        else:
+            messages.error(request, 'Invalid username or password.')
+            return redirect('user:login')
+    
+    return render(request, 'login.html')
+
+def logout_view(request):
+    logout(request)
+    messages.success(request, 'Successfully logged out!')
+    return redirect('user:mainpage')

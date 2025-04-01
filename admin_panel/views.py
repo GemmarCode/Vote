@@ -140,7 +140,7 @@ def manage_users(request):
     }
     return render(request, 'manage_users.html', context)
 
-def process_face_photo(photo_file, student_id):
+def process_face_photo(photo_file, student_number):
     """Process uploaded photo and convert it to face data"""
     try:
         # Save the uploaded file temporarily
@@ -161,21 +161,21 @@ def process_face_photo(photo_file, student_id):
             raise ValueError("No face detected in image")
         
         # Save original photo with high quality
-        face_path = os.path.join('face_data', f'{student_id}.jpg')
+        face_path = os.path.join('face_data', f'{student_number}.jpg')
         cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), aligned, [cv2.IMWRITE_JPEG_QUALITY, 100])
         
-        # Convert to grayscale and normalize for storage
-        gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
-        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+        # Store the color image directly using PNG format (lossless)
+        _, buffer = cv2.imencode('.png', aligned)
+        face_bytes = buffer.tobytes()
         
         # Clean up temp file
         os.remove(temp_file)
         
-        return gray.tobytes()
+        return face_bytes
     except Exception as e:
         raise ValueError(f"Error processing photo: {str(e)}")
 
-def process_photo_from_path(photo_path, student_id):
+def process_photo_from_path(photo_path, student_number):
     """Process photo from a file path and convert it to face data"""
     try:
         # Read the image with high quality
@@ -192,14 +192,14 @@ def process_photo_from_path(photo_path, student_id):
             raise ValueError("No face detected in image")
         
         # Save original photo with high quality
-        face_path = os.path.join('face_data', f'{student_id}.jpg')
+        face_path = os.path.join('face_data', f'{student_number}.jpg')
         cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), aligned, [cv2.IMWRITE_JPEG_QUALITY, 100])
         
-        # Convert to grayscale and normalize for storage
-        gray = cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY)
-        gray = cv2.normalize(gray, None, 0, 255, cv2.NORM_MINMAX)
+        # Store the color image directly using PNG format (lossless)
+        _, buffer = cv2.imencode('.png', aligned)
+        face_bytes = buffer.tobytes()
         
-        return gray.tobytes()
+        return face_bytes
     except Exception as e:
         raise ValueError(f"Error processing photo: {str(e)}")
 
@@ -207,7 +207,7 @@ def process_photo_from_path(photo_path, student_id):
 @user_passes_test(is_admin)
 def register_user(request):
     if request.method == 'POST':
-        student_id = request.POST.get('student_id')
+        student_number = request.POST.get('student_number')
         student_name = request.POST.get('student_name')
         sex = request.POST.get('sex')
         year_level = request.POST.get('year_level')
@@ -216,9 +216,9 @@ def register_user(request):
         photo = request.FILES.get('photo')
         
         try:
-            # Check if student ID already exists
-            if User.objects.filter(username=student_id).exists():
-                messages.error(request, 'Student ID already exists.')
+            # Check if student number already exists
+            if User.objects.filter(username=student_number).exists():
+                messages.error(request, 'Student number already exists.')
                 return redirect('admin_panel:register_user')
             
             # Validate college
@@ -247,15 +247,15 @@ def register_user(request):
             face_data = None
             if photo:
                 try:
-                    face_data = process_face_photo(photo, student_id)
+                    face_data = process_face_photo(photo, student_number)
                 except ValueError as e:
                     messages.error(request, str(e))
                     return redirect('admin_panel:register_user')
             
-            # Create new user with student ID as username
+            # Create new user with student number as username
             user = User.objects.create_user(
-                username=student_id,
-                password=student_id,  # Default password is the student ID
+                username=student_number,
+                password=student_number,  # Default password is the student number
                 first_name=student_name,
                 is_active=False
             )
@@ -263,7 +263,7 @@ def register_user(request):
             # Create user profile with additional fields
             profile = UserProfile.objects.create(
                 user=user,
-                student_id=student_id,
+                student_number=student_number,
                 college=college,
                 department=course,  # Using course as department
                 year_level=str(year_level),  # Convert to string since the model expects string
@@ -278,10 +278,10 @@ def register_user(request):
                 admin_user=request.user,
                 action='CREATE',
                 action_model='User',
-                description=f"Registered new user: {student_id}"
+                description=f"Registered new user: {student_number}"
             )
             
-            messages.success(request, f'User {student_id} has been successfully registered.')
+            messages.success(request, f'User {student_number} has been successfully registered.')
             return redirect('admin_panel:manage_users')
             
         except Exception as e:
@@ -394,109 +394,166 @@ def results(request):
 @user_passes_test(is_admin)
 def import_users(request):
     if request.method == 'POST' and request.FILES.get('excel_file'):
-        excel_file = request.FILES['excel_file']
+        file = request.FILES['excel_file']
         
+        # Column name mappings with possible variations
+        COLUMN_MAPPINGS = {
+            'student_number': [
+                'student_number', 'studentnumber', 'student no', 'student no.', 
+                'student_no', 'id_number', 'id number', 'id'
+            ],
+            'student_name': [
+                'student_name', 'studentname', 'name', 'full name', 'fullname',
+                'complete name', 'completename'
+            ],
+            'sex': [
+                'sex', 'gender', 'sex/gender'
+            ],
+            'year_level': [
+                'year_level', 'yearlevel', 'year', 'level', 'grade_level',
+                'grade level', 'year standing'
+            ],
+            'course': [
+                'course', 'program', 'degree', 'degree program', 'course_program'
+            ],
+            'college': [
+                'college', 'school', 'department', 'dept', 'faculty'
+            ]
+        }
+
         try:
-            # Read the Excel file
-            df = pd.read_excel(excel_file)
-            
-            # Validate required columns
-            required_columns = ['student_id', 'student_name', 'sex', 'year_level', 'course', 'college']
-            missing_columns = [col for col in required_columns if col not in df.columns]
-            
-            if missing_columns:
-                messages.error(request, f'Missing required columns: {", ".join(missing_columns)}')
-                return redirect('admin_panel:register_user')
-            
-            # Initialize counters
-            created_count = 0
+            # Read file based on extension
+            file_ext = os.path.splitext(file.name)[1].lower()
+            if file_ext in ['.xlsx', '.xls']:
+                df = pd.read_excel(file)
+            else:
+                df = pd.read_csv(file)
+
+            # Clean column names (remove whitespace, lowercase, etc)
+            df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
+
+            # Create clean_row dictionary to store matched columns
+            column_matches = {}
+
+            # Find matching columns for each required field
+            for required_col, possible_names in COLUMN_MAPPINGS.items():
+                # Convert possible names to lowercase and clean format
+                possible_names = [name.lower().strip().replace(' ', '_') for name in possible_names]
+                
+                # Find the first matching column
+                matched_col = None
+                for col in df.columns:
+                    if col in possible_names:
+                        matched_col = col
+                        break
+                
+                if matched_col:
+                    column_matches[required_col] = matched_col
+                else:
+                    messages.error(request, f"Could not find a column matching '{required_col}'. "
+                                         f"Possible names are: {', '.join(possible_names)}")
+                    return redirect('admin_panel:register_user')
+
+            # Process each row with matched columns
+            success_count = 0
             error_count = 0
-            errors = []
-            
-            # Process each row in the DataFrame
-            with transaction.atomic():
-                for index, row in df.iterrows():
-                    try:
-                        # Check if student ID already exists
-                        if User.objects.filter(username=row['student_id']).exists():
-                            errors.append(f"Row {index + 2}: Student ID '{row['student_id']}' already exists")
-                            error_count += 1
-                            continue
-                        
-                        # Validate college
-                        valid_colleges = ['CAS', 'CAF', 'CCJE', 'CBA', 'CTED', 'CIT']
-                        if row['college'] not in valid_colleges:
-                            errors.append(f"Row {index + 2}: Invalid college '{row['college']}'")
-                            error_count += 1
-                            continue
-                        
-                        # Validate sex
-                        if row['sex'] not in ['M', 'F']:
-                            errors.append(f"Row {index + 2}: Invalid sex '{row['sex']}'. Must be 'M' or 'F'")
-                            error_count += 1
-                            continue
-                        
-                        # Validate year level
-                        try:
-                            year_level = int(row['year_level'])
-                            if year_level < 1 or year_level > 5:
-                                errors.append(f"Row {index + 2}: Year level must be between 1 and 5")
-                                error_count += 1
-                                continue
-                        except ValueError:
-                            errors.append(f"Row {index + 2}: Invalid year level")
-                            error_count += 1
-                            continue
-                        
-                        # Create user
-                        user = User.objects.create_user(
-                            username=str(row['student_id']),
-                            password=str(row['student_id']),  # Default password is the student ID
-                            first_name=row['student_name'],
-                            is_active=False
-                        )
-                        
-                        # Create user profile
-                        UserProfile.objects.create(
-                            user=user,
-                            student_id=str(row['student_id']),
-                            college=row['college'],
-                            department=row['course'],  # Using course as department
-                            year_level=str(year_level),  # Convert to string since the model expects string
-                            gender=row['sex'],  # Using sex as gender
-                            age=18,  # Default age
-                            contact_number='N/A',  # Default contact number
-                            face_data=None  # Will be updated later with photo import
-                        )
-                        
-                        created_count += 1
-                        
-                    except Exception as e:
-                        errors.append(f"Row {index + 2}: {str(e)}")
+            error_logs = []
+
+            for index, row in df.iterrows():
+                try:
+                    # Clean and get data using matched columns
+                    student_number = str(row[column_matches['student_number']]).strip()
+                    student_name = str(row[column_matches['student_name']]).strip()
+                    sex = str(row[column_matches['sex']]).strip().upper()
+                    year_level = str(row[column_matches['year_level']]).strip()
+                    course = str(row[column_matches['course']]).strip()
+                    college = str(row[column_matches['college']]).strip().upper()
+
+                    # Validate student number
+                    if not student_number or pd.isna(student_number):
+                        error_logs.append(f"Row {index + 2}: Empty student number")
                         error_count += 1
-            
-            # Log the admin activity
-            AdminActivity.objects.create(
-                admin_user=request.user,
-                action='CREATE',
-                action_model='User',
-                description=f"Imported {created_count} users from Excel file"
-            )
-            
-            # Show success/error messages
-            if created_count > 0:
-                messages.success(request, f'Successfully created {created_count} users')
-            
+                        continue
+
+                    # Check for existing student number
+                    if UserProfile.objects.filter(student_number=student_number).exists():
+                        error_logs.append(f"Row {index + 2}: Student number {student_number} already exists")
+                        error_count += 1
+                        continue
+
+                    # Validate sex (handle common variations)
+                    sex_mapping = {
+                        'M': ['M', 'MALE', 'MAN'],
+                        'F': ['F', 'FEMALE', 'WOMAN']
+                    }
+                    sex_normalized = None
+                    for key, values in sex_mapping.items():
+                        if sex in values:
+                            sex_normalized = key
+                            break
+                    
+                    if not sex_normalized:
+                        error_logs.append(f"Row {index + 2}: Invalid sex value '{sex}' for student {student_number}")
+                        error_count += 1
+                        continue
+
+                    # Validate year level
+                    if year_level not in ['1', '2', '3', '4', '5']:
+                        error_logs.append(f"Row {index + 2}: Invalid year level '{year_level}' for student {student_number}")
+                        error_count += 1
+                        continue
+
+                    # Validate and normalize college code
+                    college_mapping = {
+                        'CAS': ['CAS', 'ARTS AND SCIENCES', 'COLLEGE OF ARTS AND SCIENCES'],
+                        'CAF': ['CAF', 'AGRICULTURE AND FORESTRY', 'COLLEGE OF AGRICULTURE AND FORESTRY'],
+                        'CCJE': ['CCJE', 'CRIMINAL JUSTICE', 'COLLEGE OF CRIMINAL JUSTICE EDUCATION'],
+                        'CBA': ['CBA', 'BUSINESS', 'COLLEGE OF BUSINESS ADMINISTRATION'],
+                        'CTED': ['CTED', 'EDUCATION', 'COLLEGE OF TEACHER EDUCATION'],
+                        'CIT': ['CIT', 'TECHNOLOGY', 'COLLEGE OF INDUSTRIAL TECHNOLOGY']
+                    }
+                    
+                    college_normalized = None
+                    for key, values in college_mapping.items():
+                        if college in values:
+                            college_normalized = key
+                            break
+
+                    if not college_normalized:
+                        error_logs.append(f"Row {index + 2}: Invalid college code '{college}' for student {student_number}")
+                        error_count += 1
+                        continue
+
+                    # Create new UserProfile
+                    UserProfile.objects.create(
+                        student_number=student_number,
+                        student_name=student_name,
+                        sex=sex_normalized,
+                        year_level=year_level,
+                        course=course,
+                        college=college_normalized
+                    )
+                    success_count += 1
+
+                except Exception as e:
+                    error_logs.append(f"Row {index + 2}: Error processing record - {str(e)}")
+                    error_count += 1
+                    continue
+
+            # Show import results
+            if success_count > 0:
+                messages.success(request, f"Successfully imported {success_count} student records.")
             if error_count > 0:
-                messages.warning(request, f'Failed to create {error_count} users')
-                for error in errors:
-                    messages.error(request, error)
-            
+                messages.warning(request, f"Failed to import {error_count} records. Check the error log below:")
+                for error in error_logs:
+                    messages.warning(request, error)
+
         except Exception as e:
-            messages.error(request, f'Error processing Excel file: {str(e)}')
+            messages.error(request, f"Error processing file: {str(e)}")
         
-        return redirect('admin_panel:manage_users')
-    
+        return redirect('admin_panel:register_user')
+
+    messages.error(request, "No file was uploaded.")
     return redirect('admin_panel:register_user')
 
 @login_required
@@ -524,27 +581,27 @@ def import_photos(request):
                 for file in files:
                     if file.lower().endswith(('.jpg', '.jpeg', '.png')):
                         try:
-                            student_id = Path(file).stem  # Get filename without extension
+                            student_number = Path(file).stem  # Get filename without extension
                             photo_path = os.path.join(root, file)
                             
                             # Check if user exists
                             try:
-                                user = User.objects.get(username=student_id)
+                                user = User.objects.get(username=student_number)
                                 user_profile = UserProfile.objects.get(user=user)
                                 
                                 # Process and save the photo
-                                face_data = process_photo_from_path(photo_path, student_id)
+                                face_data = process_photo_from_path(photo_path, student_number)
                                 user_profile.face_data = face_data
                                 user_profile.save()
                                 
                                 processed_count += 1
                                 
                             except User.DoesNotExist:
-                                errors.append(f"Photo '{file}': User with ID '{student_id}' not found")
+                                errors.append(f"Photo '{file}': User with ID '{student_number}' not found")
                                 error_count += 1
                                 continue
                             except UserProfile.DoesNotExist:
-                                errors.append(f"Photo '{file}': User profile for ID '{student_id}' not found")
+                                errors.append(f"Photo '{file}': User profile for ID '{student_number}' not found")
                                 error_count += 1
                                 continue
                             except ValueError as e:

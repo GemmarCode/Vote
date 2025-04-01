@@ -1,0 +1,198 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrahead %}
+{{ block.super }}
+<style>
+    .candidate-list {
+        background: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .candidate-card {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        transition: transform 0.2s;
+    }
+    .candidate-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    .candidate-photo {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        overflow: hidden;
+        margin-right: 20px;
+    }
+    .candidate-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+    .candidate-info {
+        flex-grow: 1;
+    }
+    .candidate-name {
+        font-size: 1.2em;
+        font-weight: 600;
+        color: #1E5470;
+        margin-bottom: 5px;
+    }
+    .candidate-position {
+        color: #34729C;
+        font-weight: 500;
+        margin-bottom: 5px;
+    }
+    .candidate-details {
+        color: #666;
+        font-size: 0.9em;
+    }
+    .candidate-status {
+        padding: 5px 10px;
+        border-radius: 15px;
+        font-size: 0.8em;
+        font-weight: 500;
+    }
+    .status-active {
+        background: #e3f2fd;
+        color: #1976d2;
+    }
+    .status-inactive {
+        background: #ffebee;
+        color: #d32f2f;
+    }
+    .action-buttons {
+        display: flex;
+        gap: 10px;
+    }
+    .action-button {
+        padding: 5px 10px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-size: 0.9em;
+        transition: background-color 0.2s;
+    }
+    .edit-button {
+        background: #34729C;
+        color: white;
+    }
+    .edit-button:hover {
+        background: #1E5470;
+    }
+    .delete-button {
+        background: #dc3545;
+        color: white;
+    }
+    .delete-button:hover {
+        background: #c82333;
+    }
+    .add-button {
+        background: #28a745;
+        color: white;
+        padding: 10px 20px;
+        border-radius: 4px;
+        text-decoration: none;
+        display: inline-block;
+        margin-bottom: 20px;
+    }
+    .add-button:hover {
+        background: #218838;
+    }
+    .filters {
+        margin-bottom: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 6px;
+    }
+    .filter-group {
+        margin-bottom: 10px;
+    }
+    .filter-group label {
+        display: block;
+        margin-bottom: 5px;
+        color: #1E5470;
+        font-weight: 500;
+    }
+    .filter-group select {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="candidate-list">
+    <div class="filters">
+        <form method="get">
+            <div class="filter-group">
+                <label for="position">Position</label>
+                <select name="position" id="position">
+                    <option value="">All Positions</option>
+                    {% for position in positions %}
+                    <option value="{{ position }}" {% if selected_position == position %}selected{% endif %}>
+                        {{ position }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label for="status">Status</label>
+                <select name="status" id="status">
+                    <option value="">All Status</option>
+                    <option value="active" {% if selected_status == 'active' %}selected{% endif %}>Active</option>
+                    <option value="inactive" {% if selected_status == 'inactive' %}selected{% endif %}>Inactive</option>
+                </select>
+            </div>
+            <button type="submit" class="action-button edit-button">Apply Filters</button>
+        </form>
+    </div>
+
+    <a href="{% url 'admin:user_candidateprofile_add' %}" class="add-button">
+        <i class="fas fa-plus"></i> Add New Candidate
+    </a>
+
+    {% for candidate in candidates %}
+    <div class="candidate-card">
+        <div class="candidate-photo">
+            {% if candidate.photo %}
+            <img src="{{ candidate.photo.url }}" alt="{{ candidate.user.get_full_name }}">
+            {% else %}
+            <i class="fas fa-user fa-2x" style="color: #34729C;"></i>
+            {% endif %}
+        </div>
+        <div class="candidate-info">
+            <div class="candidate-name">{{ candidate.user.get_full_name }}</div>
+            <div class="candidate-position">{{ candidate.position }}</div>
+            <div class="candidate-details">
+                {{ candidate.user.userprofile.college }} | 
+                {{ candidate.user.userprofile.department }} | 
+                Year {{ candidate.user.userprofile.year_level }}
+            </div>
+        </div>
+        <div class="candidate-status {% if candidate.is_active %}status-active{% else %}status-inactive{% endif %}">
+            {{ candidate.is_active|yesno:"Active,Inactive" }}
+        </div>
+        <div class="action-buttons">
+            <a href="{% url 'admin:user_candidateprofile_change' candidate.id %}" class="action-button edit-button">
+                <i class="fas fa-edit"></i> Edit
+            </a>
+            <a href="{% url 'admin:user_candidateprofile_delete' candidate.id %}" class="action-button delete-button">
+                <i class="fas fa-trash"></i> Delete
+            </a>
+        </div>
+    </div>
+    {% empty %}
+    <div class="alert alert-info">
+        No candidates found. Click "Add New Candidate" to create one.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %} 
