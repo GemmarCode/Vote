@@ -28,6 +28,7 @@ from django.views.decorators.http import require_http_methods
 import insightface
 from insightface.app import FaceAnalysis
 from django.views.decorators.csrf import csrf_exempt
+from .face_utils import FaceRecognition
 
 LOGIN_URL = 'login'  # or whatever your login URL name is
 
@@ -248,50 +249,28 @@ def get_local_candidates(user_profile):
 
 @csrf_exempt
 def verify_face(request):
+    """Basic face verification function"""
     try:
-        # Add debug logging
-        print("Starting face verification")
-        print("Request method:", request.method)
-        print("Content type:", request.headers.get('Content-Type'))
-        
-        # Parse JSON data
-        try:
-            data = json.loads(request.body)
-            print("Successfully parsed JSON data")
-        except json.JSONDecodeError as e:
-            print("JSON decode error:", str(e))
-            return JsonResponse({
-                'verified': False,
-                'message': 'Invalid JSON data'
-            }, status=400)
-        
+        # Get the captured face image from the request
+        data = json.loads(request.body)
         face_data = data.get('face_data')
+        
         if not face_data:
             print("No face data in request")
             return JsonResponse({
-                'verified': False,
+                'success': False,
                 'message': 'No face data provided'
             }, status=400)
-            
-        # Process the captured image
-        try:
-            print("Processing webcam image")
-            captured_face = process_webcam_image(face_data)
-            print("Captured face shape:", captured_face.shape if captured_face is not None else None)
-        except Exception as e:
-            print("Error processing webcam image:", str(e))
-            return JsonResponse({
-                'verified': False,
-                'message': f'Error processing image: {str(e)}'
-            }, status=400)
         
+        # Process the webcam image
+        captured_face = process_webcam_image(face_data)
         if captured_face is None:
             print("Failed to process captured image")
             return JsonResponse({
-                'verified': False,
+                'success': False,
                 'message': 'Failed to process captured image'
             }, status=400)
-            
+        
         # Get all face images from the face_data directory
         face_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
         print(f"Checking faces in directory: {face_dir}")
@@ -299,7 +278,7 @@ def verify_face(request):
         if not os.path.exists(face_dir):
             print("Face data directory does not exist")
             return JsonResponse({
-                'verified': False,
+                'success': False,
                 'message': 'Face data directory not found'
             }, status=400)
             
@@ -307,7 +286,7 @@ def verify_face(request):
         print(f"Found {len(face_files)} face files")
         
         best_match = None
-        best_distance = float('inf')
+        best_score = 0
         
         # Loop through all images in the directory
         for filename in face_files:
@@ -319,66 +298,85 @@ def verify_face(request):
                 stored_image = cv2.imread(stored_image_path)
                 
                 if stored_image is not None:
-                    print(f"Successfully loaded stored image: {filename}")
-                    verification_result = verify_voter_face(captured_face, stored_image)
-                    print(f"Verification distance for {student_number}: {verification_result['distance']}")
-                    
-                    if verification_result['distance'] < best_distance:
-                        best_distance = verification_result['distance']
-                        best_match = student_number
+                    # Use a simpler face recognition approach
+                    if stored_image.shape[0] > 0 and captured_face.shape[0] > 0:
+                        # Resize images to same size for comparison
+                        stored_resized = cv2.resize(stored_image, (300, 300))
+                        captured_resized = cv2.resize(captured_face, (300, 300))
+                        
+                        # Convert to grayscale for simpler comparison
+                        stored_gray = cv2.cvtColor(stored_resized, cv2.COLOR_BGR2GRAY)
+                        captured_gray = cv2.cvtColor(captured_resized, cv2.COLOR_BGR2GRAY)
+                        
+                        # Calculate structural similarity index
+                        try:
+                            from skimage.metrics import structural_similarity as ssim
+                            score = ssim(stored_gray, captured_gray)
+                            print(f"Similarity score for {student_number}: {score}")
+                            
+                            if score > best_score:
+                                best_score = score
+                                best_match = student_number
+                        except ImportError:
+                            # Fallback to histogram comparison if skimage not available
+                            hist1 = cv2.calcHist([stored_gray], [0], None, [256], [0, 256])
+                            hist2 = cv2.calcHist([captured_gray], [0], None, [256], [0, 256])
+                            score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+                            print(f"Histogram similarity for {student_number}: {score}")
+                            
+                            if score > best_score:
+                                best_score = score
+                                best_match = student_number
                 else:
                     print(f"Failed to load image: {filename}")
             except Exception as e:
                 print(f"Error processing {filename}: {str(e)}")
                 continue
         
-        # Set threshold for face matching
-        threshold = 0.6
-        print(f"Best match: {best_match}, Distance: {best_distance}, Threshold: {threshold}")
+        # Simple threshold for matching
+        threshold = 0.6  # Standard threshold
+        print(f"Best match: {best_match}, Score: {best_score}, Threshold: {threshold}")
         
-        if best_match and best_distance < threshold:
+        if best_match and best_score > threshold:
             try:
                 user_profile = UserProfile.objects.get(student_number=best_match)
                 print(f"Found matching user profile for student number: {best_match}")
                 
-                # Get the user by username (which is the student number)
-                user = User.objects.get(username=best_match)
-                print(f"Found matching user: {user.username}")
-                
+                # Store user profile ID in session
+                request.session['user_profile_id'] = user_profile.id
                 request.session['face_verified'] = True
-                request.session['verified_user_id'] = user.id
                 
                 return JsonResponse({
-                    'verified': True,
+                    'success': True,
                     'message': 'Face verification successful',
-                    'user_id': user.id,
-                    'username': user.username
+                    'user_profile_id': user_profile.id,
+                    'student_number': user_profile.student_number
                 })
             except UserProfile.DoesNotExist:
                 print(f"No user profile found for student number: {best_match}")
                 return JsonResponse({
-                    'verified': False,
-                    'message': 'User profile not found for matched face'
-                }, status=400)
-            except User.DoesNotExist:
-                print(f"No user found for student number: {best_match}")
-                return JsonResponse({
-                    'verified': False,
-                    'message': 'User not found for matched face'
-                }, status=400)
+                    'success': False,
+                    'message': 'User profile not found'
+                }, status=404)
         else:
             print("Face verification failed")
             return JsonResponse({
-                'verified': False,
+                'success': False,
                 'message': 'Face verification failed. Please try again.'
             }, status=400)
             
+    except json.JSONDecodeError as e:
+        print(f"JSON decode error: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid JSON data'
+        }, status=400)
     except Exception as e:
-        print("Unexpected error:", str(e))
+        print(f"Unexpected error: {str(e)}")
         print(traceback.format_exc())
         return JsonResponse({
-            'verified': False,
-            'message': f'Error during face verification: {str(e)}'
+            'success': False,
+            'message': f'Error during verification: {str(e)}'
         }, status=500)
 
 def cast_vote(request, candidate_id):

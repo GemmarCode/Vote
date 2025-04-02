@@ -96,47 +96,13 @@ def dashboard(request):
 @login_required
 @user_passes_test(is_admin)
 def manage_users(request):
-    User = get_user_model()
+    # Get all users ordered by id (newer users will have higher IDs)
+    all_users = UserProfile.objects.all().order_by('-id')
+    print("DEBUG - Total users:", UserProfile.objects.count())
+    print("DEBUG - User student numbers:", [u.student_number for u in all_users])
     
-    if request.method == 'POST':
-        action = request.POST.get('action')
-        user_id = request.POST.get('user_id')
-        
-        try:
-            user = User.objects.get(id=user_id)
-            
-            if action == 'activate':
-                user.is_active = True
-                user.save()
-                messages.success(request, f'User {user.username} has been activated.')
-            
-            elif action == 'deactivate':
-                # Prevent deactivating superusers
-                if user.is_superuser:
-                    messages.error(request, 'Cannot deactivate superuser accounts.')
-                else:
-                    user.is_active = False
-                    user.save()
-                    messages.success(request, f'User {user.username} has been deactivated.')
-            
-        except User.DoesNotExist:
-            messages.error(request, 'User not found.')
-        
-        return redirect('admin_panel:manage_users')
-    
-    # Get all users except superusers, ordered by registration date
-    all_users = User.objects.filter(is_superuser=False).select_related('userprofile').order_by('-date_joined')
-    print("DEBUG - Total users:", User.objects.count())
-    print("DEBUG - Non-superuser users:", all_users.count())
-    print("DEBUG - User usernames:", [u.username for u in all_users])
-    
-    # Get only new (inactive) users
-    new_users = all_users.filter(is_active=False)
-    print("DEBUG - New users:", new_users.count())
-    print("DEBUG - New user usernames:", [u.username for u in new_users])   
     context = {
-        'all_users': all_users,
-        'new_users': new_users
+        'all_users': all_users
     }
     return render(request, 'manage_users.html', context)
 
@@ -319,23 +285,20 @@ def manage_candidates(request):
     national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
     local_positions = [pos[0] for pos in Candidate.LOCAL_POSITIONS]
 
-    # Group pending candidates
-    pending_national = candidates.filter(approved=False, position__in=national_positions)
-    pending_local = candidates.filter(approved=False, position__in=local_positions)
+    # Get all users from UserProfile for search
+    users = UserProfile.objects.all().order_by('student_name')
 
-    # Group approved candidates
-    approved_national = candidates.filter(approved=True, position__in=national_positions)
-    approved_local = candidates.filter(approved=True, position__in=local_positions)
+    # Get unique colleges and departments for dropdowns
+    colleges = UserProfile.objects.values_list('college', flat=True).distinct()
+    departments = UserProfile.objects.values_list('course', flat=True).distinct()
 
     context = {
-        'pending_candidates': {
-            'national': pending_national,
-            'local': pending_local
-        },
-        'approved_candidates': {
-            'national': approved_national,
-            'local': approved_local
-        }
+        'candidates': candidates,
+        'users': users,
+        'national_positions': national_positions,
+        'local_positions': local_positions,
+        'colleges': colleges,
+        'departments': departments
     }
     return render(request, 'manage_candidates.html', context)
 
@@ -584,30 +547,19 @@ def import_photos(request):
                             student_number = Path(file).stem  # Get filename without extension
                             photo_path = os.path.join(root, file)
                             
-                            # Check if user exists
-                            try:
-                                user = User.objects.get(username=student_number)
-                                user_profile = UserProfile.objects.get(user=user)
-                                
-                                # Process and save the photo
-                                face_data = process_photo_from_path(photo_path, student_number)
-                                user_profile.face_data = face_data
-                                user_profile.save()
-                                
-                                processed_count += 1
-                                
-                            except User.DoesNotExist:
-                                errors.append(f"Photo '{file}': User with ID '{student_number}' not found")
+                            # Read the image
+                            img = cv2.imread(photo_path)
+                            if img is None:
+                                errors.append(f"Photo '{file}': Could not read image file")
                                 error_count += 1
                                 continue
-                            except UserProfile.DoesNotExist:
-                                errors.append(f"Photo '{file}': User profile for ID '{student_number}' not found")
-                                error_count += 1
-                                continue
-                            except ValueError as e:
-                                errors.append(f"Photo '{file}': {str(e)}")
-                                error_count += 1
-                                continue
+                            
+                            # Save image directly to media/face_data directory
+                            face_path = os.path.join(settings.MEDIA_ROOT, 'face_data', f'{student_number}.jpg')
+                            cv2.imwrite(face_path, img, [cv2.IMWRITE_JPEG_QUALITY, 100])
+                            
+                            processed_count += 1
+                            print(f"Successfully saved photo for student number: {student_number}")
                             
                         except Exception as e:
                             errors.append(f"Error processing photo '{file}': {str(e)}")
@@ -617,7 +569,7 @@ def import_photos(request):
             AdminActivity.objects.create(
                 admin_user=request.user,
                 action='UPDATE',
-                action_model='UserProfile',
+                action_model='FaceData',
                 description=f"Imported photos for {processed_count} users"
             )
             

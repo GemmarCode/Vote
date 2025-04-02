@@ -42,62 +42,6 @@
         {% endfor %}
     {% endif %}
 
-    <!-- New Users Section -->
-    <div class="admin-card mb-4">
-        <div class="card-body p-4">
-            <h5 class="mb-4" style="color: #34729C;">
-                <i class="fas fa-user-clock me-2"></i>New Users Awaiting Activation
-                <span class="badge rounded-pill bg-warning text-dark ms-2">{{ new_users|length }}</span>
-            </h5>
-            <div class="table-responsive">
-                <table class="table table-hover align-middle">
-                    <thead>
-                        <tr>
-                            <th>Username</th>
-                            <th>Full Name</th>
-                            <th>Email</th>
-                            <th>College</th>
-                            <th>Registration Date</th>
-                            <th class="text-end">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in new_users %}
-                        <tr>
-                            <td>
-                                <div class="d-flex align-items-center">
-                                    <div class="user-avatar me-3">
-                                        <i class="fas fa-user"></i>
-                                    </div>
-                                    {{ user.username }}
-                                </div>
-                            </td>
-                            <td>{{ user.get_full_name }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>{{ user.userprofile.get_college_display }}</td>
-                            <td>{{ user.date_joined|date:"M d, Y" }}</td>
-                            <td class="text-end">
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to activate the account for {{ user.username }}?');">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                                    <input type="hidden" name="action" value="activate">
-                                    <button type="submit" class="btn btn-success btn-sm">
-                                        <i class="fas fa-check me-1"></i>Activate
-        </button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="6" class="text-center text-muted">No new users awaiting activation</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-
     <!-- All Users Section -->
     <div class="admin-card">
         <div class="card-body p-4">
@@ -109,13 +53,11 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Username</th>
+                            <th>Student Number</th>
                             <th>Full Name</th>
-                            <th>Email</th>
+                            <th>Course</th>
                             <th>College</th>
-                            <th>Status</th>
-                            <th>Last Login</th>
-                            <th class="text-end">Actions</th>
+                            <th>Year Level</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -126,38 +68,17 @@
                                     <div class="user-avatar me-3">
                                         <i class="fas fa-user"></i>
                                     </div>
-                                    {{ user.username }}
+                                    {{ user.student_number }}
                                 </div>
                             </td>
-                            <td>{{ user.get_full_name }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>{{ user.userprofile.get_college_display }}</td>
-                            <td>
-                                {% if user.is_active %}
-                                    <span class="badge bg-success">Active</span>
-                                {% else %}
-                                    <span class="badge bg-warning">Inactive</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ user.last_login|date:"M d, Y H:i"|default:"Never" }}</td>
-                            <td class="text-end">
-                                <form method="POST" class="d-inline" onsubmit="return confirm('Are you sure you want to {% if user.is_active %}deactivate{% else %}activate{% endif %} the account for {{ user.username }}?');">
-                                    {% csrf_token %}
-                                    <input type="hidden" name="user_id" value="{{ user.id }}">
-                                    <input type="hidden" name="action" value="{% if user.is_active %}deactivate{% else %}activate{% endif %}">
-                                    <button type="submit" class="btn {% if user.is_active %}btn-warning{% else %}btn-success{% endif %} btn-sm">
-                                        {% if user.is_active %}
-                                            <i class="fas fa-ban me-1"></i>Deactivate
-                                        {% else %}
-                                            <i class="fas fa-check me-1"></i>Activate
-                                        {% endif %}
-                                    </button>
-                                </form>
-                            </td>
+                            <td>{{ user.student_name }}</td>
+                            <td>{{ user.course }}</td>
+                            <td>{{ user.get_college_display }}</td>
+                            <td>{{ user.year_level }}</td>
                         </tr>
                         {% empty %}
                         <tr>
-                            <td colspan="7" class="text-center text-muted">No users found</td>
+                            <td colspan="5" class="text-center text-muted">No users found</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -252,14 +173,14 @@ document.addEventListener('DOMContentLoaded', function() {
             rows.forEach(row => {
                 if (row.cells.length <= 1) return; // Skip empty state rows
                 
-                const username = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+                const studentNumber = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
                 const fullName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-                const email = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
+                const course = row.querySelector('td:nth-child(3)').textContent.toLowerCase();
                 const college = row.querySelector('td:nth-child(4)').textContent;
 
-                const matchesSearch = username.includes(searchTerm) || 
+                const matchesSearch = studentNumber.includes(searchTerm) || 
                                     fullName.includes(searchTerm) || 
-                                    email.includes(searchTerm);
+                                    course.includes(searchTerm);
                                     
                 const matchesCollege = !selectedCollege || college.includes(selectedCollege);
 

@@ -14,14 +14,14 @@
                 </div>
                 <div class="card-body p-4">
                     <form method="POST" enctype="multipart/form-data">
-                                            {% csrf_token %}
+                        {% csrf_token %}
                         <div class="row g-3">
                             <!-- User Selection -->
                             <div class="col-md-6">
                                 <label class="form-label">Search User</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="userSearch" placeholder="Search by name..." autocomplete="off">
-                                    <input type="hidden" name="user" id="selectedUserId" required>
+                                    <input type="text" class="form-control" id="userSearch" placeholder="Search by student number or name..." autocomplete="off">
+                                    <input type="hidden" name="user_profile_id" id="selectedUserId" required>
                                 </div>
                                 <div id="searchResults" class="position-absolute bg-white shadow-sm rounded-bottom border" style="display: none; z-index: 1000; width: calc(100% - 24px); max-height: 200px; overflow-y: auto;"></div>
                             </div>
@@ -47,7 +47,7 @@
                                         {% endfor %}
                                     </optgroup>
                                 </select>
-                </div>
+                            </div>
 
                             <!-- College -->
                             <div class="col-md-4">
@@ -58,7 +58,7 @@
                                     <option value="{{ college }}">{{ college }}</option>
                                     {% endfor %}
                                 </select>
-            </div>
+                            </div>
 
                             <!-- Department -->
                             <div class="col-md-4">
@@ -69,7 +69,7 @@
                                     <option value="{{ department }}">{{ department }}</option>
                                     {% endfor %}
                                 </select>
-                </div>
+                            </div>
 
                             <!-- Year Level -->
                             <div class="col-md-4">
@@ -81,34 +81,34 @@
                                     <option value="3">3rd Year</option>
                                     <option value="4">4th Year</option>
                                 </select>
-                                            </div>
+                            </div>
 
                             <!-- Photo Upload -->
                             <div class="col-12">
                                 <label class="form-label">Candidate Photo</label>
                                 <input type="file" class="form-control" name="photo" accept="image/*">
-                    </div>
+                            </div>
 
                             <!-- Platform -->
                             <div class="col-12">
                                 <label class="form-label">Platform</label>
                                 <textarea class="form-control" name="platform" rows="4" required></textarea>
-                </div>
+                            </div>
 
                             <!-- Achievements -->
                             <div class="col-12">
                                 <label class="form-label">Achievements</label>
                                 <textarea class="form-control" name="achievements" rows="4"></textarea>
-            </div>
+                            </div>
 
                             <!-- Submit Button -->
                             <div class="col-12 mt-4">
                                 <button type="submit" class="btn btn-lg w-100" style="background-color: #34729C; color: white;">
                                     <i class="fas fa-plus-circle me-2"></i>Add Candidate
                                 </button>
-                </div>
-                                            </div>
-                                        </form>
+                            </div>
+                        </div>
+                    </form>
                 </div>
             </div>
 
@@ -123,6 +123,7 @@
                             <thead>
                                 <tr>
                                     <th>Photo</th>
+                                    <th>Student Number</th>
                                     <th>Name</th>
                                     <th>Position</th>
                                     <th>College</th>
@@ -145,7 +146,8 @@
                                             </div>
                                         {% endif %}
                                     </td>
-                                    <td>{{ candidate.user.get_full_name }}</td>
+                                    <td>{{ candidate.user.userprofile.student_number }}</td>
+                                    <td>{{ candidate.user.userprofile.student_name }}</td>
                                     <td>{{ candidate.position }}</td>
                                     <td>{{ candidate.college|default:"-" }}</td>
                                     <td>{{ candidate.department|default:"-" }}</td>
@@ -205,7 +207,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectedUserId = document.getElementById('selectedUserId');
     let users = [
         {% for user in users %}
-            { id: "{{ user.id }}", name: "{{ user.get_full_name }}" },
+            { 
+                id: "{{ user.id }}", 
+                student_number: "{{ user.student_number }}",
+                name: "{{ user.student_name }}",
+                college: "{{ user.college }}",
+                course: "{{ user.course }}",
+                year_level: "{{ user.year_level }}"
+            },
         {% endfor %}
     ];
 
@@ -217,6 +226,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const filteredUsers = users.filter(user => 
+            user.student_number.toLowerCase().includes(searchTerm) ||
             user.name.toLowerCase().includes(searchTerm)
         );
 
@@ -225,7 +235,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <div class="p-2 cursor-pointer hover-bg-light border-bottom user-result" 
                      data-id="${user.id}" 
                      style="cursor: pointer;">
-                    ${user.name}
+                    <div class="fw-bold">${user.student_number}</div>
+                    <div class="small text-muted">${user.name}</div>
+                    <div class="small text-muted">${user.college} - ${user.course} (Year ${user.year_level})</div>
                 </div>
             `).join('');
             searchResults.style.display = 'block';
@@ -240,8 +252,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const userResult = e.target.closest('.user-result');
         if (userResult) {
             const userId = userResult.dataset.id;
-            const userName = userResult.textContent.trim();
-            userSearch.value = userName;
+            const user = users.find(u => u.id === userId);
+            userSearch.value = `${user.student_number} - ${user.name}`;
             selectedUserId.value = userId;
             searchResults.style.display = 'none';
         }
