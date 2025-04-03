@@ -108,4 +108,92 @@ python manage.py runserver
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details. 
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+# Enhanced Face Verification System
+
+## Overview
+This system features an improved face verification system for secure voter authentication. The enhancements include:
+
+1. **Multiple Verification Attempts**: The system automatically tries up to 3 verification attempts for better accuracy.
+2. **Advanced Face Detection**: Uses OpenCV's Haar Cascade to detect and focus on face areas.
+3. **Improved Lighting Normalization**: Implements CLAHE (Contrast Limited Adaptive Histogram Equalization) for better handling of varying lighting conditions.
+4. **Multiple Matching Methods**: Uses a combination of techniques, including structural similarity, histogram comparison, and face recognition libraries.
+5. **Comprehensive Error Handling**: Detailed logging and error reporting for debugging.
+6. **Debug Image Saving**: Automatically saves captured and processed images for troubleshooting.
+7. **Modular JavaScript Interface**: A reusable face verification module for consistent implementation.
+
+## Face Verification Process
+
+### Server-Side
+The backend implements a robust verification process:
+1. Captures and preprocesses face images
+2. Attempts multiple verification methods
+3. Selects the best match across all attempts
+4. Provides detailed feedback on verification results
+
+### Client-Side
+The frontend JavaScript module (`face-verification.js`) provides:
+1. Camera initialization and management
+2. Multiple verification attempts
+3. User feedback on verification status
+4. Visual effects during verification
+
+## Usage Instructions
+
+### Adding the JavaScript Module
+Include the JavaScript file in your HTML:
+```html
+<script src="{% static 'js/face-verification.js' %}"></script>
+```
+
+### Initializing Face Verification
+```javascript
+// Initialize with options
+await FaceVerification.initialize({
+    videoId: 'video',                     // Video element ID
+    canvasId: 'canvas',                   // Canvas element ID
+    statusElementId: 'verification-status', // Status display element ID
+    verifyButtonId: 'verifyButton',       // Verification button ID
+    csrfToken: csrfToken,                 // CSRF token for requests
+    maxAttempts: 3,                       // Maximum verification attempts
+    autoVerify: false,                    // Auto-start verification
+    onSuccess: function(data) {
+        // Handle successful verification
+    },
+    onMaxAttempts: function(data) {
+        // Handle maximum attempts reached
+    }
+});
+```
+
+### Stopping the Camera
+```javascript
+FaceVerification.stopCamera();
+```
+
+### Common Issues & Troubleshooting
+1. **Verification Fails**: Ensure good lighting and face positioning
+2. **Camera Not Starting**: Check browser permissions
+3. **Slow Performance**: Reduce video resolution in the options
+
+## API Endpoints
+
+### Verify Face
+- **URL**: `/api/verify-face/`
+- **Method**: POST
+- **Body**: JSON with face_data (base64 image)
+- **Response**: JSON with verification results
+
+## Testing
+For best results:
+1. Ensure good lighting conditions
+2. Position face clearly in the frame
+3. Remove glasses or face coverings
+4. Maintain a neutral expression
+
+## Debug Mode
+Debug images are saved in the `media/debug` directory and include:
+- Original captured images
+- Preprocessed faces
+- Verification log files with detailed scoring 

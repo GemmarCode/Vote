@@ -12,11 +12,11 @@
                 <h5 class="modal-title text-white">
                     <i class="fas fa-camera me-2"></i>Face Verification Required
                 </h5>
-                <a href="{% url 'user:mainpage' %}" class="btn-close btn-close-white" id="closeModalBtn" aria-label="Close" onclick="stopCamera()"></a>
+                <a href="{% url 'user:mainpage' %}" class="btn-close btn-close-white" id="closeModalBtn" aria-label="Close"></a>
             </div>
             <div class="modal-body text-center">
                 <div class="mb-3">
-                    <div id="camera-container" class="rounded overflow-hidden mx-auto" 
+                    <div id="camera-container" class="rounded overflow-hidden mx-auto position-relative" 
                          style="max-width: 400px; background-color: #D1ECFF;">
                         <video id="video" class="w-100" playsinline autoplay style="transform: scaleX(-1);"></video>
                         <canvas id="canvas" class="d-none"></canvas>
@@ -27,10 +27,10 @@
                 </div>
                 <div id="verification-status" class="alert d-none"></div>
                 <div class="d-flex gap-2">
-                    <a href="{% url 'user:mainpage' %}" id="backButton" class="btn btn-lg flex-grow-1" style="background-color: #6CB1DA; color: white;" onclick="stopCamera()">
+                    <a href="{% url 'user:mainpage' %}" id="backButton" class="btn btn-lg flex-grow-1" style="background-color: #6CB1DA; color: white;">
                         <i class="fas fa-arrow-left me-2"></i>Back
                     </a>
-                    <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #34729C; color: white;">
+                    <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #34729C; color: white;" disabled>
                         <i class="fas fa-check-circle me-2"></i>Verify Face
                     </button>
                 </div>
@@ -158,157 +158,87 @@
     <div class="container-fluid py-5" style="background-color: #D1ECFF;">
         <!-- Universal National Positions -->
         <div class="mb-5">
-            <!-- ... rest of your provided voting content ... -->
+            <!-- Content for voting will be loaded dynamically -->
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'js/face-verification.js' %}"></script>
 <script>
 const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-
-let video = null;
-let canvas = null;
-let stream = null;
 let isVerified = false;
 let currentPositionIndex = 0;
 let positions = [];
 let selectedCandidate = null;
 
-// Initialize camera
-async function initializeCamera() {
-    try {
-        video = document.getElementById('video');
-        canvas = document.getElementById('canvas');
-        
-        // Request camera access
-        stream = await navigator.mediaDevices.getUserMedia({ 
-            video: {
-                width: { ideal: 1280 },
-                height: { ideal: 720 },
-                facingMode: 'user'
-            },
-            audio: false
-        });
-        
-        video.srcObject = stream;
-        
-        // Wait for video to be ready
-        await new Promise((resolve, reject) => {
-            video.onloadedmetadata = () => {
-                video.play()
-                    .then(resolve)
-                    .catch(reject);
-            };
-            video.onerror = reject;
-        });
-        
-        // Set canvas dimensions
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        
-        // Enable verify button
-        document.getElementById('verifyButton').disabled = false;
-        
-        showVerificationStatus('Camera initialized successfully. Please position your face in the frame.', 'success');
-        
-    } catch (err) {
-        console.error('Error accessing camera:', err);
-        showVerificationStatus('Error accessing camera. Please check your permissions and try again.', 'danger');
-        document.getElementById('verifyButton').disabled = true;
-    }
-}
-
-// Handle verification button click
-document.getElementById('verifyButton').addEventListener('click', async function() {
-    const button = this;
-    button.disabled = true;
+// Initialize the face verification system
+document.addEventListener('DOMContentLoaded', function() {
+    // Show face verification modal
+    const modal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
+    modal.show();
     
-    try {
-        await performVerification();
-    } catch (err) {
-        console.error('Error during verification:', err);
-        showVerificationStatus('Error during verification. Please try again.', 'danger');
-        button.disabled = false;
-    }
-});
-
-async function performVerification() {
-    try {
-        showVerificationStatus('Verifying face...', 'info');
-        
-        // Capture current frame
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
-        // Get image data
-        const imageData = canvas.toDataURL('image/jpeg', 0.8);
-        
-        // Send to server for verification
-        const response = await fetch('/api/verify-face/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': csrftoken
+    // Initialize our face verification module when modal is shown
+    modal._element.addEventListener('shown.bs.modal', async function () {
+        // Initialize the FaceVerification module with options
+        await FaceVerification.initialize({
+            videoId: 'video',
+            canvasId: 'canvas',
+            statusElementId: 'verification-status',
+            verifyButtonId: 'verifyButton',
+            csrfToken: csrftoken,
+            maxAttempts: 3,
+            autoVerify: false, // Set to true for automatic verification after camera init
+            onSuccess: function(data) {
+                isVerified = true;
+                // Stop camera and show voting content
+                setTimeout(() => {
+                    FaceVerification.stopCamera();
+                    bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal')).hide();
+                    
+                    // Show voting content and start the voting process
+                    document.getElementById('votingContent').classList.remove('d-none');
+                    
+                    // Start voting process with the authenticated user
+                    startVotingProcess();
+                }, 1000);
             },
-            credentials: 'same-origin',
-            body: JSON.stringify({ 
-                face_data: imageData
-            })
+            onMaxAttempts: function(data) {
+                // Optional handler when max attempts reached
+                console.log('Max verification attempts reached');
+            }
         });
-        
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Server response:', errorText);
-            throw new Error(`Server error: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        
-        if (result.verified) {
-            showVerificationStatus('Face verification successful!', 'success');
-            isVerified = true;
-            
-            // Stop camera and show voting content
-            setTimeout(() => {
-                stopCamera();
-                bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal')).hide();
-                
-                // Show voting content
-                document.getElementById('votingContent').classList.remove('d-none');
-            }, 1000);
-        } else {
-            showVerificationStatus(result.message || 'Face verification failed. Please try again.', 'danger');
-            document.getElementById('verifyButton').disabled = false;
-        }
-    } catch (err) {
-        console.error('Error:', err);
-        showVerificationStatus('Error during verification. Please try again.', 'danger');
-        document.getElementById('verifyButton').disabled = false;
-    }
-}
-
-function showVerificationStatus(message, type) {
-    const status = document.getElementById('verification-status');
-    status.classList.remove('d-none');
-    status.className = `alert alert-${type}`;
-    status.innerHTML = message;
-}
-
-function stopCamera() {
-    if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-    }
-}
+    });
+    
+    // Close modal and stop camera
+    document.getElementById('closeModalBtn').addEventListener('click', function() {
+        FaceVerification.stopCamera();
+    });
+    
+    document.getElementById('backButton').addEventListener('click', function() {
+        FaceVerification.stopCamera();
+    });
+});
 
 // Voting Process Functions
 function startVotingProcess() {
+    // Get user profile from session storage
+    const userProfileJson = sessionStorage.getItem('verifiedUserProfile');
+    if (!userProfileJson) {
+        console.error('No verified user profile found');
+        alert('Error: User authentication required. Please try again.');
+        window.location.href = '{% url "user:mainpage" %}';
+        return;
+    }
+    
+    const userProfile = JSON.parse(userProfileJson);
+    console.log('Starting voting process for user:', userProfile.studentNumber);
+    
     // Get all positions and their candidates
     positions = [];
     
-    // Add national positions
+    // Add national positions (all users can vote)
     {% for position, candidates in national_candidates.items %}
     positions.push({
         title: '{{ position }}',
@@ -317,23 +247,29 @@ function startVotingProcess() {
     });
     {% endfor %}
     
-    // Add college positions
+    // Add college-level positions (users from the same college)
     {% for position, candidates in national_candidates.items %}
     {% if position == 'Governor' or position == 'Vice Governor' or position == 'Secretary (College)' or position == 'Treasurer (College)' or position == 'Auditor (College)' or position == 'Public Information Officer (College)' %}
     positions.push({
         title: '{{ position }}',
         candidates: {{ candidates|safe }},
-        type: 'college'
+        type: 'college',
+        eligibility: { college: userProfile.college }
     });
     {% endif %}
     {% endfor %}
     
-    // Add department positions
+    // Add department positions (users from same department, year level)
     {% for position, candidates in local_candidates.items %}
     positions.push({
         title: '{{ position }}',
         candidates: {{ candidates|safe }},
-        type: 'department'
+        type: 'department',
+        eligibility: { 
+            college: userProfile.college, 
+            department: userProfile.department, 
+            yearLevel: userProfile.yearLevel 
+        }
     });
     {% endfor %}
     
@@ -356,20 +292,31 @@ function showNextPosition() {
     document.getElementById('currentPositionNumber').textContent = currentPositionIndex + 1;
     document.getElementById('positionTitle').querySelector('h3').textContent = position.title;
     
-    // Filter candidates based on position type
+    // Get user profile from session storage
+    const userProfile = JSON.parse(sessionStorage.getItem('verifiedUserProfile'));
+    
+    // Filter candidates based on position type and user eligibility
     let candidates = position.candidates;
     if (position.type === 'college') {
-        candidates = candidates.filter(c => c.college === '{{ user.userprofile.college }}');
+        candidates = candidates.filter(c => c.college === userProfile.college);
     } else if (position.type === 'department') {
         candidates = candidates.filter(c => 
-            c.department === '{{ user.userprofile.department }}' && 
-            c.year_level === '{{ user.userprofile.year_level }}'
+            c.college === userProfile.college && 
+            c.department === userProfile.department && 
+            c.year_level === userProfile.yearLevel
         );
     }
     
     // Display candidates
     const container = document.getElementById('candidatesContainer');
     container.innerHTML = '';
+    
+    if (candidates.length === 0) {
+        // Skip this position if no eligible candidates
+        currentPositionIndex++;
+        showNextPosition();
+        return;
+    }
     
     candidates.forEach(candidate => {
         const card = document.createElement('div');
@@ -445,16 +392,27 @@ async function confirmVote() {
     progressModal.show();
     
     try {
+        // Get the verified user profile for authentication
+        const userProfile = JSON.parse(sessionStorage.getItem('verifiedUserProfile'));
+        if (!userProfile) {
+            throw new Error('User profile not found. Please verify again.');
+        }
+        
         const response = await fetch(`/api/vote/${selectedCandidate.id}/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': csrftoken
-            }
+            },
+            credentials: 'same-origin',
+            body: JSON.stringify({ 
+                user_profile_id: userProfile.id,
+                position: selectedCandidate.position
+            })
         });
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             // Move to next position
             currentPositionIndex++;
@@ -477,28 +435,5 @@ function showCompletionModal() {
     const completionModal = new bootstrap.Modal(document.getElementById('completionModal'));
     completionModal.show();
 }
-
-// Initialize on page load
-document.addEventListener('DOMContentLoaded', function() {
-    // Show face verification modal
-    const modal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
-    modal.show();
-    
-    // Initialize camera after modal is shown
-    modal._element.addEventListener('shown.bs.modal', function () {
-        initializeCamera();
-    });
-});
-
-// Add event listeners for vote buttons
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.vote-btn').forEach(button => {
-        button.addEventListener('click', function() {
-            const candidateId = this.dataset.candidateId;
-            // Handle voting logic here
-            // You might want to show a confirmation modal before submitting the vote
-        });
-    });
-});
 </script>
 {% endblock %} 

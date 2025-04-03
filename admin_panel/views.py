@@ -24,7 +24,7 @@ import zipfile
 import tempfile
 import shutil
 from pathlib import Path
-from user.face_utils import FaceRecognition
+from user.face_utils import FaceRecognition, preprocess_face_image
 
 # Create your views here.
 
@@ -118,24 +118,40 @@ def process_face_photo(photo_file, student_number):
         if img is None:
             raise ValueError("Could not read image file")
         
-        # Initialize face recognition system
-        face_recognition = FaceRecognition()
+        # Create face_data directory if it doesn't exist
+        face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        os.makedirs(face_data_dir, exist_ok=True)
         
-        # Preprocess and align face
-        aligned = face_recognition.align_face(img)
-        if aligned is None:
-            raise ValueError("No face detected in image")
+        # Use the standardized preprocessing function
+        preprocessed_img = preprocess_face_image(img)
+        if preprocessed_img is None:
+            raise ValueError("Failed to preprocess face image")
+            
+        # Convert back to BGR (color) for saving if it's grayscale
+        if len(preprocessed_img.shape) == 2:  # If grayscale
+            preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
+        else:
+            preprocessed_color = preprocessed_img
         
-        # Save original photo with high quality
+        # Save processed image to face_data directory
         face_path = os.path.join('face_data', f'{student_number}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), aligned, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
-        # Store the color image directly using PNG format (lossless)
-        _, buffer = cv2.imencode('.png', aligned)
+        # Store the image in binary format for the face_data field
+        _, buffer = cv2.imencode('.jpg', preprocessed_color)
         face_bytes = buffer.tobytes()
         
         # Clean up temp file
         os.remove(temp_file)
+        
+        # Save a debug copy to help with troubleshooting
+        try:
+            debug_dir = os.path.join(settings.MEDIA_ROOT, 'debug')
+            os.makedirs(debug_dir, exist_ok=True)
+            cv2.imwrite(os.path.join(debug_dir, f'register_{student_number}.jpg'), 
+                        preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        except Exception as e:
+            print(f"Warning: Could not save debug image: {str(e)}")
         
         return face_bytes
     except Exception as e:
@@ -149,21 +165,37 @@ def process_photo_from_path(photo_path, student_number):
         if img is None:
             raise ValueError("Could not read image file")
         
-        # Initialize face recognition system
-        face_recognition = FaceRecognition()
+        # Create face_data directory if it doesn't exist
+        face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        os.makedirs(face_data_dir, exist_ok=True)
         
-        # Preprocess and align face
-        aligned = face_recognition.align_face(img)
-        if aligned is None:
-            raise ValueError("No face detected in image")
+        # Use the standardized preprocessing function
+        preprocessed_img = preprocess_face_image(img)
+        if preprocessed_img is None:
+            raise ValueError("Failed to preprocess face image")
+            
+        # Convert back to BGR (color) for saving if it's grayscale
+        if len(preprocessed_img.shape) == 2:  # If grayscale
+            preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
+        else:
+            preprocessed_color = preprocessed_img
         
-        # Save original photo with high quality
+        # Save processed image to face_data directory
         face_path = os.path.join('face_data', f'{student_number}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), aligned, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
-        # Store the color image directly using PNG format (lossless)
-        _, buffer = cv2.imencode('.png', aligned)
+        # Store the image in binary format for the face_data field
+        _, buffer = cv2.imencode('.jpg', preprocessed_color)
         face_bytes = buffer.tobytes()
+        
+        # Save a debug copy to help with troubleshooting
+        try:
+            debug_dir = os.path.join(settings.MEDIA_ROOT, 'debug')
+            os.makedirs(debug_dir, exist_ok=True)
+            cv2.imwrite(os.path.join(debug_dir, f'import_{student_number}.jpg'), 
+                        preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        except Exception as e:
+            print(f"Warning: Could not save debug image: {str(e)}")
         
         return face_bytes
     except Exception as e:
@@ -522,76 +554,92 @@ def import_users(request):
 @login_required
 @user_passes_test(is_admin)
 def import_photos(request):
+    """Import student photos from ZIP file"""
     if request.method == 'POST' and request.FILES.get('photos_zip'):
-        photos_zip = request.FILES['photos_zip']
-        temp_dir = None
+        zip_file = request.FILES['photos_zip']
+        
+        # Create directory if it doesn't exist
+        face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        os.makedirs(face_data_dir, exist_ok=True)
+        
+        import zipfile
+        from io import BytesIO
+        import traceback
+        
+        success_count = 0
+        error_count = 0
+        errors = []
         
         try:
-            # Create temporary directory
-            temp_dir = tempfile.mkdtemp()
-            
-            # Extract ZIP file
-            with zipfile.ZipFile(photos_zip, 'r') as zip_ref:
-                zip_ref.extractall(temp_dir)
-            
-            # Initialize counters
-            processed_count = 0
-            error_count = 0
-            errors = []
-            
-            # Process each photo in the extracted directory
-            for root, dirs, files in os.walk(temp_dir):
-                for file in files:
-                    if file.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        try:
-                            student_number = Path(file).stem  # Get filename without extension
-                            photo_path = os.path.join(root, file)
-                            
-                            # Read the image
-                            img = cv2.imread(photo_path)
-                            if img is None:
-                                errors.append(f"Photo '{file}': Could not read image file")
-                                error_count += 1
-                                continue
-                            
-                            # Save image directly to media/face_data directory
-                            face_path = os.path.join(settings.MEDIA_ROOT, 'face_data', f'{student_number}.jpg')
-                            cv2.imwrite(face_path, img, [cv2.IMWRITE_JPEG_QUALITY, 100])
-                            
-                            processed_count += 1
-                            print(f"Successfully saved photo for student number: {student_number}")
-                            
-                        except Exception as e:
-                            errors.append(f"Error processing photo '{file}': {str(e)}")
+            with zipfile.ZipFile(BytesIO(zip_file.read())) as z:
+                for filename in z.namelist():
+                    # Skip directories and non-image files
+                    if filename.endswith('/') or not filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                        continue
+                    
+                    # Extract student number from filename (remove extension)
+                    base_filename = os.path.basename(filename)
+                    student_number = os.path.splitext(base_filename)[0]
+                    
+                    try:
+                        # Extract file from ZIP
+                        image_data = z.read(filename)
+                        img_array = np.frombuffer(image_data, np.uint8)
+                        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                        
+                        if img is None:
+                            errors.append(f"Error processing photo '{base_filename}': Could not decode image")
                             error_count += 1
-            
-            # Log the admin activity
-            AdminActivity.objects.create(
-                admin_user=request.user,
-                action='UPDATE',
-                action_model='FaceData',
-                description=f"Imported photos for {processed_count} users"
-            )
-            
-            # Show success/error messages
-            if processed_count > 0:
-                messages.success(request, f'Successfully processed photos for {processed_count} users')
-            
-            if error_count > 0:
-                messages.warning(request, f'Failed to process {error_count} photos')
-                for error in errors:
-                    messages.error(request, error)
-            
-        except Exception as e:
-            messages.error(request, f'Error processing ZIP file: {str(e)}')
+                            continue
+                            
+                        # Preprocess the image using the same standardized function used for webcam images
+                        preprocessed_img = preprocess_face_image(img)
+                        
+                        if preprocessed_img is None:
+                            errors.append(f"Error processing photo '{base_filename}': Preprocessing failed")
+                            error_count += 1
+                            continue
+                            
+                        # Convert back to BGR (color) for saving
+                        if len(preprocessed_img.shape) == 2:  # If grayscale
+                            preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
+                        else:
+                            preprocessed_color = preprocessed_img
+                        
+                        # Save processed image to face_data directory
+                        output_path = os.path.join(face_data_dir, f"{student_number}.jpg")
+                        cv2.imwrite(output_path, preprocessed_color)
+                        success_count += 1
+                        
+                        # Log success
+                        print(f"Successfully processed and saved photo for student: {student_number}")
+                        
+                    except Exception as e:
+                        error_message = f"Error processing photo '{base_filename}': {str(e)}"
+                        print(error_message)
+                        print(traceback.format_exc())
+                        errors.append(error_message)
+                        error_count += 1
         
-        finally:
-            # Clean up temporary directory
-            if temp_dir and os.path.exists(temp_dir):
-                shutil.rmtree(temp_dir)
+        except zipfile.BadZipFile:
+            messages.error(request, "Invalid ZIP file. Please upload a valid ZIP file.")
+            return redirect('admin_panel:register_user')
         
-        return redirect('admin_panel:manage_users')
+        # Show summary message
+        if success_count > 0:
+            messages.success(request, f"Successfully imported {success_count} photos.")
+        
+        if error_count > 0:
+            error_message = f"Failed to import {error_count} photos. "
+            if len(errors) <= 5:
+                error_message += "Errors: " + "; ".join(errors)
+            else:
+                error_message += "Errors: " + "; ".join(errors[:5]) + f"; and {len(errors)-5} more errors."
+            messages.warning(request, error_message)
+        
+        return redirect('admin_panel:register_user')
     
+    messages.error(request, "No file uploaded or invalid request method.")
     return redirect('admin_panel:register_user')
 
 def admin_panel_login(request):
