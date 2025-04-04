@@ -54,7 +54,13 @@
                     <i class="fas fa-calendar-times fa-3x" style="color: #34729C;"></i>
                 </div>
                 <h4 class="mb-3">Voting is Currently Not Available</h4>
-                <p class="mb-4">{% if not voting_phase %}The voting period has not been set up yet.{% else %}The voting period has ended.{% endif %}</p>
+                <p class="mb-4" id="voting-status-message">
+                    {% if not voting_phase %}
+                    The voting period has not been set up yet.
+                    {% else %}
+                    The voting period has ended.
+                    {% endif %}
+                </p>
                 <p class="text-muted">Please check back later or contact the administrator for more information.</p>
                 <a href="{% url 'user:mainpage' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
                     <i class="fas fa-home me-2"></i>Return to Home
@@ -186,53 +192,18 @@ let userVotes = []; // Store votes locally before sending to server
 
 // Initialize the face verification system
 document.addEventListener('DOMContentLoaded', function() {
-    // Always show face verification modal
+    console.log('DOM loaded, starting verification process');
+    
+    // Always show face verification modal first
     const faceVerificationModal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
     faceVerificationModal.show();
-
-    // Initialize our face verification module when modal is shown
+    
+    // Initialize verification when modal is shown
     document.getElementById('faceVerificationModal').addEventListener('shown.bs.modal', function() {
-        console.log('Face verification modal shown, initializing verification');
+        console.log('Face verification modal shown');
         
-        // Define this function in a higher scope so it can be referenced more easily
-        function startVerification() {
-            console.log('Starting verification process');
-            // Initialize the FaceVerification module with options
-            FaceVerification.initialize({
-                videoId: 'video',
-                canvasId: 'canvas',
-                statusElementId: 'verification-status',
-                verifyButtonId: 'verifyButton',
-                csrfToken: csrftoken,
-                maxAttempts: 1, // Single attempt
-                autoVerify: false,
-                onSuccess: function(data) {
-                    console.log('Verification successful, proceeding to voting', data);
-                    // Stop camera first
-                    FaceVerification.stopCamera();
-                    
-                    // Hide verification modal
-                    const verificationModal = bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal'));
-                    if (verificationModal) {
-                        verificationModal.hide();
-                        console.log('Verification modal hidden');
-                    }
-                    
-                    // Start voting process after a short delay
-                    setTimeout(function() {
-                        console.log('Starting voting process now');
-                        startVotingProcess();
-                    }, 500);
-                }
-            }).then(() => {
-                console.log('Face verification initialized successfully');
-            }).catch(function(err) {
-                console.error('Error initializing face verification:', err);
-            });
-        }
-        
-        // Start verification immediately
-        startVerification();
+        // Initialize camera and verification
+        initFaceVerification();
     });
     
     // Close modal and stop camera
@@ -253,15 +224,100 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Also clean up when closing voting modal
     document.getElementById('closeVotingModalBtn').addEventListener('click', function() {
-        // Clear session storage 
         sessionStorage.removeItem('verifiedUserProfile');
         localStorage.removeItem('userVotes');
     });
 });
 
+// Initialize the face verification module
+async function initFaceVerification() {
+    try {
+        console.log('Initializing face verification');
+        
+        // Initialize the FaceVerification module
+        await FaceVerification.initialize({
+            videoId: 'video',
+            canvasId: 'canvas',
+            statusElementId: 'verification-status',
+            verifyButtonId: 'verifyButton',
+            csrfToken: csrftoken,
+            maxAttempts: 1,
+            autoVerify: false,
+            onSuccess: handleSuccessfulVerification
+        });
+        
+        console.log('Face verification initialized');
+    } catch (err) {
+        console.error('Error initializing face verification:', err);
+    }
+}
+
+// Handle successful verification
+function handleSuccessfulVerification(data) {
+    console.log('Verification successful! Processing data:', data);
+    
+    // Stop camera first
+    FaceVerification.stopCamera();
+    
+    // Hide verification modal
+    const verificationModal = bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal'));
+    if (verificationModal) {
+        verificationModal.hide();
+        console.log('Verification modal hidden');
+    }
+    
+    // Check if voting is available
+    fetch('/api/check-voting-status/', {
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrftoken
+        },
+        credentials: 'same-origin'
+    })
+    .then(response => response.json())
+    .then(result => {
+        console.log('Voting status check:', result);
+        
+        if (result.is_voting_open) {
+            // Voting is active, proceed with voting
+            console.log('Voting is active, showing voting modal');
+            startVotingProcess();
+        } else {
+            // Voting is not active, show the voting not available modal
+            console.log('Voting is NOT active, showing not available modal');
+            showVotingNotAvailableModal(result.message || 'Voting is currently closed.');
+        }
+    })
+    .catch(error => {
+        console.error('Error checking voting status:', error);
+        // If there's an error, default to showing the voting not available modal
+        showVotingNotAvailableModal('Error checking voting status. Please try again later.');
+    });
+}
+
+// Helper function to show the voting not available modal with a custom message
+function showVotingNotAvailableModal(message) {
+    // Get the modal element
+    const notAvailableModal = document.getElementById('votingNotAvailableModal');
+    
+    // Update the message if provided
+    if (message) {
+        const messageElement = notAvailableModal.querySelector('.mb-4');
+        if (messageElement) {
+            messageElement.textContent = message;
+        }
+    }
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(notAvailableModal);
+    modal.show();
+}
+
 // Voting Process Functions
 function startVotingProcess() {
     console.log('In startVotingProcess function');
+    
     // Get user profile from session storage (from face verification JS)
     const userProfileJson = sessionStorage.getItem('verifiedUserProfile');
     
@@ -317,14 +373,49 @@ function startVotingProcess() {
     });
     {% endfor %}
     
+    if (positions.length === 0) {
+        console.error('No positions/candidates loaded');
+        alert('Error: No candidates found for voting.');
+        return;
+    }
+    
     // Update UI
     document.getElementById('totalPositions').textContent = positions.length;
-    showNextPosition();
     
-    // Show voting modal
-    const votingModal = new bootstrap.Modal(document.getElementById('votingModal'));
-    votingModal.show();
-    console.log('Voting modal shown');
+    try {
+        // Show voting modal first, then load content
+        const votingModal = new bootstrap.Modal(document.getElementById('votingModal'), {
+            backdrop: 'static',
+            keyboard: false
+        });
+        
+        votingModal.show();
+        console.log('Voting modal shown');
+        
+        // After modal is shown, update content
+        document.getElementById('votingModal').addEventListener('shown.bs.modal', function() {
+            console.log('Voting modal shown event triggered, updating content');
+            showNextPosition();
+        }, { once: true }); // Only listen once
+    } catch (error) {
+        console.error('Error showing voting modal:', error);
+        // Try alternate approach
+        setTimeout(() => {
+            try {
+                const votingModalEl = document.getElementById('votingModal');
+                const votingModal = new bootstrap.Modal(votingModalEl);
+                votingModal.show();
+                
+                setTimeout(() => {
+                    console.log('Showing next position after delay');
+                    showNextPosition();
+                }, 500);
+    } catch (err) {
+                console.error('Alternative approach failed:', err);
+                alert('Error displaying voting interface. Please try again.');
+            }
+        }, 300);
+    }
 }
 
 function showNextPosition() {

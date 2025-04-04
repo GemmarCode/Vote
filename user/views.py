@@ -233,18 +233,18 @@ def verify_face(request):
     
     try:
         # Get the captured face image from the request
-        data = json.loads(request.body)
-        face_data = data.get('face_data')
-        
-        if not face_data:
+            data = json.loads(request.body)
+            face_data = data.get('face_data')
+
+            if not face_data:
             print("No face data in request")
-            return JsonResponse({
+                return JsonResponse({
                 'success': False,
-                'message': 'No face data provided'
+                    'message': 'No face data provided'
             }, status=400)
-        
+
         # Process the webcam image
-        captured_face = process_webcam_image(face_data)
+            captured_face = process_webcam_image(face_data)
         if captured_face is None:
             print("Failed to process captured image")
             return JsonResponse({
@@ -271,7 +271,7 @@ def verify_face(request):
         
         if not os.path.exists(face_dir):
             print("Face data directory does not exist")
-            return JsonResponse({
+                    return JsonResponse({
                 'success': False,
                 'message': 'Face data directory not found'
             }, status=400)
@@ -490,7 +490,7 @@ def verify_face(request):
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         print(traceback.format_exc())
-        return JsonResponse({
+    return JsonResponse({
             'success': False,
             'message': f'Error during verification: {str(e)}'
         }, status=500)
@@ -679,3 +679,65 @@ def logout_view(request):
     logout(request)
     messages.success(request, 'Successfully logged out!')
     return redirect('user:mainpage')
+
+# Add this new API endpoint that will check if voting is currently available
+@require_http_methods(["GET"])
+def check_voting_status(request):
+    """
+    API endpoint to check if voting is currently available
+    """
+    try:
+        # Get election settings
+        settings = ElectionSettings.objects.first()
+        
+        if not settings:
+            return JsonResponse({
+                'is_voting_open': False,
+                'message': 'Voting schedule has not been set up yet.'
+            })
+        
+        now = timezone.now()
+        
+        # Check if voting is active based on the start and end dates
+        if not settings.voting_start or not settings.voting_end:
+            return JsonResponse({
+                'is_voting_open': False,
+                'message': 'Voting schedule has not been set up yet.'
+            })
+        
+        # If voting hasn't started yet
+        if now < settings.voting_start:
+            hours_remaining = int((settings.voting_start - now).total_seconds() / 3600)
+            if hours_remaining > 24:
+                days = int(hours_remaining / 24)
+                return JsonResponse({
+                    'is_voting_open': False,
+                    'message': f'Voting will start in {days} day{"s" if days > 1 else ""}.'
+                })
+            else:
+                return JsonResponse({
+                    'is_voting_open': False,
+                    'message': f'Voting will start in {hours_remaining} hour{"s" if hours_remaining > 1 else ""}.'
+                })
+                
+        # If voting has ended
+        if now > settings.voting_end:
+            return JsonResponse({
+                'is_voting_open': False,
+                'message': 'Voting period has ended.'
+            })
+        
+        # If we get here, voting is active
+        hours_left = int((settings.voting_end - now).total_seconds() / 3600)
+        return JsonResponse({
+            'is_voting_open': True,
+            'message': f'Voting is currently open! {hours_left} hour{"s" if hours_left > 1 else ""} remaining.',
+            'voting_end': settings.voting_end.isoformat()
+        })
+    
+    except Exception as e:
+        print(f"Error checking voting status: {str(e)}")
+        return JsonResponse({
+            'is_voting_open': False,
+            'message': 'Error checking voting status.'
+        }, status=500)

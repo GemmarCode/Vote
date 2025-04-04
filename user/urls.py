@@ -11,5 +11,5 @@ urlpatterns = [
     path('candidates/', views.candidates_view, name='candidates'),
     path('api/verify-face/', views.verify_face, name='verify_face'),
     path('api/vote/<int:candidate_id>/', views.cast_vote, name='cast_vote'),
-    path('api/check-voting-availability/', views.check_voting_availability, name='check_voting_availability'),
+    path('api/check-voting-status/', views.check_voting_status, name='check_voting_status'),
 ]
