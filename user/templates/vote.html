@@ -72,17 +72,28 @@
                 <h5 class="modal-title text-white">
                     <i class="fas fa-vote-yea me-2"></i>Cast Your Vote
                 </h5>
-                <div class="text-white">
-                    Position <span id="currentPositionNumber">1</span> of <span id="totalPositions">1</span>
-                </div>
+                <a href="{% url 'user:mainpage' %}" class="btn-close btn-close-white" id="closeVotingModalBtn" aria-label="Close"></a>
             </div>
             <div class="modal-body">
-                <div id="positionTitle" class="text-center mb-4">
-                    <h3 class="fw-bold" style="color: #1E5470;"></h3>
+                <div class="progress mb-3">
+                    <div class="progress-bar" role="progressbar" style="width: 0%; background-color: #34729C;"
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
+                <div class="d-flex justify-content-between mb-3">
+                    <div>
+                        <span class="fw-bold">Position: </span>
+                        <span id="currentPositionNumber">1</span> of <span id="totalPositions">0</span>
+                    </div>
+                </div>
+                
+                <div id="positionTitle" class="mb-4 text-center">
+                    <h3 class="fw-bold text-uppercase" style="color: #34729C;">Position Title</h3>
+                </div>
+                
                 <div id="candidatesContainer" class="row g-3">
-                    <!-- Candidates will be dynamically inserted here -->
+                    <!-- Candidates will be loaded dynamically -->
                 </div>
+                
                 <div id="confirmationContainer" class="text-center d-none">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>Are you sure you want to vote for this candidate?
@@ -139,7 +150,7 @@
                 </div>
                 <h4 class="mb-3">Thank you for voting!</h4>
                 <p class="mb-4">Your votes have been recorded successfully.</p>
-                <a href="{% url 'user:mainpage' %}" class="btn btn-lg" style="background-color: #34729C; color: white;">
+                <a href="{% url 'user:mainpage' %}" class="btn btn-lg" style="background-color: #34729C; color: white;" id="completeVotingBtn">
                     <i class="fas fa-home me-2"></i>Return to Home
                 </a>
             </div>
@@ -168,47 +179,60 @@
 <script src="{% static 'js/face-verification.js' %}"></script>
 <script>
 const csrftoken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-let isVerified = false;
 let currentPositionIndex = 0;
 let positions = [];
 let selectedCandidate = null;
+let userVotes = []; // Store votes locally before sending to server
 
 // Initialize the face verification system
 document.addEventListener('DOMContentLoaded', function() {
-    // Show face verification modal
-    const modal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
-    modal.show();
-    
+    // Always show face verification modal
+    const faceVerificationModal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
+    faceVerificationModal.show();
+
     // Initialize our face verification module when modal is shown
-    modal._element.addEventListener('shown.bs.modal', async function () {
-        // Initialize the FaceVerification module with options
-        await FaceVerification.initialize({
-            videoId: 'video',
-            canvasId: 'canvas',
-            statusElementId: 'verification-status',
-            verifyButtonId: 'verifyButton',
-            csrfToken: csrftoken,
-            maxAttempts: 3,
-            autoVerify: false, // Set to true for automatic verification after camera init
-            onSuccess: function(data) {
-                isVerified = true;
-                // Stop camera and show voting content
-                setTimeout(() => {
+    document.getElementById('faceVerificationModal').addEventListener('shown.bs.modal', function() {
+        console.log('Face verification modal shown, initializing verification');
+        
+        // Define this function in a higher scope so it can be referenced more easily
+        function startVerification() {
+            console.log('Starting verification process');
+            // Initialize the FaceVerification module with options
+            FaceVerification.initialize({
+                videoId: 'video',
+                canvasId: 'canvas',
+                statusElementId: 'verification-status',
+                verifyButtonId: 'verifyButton',
+                csrfToken: csrftoken,
+                maxAttempts: 1, // Single attempt
+                autoVerify: false,
+                onSuccess: function(data) {
+                    console.log('Verification successful, proceeding to voting', data);
+                    // Stop camera first
                     FaceVerification.stopCamera();
-                    bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal')).hide();
                     
-                    // Show voting content and start the voting process
-                    document.getElementById('votingContent').classList.remove('d-none');
+                    // Hide verification modal
+                    const verificationModal = bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal'));
+                    if (verificationModal) {
+                        verificationModal.hide();
+                        console.log('Verification modal hidden');
+                    }
                     
-                    // Start voting process with the authenticated user
-                    startVotingProcess();
-                }, 1000);
-            },
-            onMaxAttempts: function(data) {
-                // Optional handler when max attempts reached
-                console.log('Max verification attempts reached');
-            }
-        });
+                    // Start voting process after a short delay
+                    setTimeout(function() {
+                        console.log('Starting voting process now');
+                        startVotingProcess();
+                    }, 500);
+                }
+            }).then(() => {
+                console.log('Face verification initialized successfully');
+            }).catch(function(err) {
+                console.error('Error initializing face verification:', err);
+            });
+        }
+        
+        // Start verification immediately
+        startVerification();
     });
     
     // Close modal and stop camera
@@ -219,21 +243,41 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('backButton').addEventListener('click', function() {
         FaceVerification.stopCamera();
     });
+    
+    // Clean up session when leaving the page
+    document.getElementById('completeVotingBtn').addEventListener('click', function() {
+        // Clear session storage
+        sessionStorage.removeItem('verifiedUserProfile');
+        localStorage.removeItem('userVotes');
+    });
+    
+    // Also clean up when closing voting modal
+    document.getElementById('closeVotingModalBtn').addEventListener('click', function() {
+        // Clear session storage 
+        sessionStorage.removeItem('verifiedUserProfile');
+        localStorage.removeItem('userVotes');
+    });
 });
 
 // Voting Process Functions
 function startVotingProcess() {
-    // Get user profile from session storage
+    console.log('In startVotingProcess function');
+    // Get user profile from session storage (from face verification JS)
     const userProfileJson = sessionStorage.getItem('verifiedUserProfile');
+    
     if (!userProfileJson) {
-        console.error('No verified user profile found');
+        console.error('No verified user profile found in session storage');
         alert('Error: User authentication required. Please try again.');
         window.location.href = '{% url "user:mainpage" %}';
         return;
     }
     
     const userProfile = JSON.parse(userProfileJson);
-    console.log('Starting voting process for user:', userProfile.studentNumber);
+    console.log('Starting voting process for user:', userProfile.studentNumber || userProfile.id);
+    
+    // Initialize empty votes array
+    userVotes = [];
+    localStorage.setItem('userVotes', JSON.stringify(userVotes));
     
     // Get all positions and their candidates
     positions = [];
@@ -280,6 +324,7 @@ function startVotingProcess() {
     // Show voting modal
     const votingModal = new bootstrap.Modal(document.getElementById('votingModal'));
     votingModal.show();
+    console.log('Voting modal shown');
 }
 
 function showNextPosition() {
@@ -291,6 +336,12 @@ function showNextPosition() {
     const position = positions[currentPositionIndex];
     document.getElementById('currentPositionNumber').textContent = currentPositionIndex + 1;
     document.getElementById('positionTitle').querySelector('h3').textContent = position.title;
+    
+    // Update progress bar
+    const progressPercentage = (currentPositionIndex / positions.length) * 100;
+    const progressBar = document.querySelector('.progress-bar');
+    progressBar.style.width = `${progressPercentage}%`;
+    progressBar.setAttribute('aria-valuenow', progressPercentage);
     
     // Get user profile from session storage
     const userProfile = JSON.parse(sessionStorage.getItem('verifiedUserProfile'));
@@ -392,12 +443,26 @@ async function confirmVote() {
     progressModal.show();
     
     try {
-        // Get the verified user profile for authentication
-        const userProfile = JSON.parse(sessionStorage.getItem('verifiedUserProfile'));
-        if (!userProfile) {
+        // Get the verified user profile from sessionStorage
+        const userProfileJson = sessionStorage.getItem('verifiedUserProfile');
+        if (!userProfileJson) {
             throw new Error('User profile not found. Please verify again.');
         }
         
+        const userProfile = JSON.parse(userProfileJson);
+        
+        // Store vote in localStorage first
+        const currentVotes = JSON.parse(localStorage.getItem('userVotes') || '[]');
+        currentVotes.push({
+            candidateId: selectedCandidate.id,
+            position: selectedCandidate.position,
+            candidateName: selectedCandidate.user_name,
+            timestamp: new Date().toISOString()
+        });
+        localStorage.setItem('userVotes', JSON.stringify(currentVotes));
+        console.log('Vote saved to localStorage:', selectedCandidate.id);
+        
+        // Then send to server
         const response = await fetch(`/api/vote/${selectedCandidate.id}/`, {
             method: 'POST',
             headers: {
@@ -414,10 +479,12 @@ async function confirmVote() {
         const result = await response.json();
 
         if (result.success) {
+            console.log('Vote registered on server successfully');
             // Move to next position
             currentPositionIndex++;
             showNextPosition();
         } else {
+            console.error('Server rejected vote:', result.message);
             alert(result.message || 'Error casting vote. Please try again.');
         }
     } catch (err) {
@@ -434,6 +501,9 @@ function showCompletionModal() {
     
     const completionModal = new bootstrap.Modal(document.getElementById('completionModal'));
     completionModal.show();
+    
+    // Clear votes from localStorage - voting is complete
+    localStorage.removeItem('userVotes');
 }
 </script>
 {% endblock %} 
