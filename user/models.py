@@ -73,26 +73,32 @@ class UserProfile(models.Model):
 class Candidate(models.Model):
     # Position Constants
     NATIONAL_POSITIONS = [
-        ('President', 'President'),
-        ('Vice President', 'Vice President'),
-        ('Secretary', 'Secretary'),
-        ('Treasurer', 'Treasurer'),
-        ('Auditor', 'Auditor'),
-        ('Public Information Officer', 'Public Information Officer'),
-        ('Representative', 'Representative'),
+        ('PRESIDENT', 'President'),
+        ('VICE_PRESIDENT', 'Vice President'),
+        ('SECRETARY', 'Secretary'),
+        ('TREASURER', 'Treasurer'),
+        ('AUDITOR', 'Auditor'),
+        ('PIO', 'Public Information Officer'),
+        ('REPRESENTATIVE', 'Representative'),
     ]
     
     COLLEGE_POSITIONS = [
-        ('Governor', 'Governor'),
-        ('Vice Governor', 'Vice Governor'),
-        ('Secretary (College)', 'Secretary (College)'),
-        ('Treasurer (College)', 'Treasurer (College)'),
-        ('Auditor (College)', 'Auditor (College)'),
-        ('Public Information Officer (College)', 'Public Information Officer (College)'),
+        ('GOVERNOR', 'Governor'),
+        ('VICE_GOVERNOR', 'Vice Governor'),
+        ('SECRETARY_COLLEGE', 'Secretary (College)'),
+        ('TREASURER_COLLEGE', 'Treasurer (College)'),
+        ('AUDITOR_COLLEGE', 'Auditor (College)'),
+        ('PRO_COLLEGE', 'Public Information Officer (College)'),
     ]
     
     LOCAL_POSITIONS = [
-        ('Department Representative', 'Department Representative'),
+        ('MAYOR', 'Mayor'),
+        ('VICE_MAYOR', 'Vice Mayor'),
+        ('SECRETARY_DEPT', 'Secretary (Department)'),
+        ('TREASURER_DEPT', 'Treasurer (Department)'),
+        ('AUDITOR_DEPT', 'Auditor (Department)'),
+        ('PRO_DEPT', 'Public Information Officer (Department)'),
+        ('REPRESENTATIVE_DEPT', 'Department Representative'),
     ]
     
     POSITION_CHOICES = NATIONAL_POSITIONS + COLLEGE_POSITIONS + LOCAL_POSITIONS
@@ -103,6 +109,8 @@ class Candidate(models.Model):
     department = models.CharField(max_length=100, blank=True, null=True)
     year_level = models.IntegerField(blank=True, null=True)
     photo = models.ImageField(upload_to='candidate_photos/', blank=True, null=True)
+    platform = models.TextField(help_text="Describe the candidate's platform and goals", blank=True, default="")
+    achievements = models.TextField(help_text="List the candidate's achievements, one per line", blank=True, default="")
     approved = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -220,22 +228,6 @@ class VotingPhase(models.Model):
         now = timezone.now()
         return self.start_date <= now <= self.end_date
 
-class CandidateProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='candidate_profile')
-    position = models.CharField(max_length=100)
-    achievements = models.TextField(help_text="List the candidate's achievements, one per line")
-    platform = models.TextField(help_text="Describe the candidate's platform and goals")
-    photo = models.ImageField(upload_to='candidate_photos/', null=True, blank=True)
-    is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def __str__(self):
-        return f"{self.user.get_full_name()} - {self.position}"
-
-    class Meta:
-        ordering = ['-created_at']
-
 class FaceData(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='face_data')
     face_embedding = models.BinaryField()  # Store face embedding as binary data
@@ -269,4 +261,22 @@ class FaceData(models.Model):
 
     def __str__(self):
         return f"Face data for {self.user.username}"
+
+# Deprecated - Use Candidate model instead
+# This model is kept for backward compatibility but should not be used for new code
+class CandidateProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='candidate_profile')
+    position = models.CharField(max_length=100)
+    achievements = models.TextField(help_text="List the candidate's achievements, one per line")
+    platform = models.TextField(help_text="Describe the candidate's platform and goals")
+    photo = models.ImageField(upload_to='candidate_photos/', null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.get_full_name()} - {self.position}"
+
+    class Meta:
+        ordering = ['-created_at']
 

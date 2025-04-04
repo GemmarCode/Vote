@@ -29,7 +29,7 @@
                             <!-- Position -->
                             <div class="col-md-6">
                                 <label class="form-label">Position</label>
-                                <select class="form-select" name="position" required>
+                                <select class="form-select" name="position" id="positionSelect" required>
                                     <option value="">Select position...</option>
                                     <optgroup label="National Positions">
                                         {% for position in national_positions %}
@@ -47,40 +47,44 @@
                                         {% endfor %}
                                     </optgroup>
                                 </select>
+                                <div class="form-text mt-1" id="positionHelp">Select a position to see required fields</div>
                             </div>
 
                             <!-- College -->
-                            <div class="col-md-4">
-                                <label class="form-label">College</label>
-                                <select class="form-select" name="college">
+                            <div class="col-md-4" id="collegeDiv" style="display: none;">
+                                <label class="form-label">College <span class="text-danger">*</span></label>
+                                <select class="form-select" name="college" id="collegeSelect">
                                     <option value="">Select college...</option>
                                     {% for college in colleges %}
                                     <option value="{{ college }}">{{ college }}</option>
                                     {% endfor %}
                                 </select>
+                                <div class="form-text">Required for college and department positions</div>
                             </div>
 
                             <!-- Department -->
-                            <div class="col-md-4">
-                                <label class="form-label">Department</label>
-                                <select class="form-select" name="department">
+                            <div class="col-md-4" id="departmentDiv" style="display: none;">
+                                <label class="form-label">Department <span class="text-danger">*</span></label>
+                                <select class="form-select" name="department" id="departmentSelect">
                                     <option value="">Select department...</option>
                                     {% for department in departments %}
                                     <option value="{{ department }}">{{ department }}</option>
                                     {% endfor %}
                                 </select>
+                                <div class="form-text">Required for department positions</div>
                             </div>
 
                             <!-- Year Level -->
-                            <div class="col-md-4">
-                                <label class="form-label">Year Level</label>
-                                <select class="form-select" name="year_level">
+                            <div class="col-md-4" id="yearLevelDiv" style="display: none;">
+                                <label class="form-label">Year Level <span class="text-danger">*</span></label>
+                                <select class="form-select" name="year_level" id="yearLevelSelect">
                                     <option value="">Select year level...</option>
                                     <option value="1">1st Year</option>
                                     <option value="2">2nd Year</option>
                                     <option value="3">3rd Year</option>
                                     <option value="4">4th Year</option>
                                 </select>
+                                <div class="form-text">Required for department positions</div>
                             </div>
 
                             <!-- Photo Upload -->
@@ -172,32 +176,72 @@
 {% block extra_js %}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const positionSelect = document.querySelector('select[name="position"]');
-    const collegeDiv = document.querySelector('select[name="college"]').parentElement;
-    const departmentDiv = document.querySelector('select[name="department"]').parentElement;
-    const yearLevelDiv = document.querySelector('select[name="year_level"]').parentElement;
+    const positionSelect = document.getElementById('positionSelect');
+    const collegeDiv = document.getElementById('collegeDiv');
+    const departmentDiv = document.getElementById('departmentDiv');
+    const yearLevelDiv = document.getElementById('yearLevelDiv');
+    const collegeSelect = document.getElementById('collegeSelect');
+    const departmentSelect = document.getElementById('departmentSelect');
+    const yearLevelSelect = document.getElementById('yearLevelSelect');
+    const positionHelp = document.getElementById('positionHelp');
 
-    // Initially hide college, department, and year level fields
-    collegeDiv.style.display = 'none';
-    departmentDiv.style.display = 'none';
-    yearLevelDiv.style.display = 'none';
-
+    // Set up position change handler
     positionSelect.addEventListener('change', function() {
         const selectedPosition = this.value;
         
+        // Reset validation
+        collegeSelect.required = false;
+        departmentSelect.required = false;
+        yearLevelSelect.required = false;
+        
+        // Hide all fields initially
+        collegeDiv.style.display = 'none';
+        departmentDiv.style.display = 'none';
+        yearLevelDiv.style.display = 'none';
+        
         // Show/hide fields based on position type
-        if (selectedPosition.includes('College') || selectedPosition === 'Governor' || selectedPosition === 'Vice Governor') {
-            collegeDiv.style.display = 'block';
-            departmentDiv.style.display = 'none';
-            yearLevelDiv.style.display = 'none';
-        } else if (selectedPosition === 'Department Representative') {
-            collegeDiv.style.display = 'block';
-            departmentDiv.style.display = 'block';
-            yearLevelDiv.style.display = 'block';
+        if (selectedPosition) {
+            // National positions don't need additional fields
+            const nationalPositions = [
+                'PRESIDENT', 'VICE_PRESIDENT', 'SECRETARY', 
+                'TREASURER', 'AUDITOR', 'PIO', 'REPRESENTATIVE'
+            ];
+            
+            // College positions need college field
+            const collegePositions = [
+                'GOVERNOR', 'VICE_GOVERNOR', 'SECRETARY_COLLEGE', 
+                'TREASURER_COLLEGE', 'AUDITOR_COLLEGE', 'PRO_COLLEGE'
+            ];
+            
+            // Department positions need college, department and year level
+            const departmentPositions = [
+                'MAYOR', 'VICE_MAYOR', 'SECRETARY_DEPT', 
+                'TREASURER_DEPT', 'AUDITOR_DEPT', 'PRO_DEPT', 
+                'REPRESENTATIVE_DEPT'
+            ];
+            
+            if (collegePositions.includes(selectedPosition)) {
+                collegeDiv.style.display = 'block';
+                collegeSelect.required = true;
+                positionHelp.textContent = 'College position selected - college field required';
+            } 
+            else if (departmentPositions.includes(selectedPosition)) {
+                collegeDiv.style.display = 'block';
+                departmentDiv.style.display = 'block';
+                yearLevelDiv.style.display = 'block';
+                collegeSelect.required = true;
+                departmentSelect.required = true;
+                yearLevelSelect.required = true;
+                positionHelp.textContent = 'Department position selected - all fields required';
+            }
+            else if (nationalPositions.includes(selectedPosition)) {
+                positionHelp.textContent = 'National position selected - no additional fields required';
+            }
+            else {
+                positionHelp.textContent = 'Unknown position type - please select valid position';
+            }
         } else {
-            collegeDiv.style.display = 'none';
-            departmentDiv.style.display = 'none';
-            yearLevelDiv.style.display = 'none';
+            positionHelp.textContent = 'Select a position to see required fields';
         }
     });
 
@@ -205,18 +249,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const userSearch = document.getElementById('userSearch');
     const searchResults = document.getElementById('searchResults');
     const selectedUserId = document.getElementById('selectedUserId');
-    let users = [
-        {% for user in users %}
-            { 
-                id: "{{ user.id }}", 
-                student_number: "{{ user.student_number }}",
-                name: "{{ user.student_name }}",
-                college: "{{ user.college }}",
-                course: "{{ user.course }}",
-                year_level: "{{ user.year_level }}"
-            },
-        {% endfor %}
-    ];
+    
+    // Parse the JSON data provided by the server
+    const users = JSON.parse('{{ users_json|escapejs }}');
 
     userSearch.addEventListener('input', function() {
         const searchTerm = this.value.toLowerCase();
@@ -251,11 +286,17 @@ document.addEventListener('DOMContentLoaded', function() {
     searchResults.addEventListener('click', function(e) {
         const userResult = e.target.closest('.user-result');
         if (userResult) {
-            const userId = userResult.dataset.id;
-            const user = users.find(u => u.id === userId);
-            userSearch.value = `${user.student_number} - ${user.name}`;
-            selectedUserId.value = userId;
-            searchResults.style.display = 'none';
+            const userId = userResult.getAttribute('data-id');
+            const user = users.find(u => u.id == userId);
+            
+            if (user) {
+                userSearch.value = `${user.student_number} - ${user.name}`;
+                selectedUserId.value = userId;
+                searchResults.style.display = 'none';
+                console.log('Selected user ID:', userId); // Debug logging
+            } else {
+                console.error('User not found with ID:', userId);
+            }
         }
     });
 

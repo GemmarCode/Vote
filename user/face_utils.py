@@ -17,38 +17,67 @@ from io import BytesIO
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Add the FaceRecognition class that's being imported by views.py
+# Try to import face_recognition
+try:
+    import face_recognition
+    FACE_RECOGNITION_AVAILABLE = True
+except ImportError:
+    FACE_RECOGNITION_AVAILABLE = False
+    logger.warning("face_recognition package not available")
+
+# Try to import dlib
+try:
+    import dlib
+    DLIB_AVAILABLE = True
+except ImportError:
+    DLIB_AVAILABLE = False
+    logger.warning("dlib package not available")
+
+# Try to import insightface
+try:
+    import insightface
+    from insightface.app import FaceAnalysis
+    INSIGHTFACE_AVAILABLE = True
+except ImportError:
+    INSIGHTFACE_AVAILABLE = False
+    logger.warning("insightface package not available")
+
 class FaceRecognition:
     def __init__(self):
+        # Initialize face detector and embedding model
         try:
             from insightface.app import FaceAnalysis
-            self.app = FaceAnalysis(name='buffalo_l')
-            self.app.prepare(ctx_id=-1, det_size=(640, 640))
+            self.model = FaceAnalysis(name='buffalo_l')
+            self.model.prepare(ctx_id=-1, det_size=(640, 640))
+            self.model_loaded = True
+            logger.info("InsightFace model loaded successfully")
         except Exception as e:
-            print(f"Error initializing FaceRecognition: {str(e)}")
-            print(traceback.format_exc())
-        
+            self.model_loaded = False
+            logger.error(f"Error loading InsightFace model: {str(e)}")
+    
     def get_face_embedding(self, image):
-        """Get face embedding from an image"""
+        """Get face embedding from image"""
         try:
-            # First preprocess the image
-            preprocessed_image = preprocess_face_image(image)
-            if preprocessed_image is None:
-                print("Failed to preprocess image")
+            if not self.model_loaded:
+                logger.error("Model not loaded")
                 return None
                 
-            # Convert back to BGR for InsightFace (it expects color images)
-            preprocessed_bgr = cv2.cvtColor(preprocessed_image, cv2.COLOR_GRAY2BGR)
-            
-            # Get faces using InsightFace
-            faces = self.app.get(preprocessed_bgr)
-            if len(faces) != 1:
-                print(f"Expected 1 face, got {len(faces)} faces")
+            # Preprocess image
+            if image is None:
+                logger.error("Input image is None")
                 return None
-            return faces[0].embedding
+                
+            # Get faces
+            faces = self.model.get(image)
+            if len(faces) == 0:
+                logger.warning("No face detected")
+                return None
+                
+            # Get embedding from the first detected face
+            embedding = faces[0].embedding
+            return embedding
         except Exception as e:
-            print(f"Error getting face embedding: {str(e)}")
-            print(traceback.format_exc())
+            logger.error(f"Error getting face embedding: {str(e)}")
             return None
     
     def align_face(self, image):
@@ -93,32 +122,34 @@ class FaceRecognition:
         distance = self.compare_faces(embedding1, embedding2)
         
         # Set threshold for verification (adjust as needed)
-        threshold = 0.6
+        threshold = 0.5
         
         return {
             'verified': distance < threshold,
             'message': 'Face verification successful' if distance < threshold else 'Face verification failed',
             'distance': distance
         }
-        
+    
     def compare_faces(self, embedding1, embedding2):
-        """Compare two face embeddings and return distance"""
-        if embedding1 is None or embedding2 is None:
+        """Calculate distance between two face embeddings"""
+        try:
+            if embedding1 is None or embedding2 is None:
+                return float('inf')
+                
+            # Normalize the embeddings
+            embedding1 = embedding1 / np.linalg.norm(embedding1)
+            embedding2 = embedding2 / np.linalg.norm(embedding2)
+            
+            # Calculate cosine similarity
+            similarity = np.dot(embedding1, embedding2)
+            
+            # Convert to distance (0 means identical, 1 means completely different)
+            distance = 1.0 - similarity
+            
+            return distance
+        except Exception as e:
+            logger.error(f"Error comparing faces: {str(e)}")
             return float('inf')
-            
-        # Normalize embeddings
-        embedding1 = embedding1 / np.linalg.norm(embedding1)
-        embedding2 = embedding2 / np.linalg.norm(embedding2)
-        
-        # Calculate cosine distance (1 - cosine similarity)
-        distance = 1 - np.dot(embedding1, embedding2)
-        
-        # Convert to Python float if it's a numpy type
-        if hasattr(distance, 'item'):
-            distance = float(distance.item())
-            
-        return distance
-# End of FaceRecognition class
 
 class MultiFaceRecognition:
     """A class that combines multiple face recognition models for better accuracy"""
@@ -469,7 +500,7 @@ def preprocess_face_image(image, target_size=(224, 224)):
         print(traceback.format_exc())
         return None
 
-def verify_voter_face(captured_face, stored_face, threshold=0.6):
+def verify_voter_face(captured_face, stored_face, threshold=0.5):
     """
     Enhanced voter face verification with multiple methods and improved accuracy
     """
@@ -487,36 +518,53 @@ def verify_voter_face(captured_face, stored_face, threshold=0.6):
         # Detect faces in captured image to ensure we have a face
         try:
             face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            captured_gray = cv2.cvtColor(captured_face, cv2.COLOR_BGR2GRAY) if len(captured_face.shape) == 3 else captured_face
-            faces = face_cascade.detectMultiScale(captured_gray, 1.1, 5, minSize=(30, 30))
+            faces = face_cascade.detectMultiScale(captured_face, 1.1, 5, minSize=(30, 30))
             
             if len(faces) == 0:
-                print("No face detected in webcam image")
+                print("No face detected in captured image")
                 return {
-                    'verified': False, 
-                    'distance': 1.0, 
-                    'method': 'no_face_detected',
-                    'message': 'No face detected in webcam image'
+                    'verified': False,
+                    'message': 'No face detected in captured image',
+                    'distance': 1.0,
+                    'method': 'face_detection'
                 }
         except Exception as e:
-            print(f"Face detection error: {str(e)}, continuing with verification")
+            print(f"Error detecting face: {str(e)}")
+            # Continue anyway as preprocessing might still work
+            
+        # Preprocess both images for better comparison
+        captured_processed = preprocess_face_image(captured_face)
+        stored_processed = preprocess_face_image(stored_face)
         
-        # Use face_recognition for more accurate comparison if available
+        if captured_processed is None or stored_processed is None:
+            print("Failed to preprocess one or both images")
+            return {
+                'verified': False,
+                'message': 'Failed to preprocess images',
+                'distance': 1.0,
+                'method': 'preprocessing_failed'
+            }
+        
+        # Use multiple comparison methods for more accurate results
+        methods = []
+        scores = []
+        best_score = 0
+        best_method = None
+        
+        # Method 1: face_recognition library (most accurate if available)
         try:
             import face_recognition
             
-            # Convert images to RGB (face_recognition expects RGB)
-            if len(captured_face.shape) == 3 and captured_face.shape[2] == 3:
-                captured_rgb = cv2.cvtColor(captured_face, cv2.COLOR_BGR2RGB)
+            # Convert grayscale to BGR if needed
+            if len(captured_processed.shape) == 2:
+                captured_rgb = cv2.cvtColor(captured_processed, cv2.COLOR_GRAY2RGB)
             else:
-                # If grayscale, convert to RGB first
-                captured_rgb = cv2.cvtColor(captured_face, cv2.COLOR_GRAY2RGB)
+                captured_rgb = cv2.cvtColor(captured_processed, cv2.COLOR_BGR2RGB)
                 
-            if len(stored_face.shape) == 3 and stored_face.shape[2] == 3:
-                stored_rgb = cv2.cvtColor(stored_face, cv2.COLOR_BGR2RGB)
+            if len(stored_processed.shape) == 2:
+                stored_rgb = cv2.cvtColor(stored_processed, cv2.COLOR_GRAY2RGB)
             else:
-                # If grayscale, convert to RGB first
-                stored_rgb = cv2.cvtColor(stored_face, cv2.COLOR_GRAY2RGB)
+                stored_rgb = cv2.cvtColor(stored_processed, cv2.COLOR_BGR2RGB)
             
             # Get face encodings
             captured_encoding = face_recognition.face_encodings(captured_rgb)
@@ -525,119 +573,175 @@ def verify_voter_face(captured_face, stored_face, threshold=0.6):
             if captured_encoding and stored_encoding:
                 # Calculate face distance
                 distance = face_recognition.face_distance([stored_encoding[0]], captured_encoding[0])[0]
-                verified = distance < 0.6  # Standard threshold for face_recognition
+                verified = distance < 0.5  # Standard threshold for face_recognition
                 
-                return {
-                    'verified': verified,
-                    'distance': float(distance),
-                    'method': 'face_recognition',
-                    'message': 'Face verification successful' if verified else 'Face verification failed'
-                }
-            else:
-                print("Could not extract face encodings, using fallback methods")
+                score = 1.0 - distance  # Convert distance to similarity score
+                methods.append('face_recognition')
+                scores.append(score)
+                
+                if score > best_score:
+                    best_score = score
+                    best_method = 'face_recognition'
+                
+                print(f"face_recognition distance: {distance}, score: {score}")
         except (ImportError, IndexError, Exception) as e:
-            print(f"Face recognition not available or error: {str(e)}, using fallback")
+            print(f"face_recognition comparison failed: {str(e)}")
             
-        # Apply identical preprocessing to both images for traditional comparison
-        captured_processed = preprocess_face_image(captured_face)
-        stored_processed = preprocess_face_image(stored_face)
-        
-        if captured_processed is None or stored_processed is None:
-            return {
-                'verified': False, 
-                'distance': 1.0, 
-                'method': 'preprocessing_failed',
-                'message': 'Failed to preprocess images'
-            }
-        
-        # Collect scores from multiple comparison methods
-        scores = []
-        methods = []
-        
-        # 1. Histogram Comparison - Correlation
-        hist1 = cv2.calcHist([stored_processed], [0], None, [256], [0, 256])
-        hist2 = cv2.calcHist([captured_processed], [0], None, [256], [0, 256])
-        
-        # Normalize histograms
-        cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
-        cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
-        
-        # Compare histograms (correlation method - higher is better)
-        corr_score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
-        scores.append(float(corr_score) if hasattr(corr_score, 'item') else corr_score)
-        methods.append("Correlation")
-        print(f"Histogram correlation score: {corr_score}")
-        
-        # 2. Histogram Comparison - Intersection
-        inter_score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_INTERSECT)
-        # Normalize intersection score
-        norm_inter_score = inter_score / float(np.sum(hist1)) if np.sum(hist1) > 0 else 0
-        scores.append(float(norm_inter_score) if hasattr(norm_inter_score, 'item') else norm_inter_score)
-        methods.append("Intersection")
-        print(f"Histogram intersection score: {norm_inter_score}")
-        
-        # 3. Structural Similarity (SSIM) - if available
+        # Method 2: Structural Similarity Index (SSIM)
         try:
-            from skimage.metrics import structural_similarity
-            ssim_score = structural_similarity(stored_processed, captured_processed)
-            scores.append(float(ssim_score) if hasattr(ssim_score, 'item') else ssim_score)
-            methods.append("SSIM")
-            print(f"SSIM score: {ssim_score}")
-        except ImportError:
-            print("skimage not available, skipping SSIM")
-        
-        # 4. Template Matching
-        try:
-            # Resize to same dimensions if needed
-            if stored_processed.shape != captured_processed.shape:
-                captured_processed_resized = cv2.resize(captured_processed, 
-                                                      (stored_processed.shape[1], stored_processed.shape[0]))
+            from skimage.metrics import structural_similarity as ssim
+            
+            # SSIM works best with grayscale images
+            if len(captured_processed.shape) == 3:
+                captured_gray = cv2.cvtColor(captured_processed, cv2.COLOR_BGR2GRAY)
             else:
-                captured_processed_resized = captured_processed
+                captured_gray = captured_processed
                 
-            # Use normalized correlation coefficient for template matching
-            result = cv2.matchTemplate(stored_processed, captured_processed_resized, cv2.TM_CCOEFF_NORMED)
-            _, template_score, _, _ = cv2.minMaxLoc(result)
-            scores.append(float(template_score) if hasattr(template_score, 'item') else template_score)
-            methods.append("Template")
-            print(f"Template matching score: {template_score}")
-        except Exception as e:
-            print(f"Template matching error: {str(e)}")
+            if len(stored_processed.shape) == 3:
+                stored_gray = cv2.cvtColor(stored_processed, cv2.COLOR_BGR2GRAY)
+            else:
+                stored_gray = stored_processed
             
-        # Find the best score and method
-        if not scores:
+            score = ssim(stored_gray, captured_gray)
+            methods.append('ssim')
+            scores.append(score)
+            
+            if score > best_score:
+                best_score = score
+                best_method = 'ssim'
+                
+            print(f"SSIM score: {score}")
+        except (ImportError, Exception) as e:
+            print(f"SSIM comparison failed: {str(e)}")
+            
+        # Method 3: Histogram Comparison
+        try:
+            # Prepare histograms
+            if len(captured_processed.shape) == 3:
+                hist1 = cv2.calcHist([captured_processed], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+            else:
+                hist1 = cv2.calcHist([captured_processed], [0], None, [256], [0, 256])
+                
+            if len(stored_processed.shape) == 3:
+                hist2 = cv2.calcHist([stored_processed], [0, 1, 2], None, [8, 8, 8], [0, 256, 0, 256, 0, 256])
+            else:
+                hist2 = cv2.calcHist([stored_processed], [0], None, [256], [0, 256])
+            
+            # Normalize histograms
+            cv2.normalize(hist1, hist1, 0, 1, cv2.NORM_MINMAX)
+            cv2.normalize(hist2, hist2, 0, 1, cv2.NORM_MINMAX)
+            
+            # Compare histograms using correlation method
+            score = cv2.compareHist(hist1, hist2, cv2.HISTCMP_CORREL)
+            methods.append('histogram_correlation')
+            scores.append(score)
+            
+            if score > best_score:
+                best_score = score
+                best_method = 'histogram_correlation'
+                
+            print(f"Histogram correlation score: {score}")
+            
+            # Also try intersection method
+            score_intersection = cv2.compareHist(hist1, hist2, cv2.HISTCMP_INTERSECT)
+            # Normalize intersection score
+            score_intersection = score_intersection / (min(np.sum(hist1), np.sum(hist2)))
+            methods.append('histogram_intersection')
+            scores.append(score_intersection)
+            
+            if score_intersection > best_score:
+                best_score = score_intersection
+                best_method = 'histogram_intersection'
+                
+            print(f"Histogram intersection score: {score_intersection}")
+        except Exception as e:
+            print(f"Histogram comparison failed: {str(e)}")
+            
+        # Method 4: Template Matching (basic but can help)
+        try:
+            # Resize to ensure same dimensions
+            captured_resized = cv2.resize(captured_processed, (100, 100))
+            stored_resized = cv2.resize(stored_processed, (100, 100))
+            
+            # Template matching
+            result = cv2.matchTemplate(captured_resized, stored_resized, cv2.TM_CCOEFF_NORMED)
+            score = result.max()
+            methods.append('template_matching')
+            scores.append(score)
+            
+            if score > best_score:
+                best_score = score
+                best_method = 'template_matching'
+                
+            print(f"Template matching score: {score}")
+        except Exception as e:
+            print(f"Template matching failed: {str(e)}")
+        
+        # Get average score if we have any methods
+        if len(scores) > 0:
+            avg_score = sum(scores) / len(scores)
+            print(f"Average score: {avg_score}")
+            print(f"Best score: {best_score} ({best_method})")
+            
+            # Calculate distance (lower is better)
+            distance = 1.0 - best_score
+            
+            # Enhanced result with more details
+            verification_results = []
+            
+            # Create detailed results for each method
+            for i, method in enumerate(methods):
+                # Use stricter threshold for histogram methods which can generate more false positives
+                method_threshold = threshold
+                if method == 'histogram_intersection' or method == 'histogram_correlation':
+                    method_threshold = threshold + 0.2  # More strict threshold for histogram methods
+                
+                verification_results.append({
+                    'method': method,
+                    'score': scores[i],
+                    'verified': scores[i] >= method_threshold
+                })
+            
+            # Count successful methods
+            successful_methods = sum(1 for r in verification_results if r['verified'])
+            verification_summary = f"Methods: {len(methods)}, Succeeded: {successful_methods}"
+            print(f"Verification summary: {verification_summary}")
+            
+            # Require at least 2 successful methods or a very high score on face_recognition
+            fr_verified = False
+            if 'face_recognition' in methods:
+                fr_index = methods.index('face_recognition')
+                fr_verified = scores[fr_index] >= (threshold + 0.3)  # Very high threshold for trusting face_recognition alone
+                
+            verified = (successful_methods >= 2) or fr_verified
+            
+            # Return enhanced result
+            return {
+                'verified': verified,
+                'distance': distance,
+                'score': best_score,
+                'method': best_method,
+                'methods_tried': methods,
+                'all_scores': scores,
+                'verification_details': verification_results,
+                'verification_summary': f"{verification_summary} (Need at least 2 to pass)",
+                'successful_methods': successful_methods,
+                'required_methods': 2
+            }
+        else:
+            print("All verification methods failed")
             return {
                 'verified': False,
+                'message': 'All verification methods failed',
                 'distance': 1.0,
-                'method': 'no_scores',
-                'message': 'No comparison methods produced valid scores'
+                'method': 'all_failed'
             }
-            
-        best_index = np.argmax(scores)
-        best_score = scores[best_index]
-        best_method = methods[best_index]
-        
-        # Convert to distance (1 - similarity)
-        distance = 1.0 - best_score
-        verified = best_score >= threshold
-        
-        print(f"Best score: {best_score} from method: {best_method}")
-        print(f"Threshold: {threshold}")
-        print(f"Verified: {verified}")
-        
-        return {
-            'verified': verified,
-            'distance': float(distance),
-            'method': best_method,
-            'score': float(best_score),
-            'message': 'Face verification successful' if verified else 'Face verification failed'
-        }
     except Exception as e:
         print(f"Error in verify_voter_face: {str(e)}")
         print(traceback.format_exc())
         return {
             'verified': False,
-            'message': f'Error during face verification: {str(e)}',
+            'message': f'Error during verification: {str(e)}',
             'distance': 1.0,
             'method': 'error'
         } 
