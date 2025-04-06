@@ -15,24 +15,51 @@
                 <a href="{% url 'user:mainpage' %}" class="btn-close btn-close-white" id="closeModalBtn" aria-label="Close"></a>
             </div>
             <div class="modal-body text-center">
-                <div class="mb-3">
-                    <div id="camera-container" class="rounded overflow-hidden mx-auto position-relative" 
-                         style="max-width: 400px; background-color: #D1ECFF;">
-                        <video id="video" class="w-100" playsinline autoplay style="transform: scaleX(-1);"></video>
-                        <canvas id="canvas" class="d-none"></canvas>
+                <!-- Webcam Section -->
+                <div id="webcamSection">
+                    <div class="mb-3">
+                        <div id="camera-container" class="rounded overflow-hidden mx-auto position-relative" 
+                             style="max-width: 400px; background-color: #D1ECFF;">
+                            <video id="video" class="w-100" playsinline autoplay style="transform: scaleX(-1);"></video>
+                            <canvas id="canvas" class="d-none"></canvas>
+                        </div>
+                    </div>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>Please position your face in the camera for verification
+                    </div>
+                    <div id="verification-status" class="alert d-none"></div>
+                    
+                    <!-- Code Entry Option -->
+                    <div class="text-center mt-2 mb-3">
+                        <a href="#" id="showCodeEntry" class="text-muted">
+                            <i class="fas fa-key me-1"></i>Face verification not working? Enter code
+                        </a>
+                    </div>
+                    
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'user:mainpage' %}" id="backButton" class="btn btn-lg flex-grow-1" style="background-color: #6CB1DA; color: white;">
+                            <i class="fas fa-arrow-left me-2"></i>Back
+                        </a>
+                        <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #34729C; color: white;" disabled>
+                            <i class="fas fa-check-circle me-2"></i>Verify Face
+                        </button>
                     </div>
                 </div>
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle me-2"></i>Please position your face in the camera for verification
-                </div>
-                <div id="verification-status" class="alert d-none"></div>
-                <div class="d-flex gap-2">
-                    <a href="{% url 'user:mainpage' %}" id="backButton" class="btn btn-lg flex-grow-1" style="background-color: #6CB1DA; color: white;">
-                        <i class="fas fa-arrow-left me-2"></i>Back
-                    </a>
-                    <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #34729C; color: white;" disabled>
-                        <i class="fas fa-check-circle me-2"></i>Verify Face
-                    </button>
+                
+                <!-- Code Entry Form -->
+                <div id="codeEntryForm" style="display: none;" class="mt-3">
+                    <div class="form-group mb-3">
+                        <label for="verificationCode" class="form-label">Enter your verification code:</label>
+                        <input type="text" id="verificationCode" class="form-control form-control-lg text-center" maxlength="6" placeholder="Enter 6-digit code">
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="backToWebcam" class="btn btn-lg flex-grow-1" style="background-color: #6CB1DA; color: white;">
+                            <i class="fas fa-camera me-2"></i>Back to Webcam
+                        </button>
+                        <button id="verifyCode" class="btn btn-lg flex-grow-1" style="background-color: #34729C; color: white;">
+                            <i class="fas fa-check-circle me-2"></i>Verify Code
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -198,21 +225,136 @@ document.addEventListener('DOMContentLoaded', function() {
     const faceVerificationModal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
     faceVerificationModal.show();
     
-    // Initialize verification when modal is shown
-    document.getElementById('faceVerificationModal').addEventListener('shown.bs.modal', function() {
-        console.log('Face verification modal shown');
+    console.log('Face verification modal shown');
+    
+    // Initialize the face verification module
+    try {
+        console.log('Initializing face verification');
+        // Make sure FaceVerification is defined
+        if (typeof FaceVerification !== 'undefined') {
+            initFaceVerification();
+            console.log('Face verification initialized');
+        } else {
+            console.error('FaceVerification module not loaded');
+            showVerificationStatus('Error: Face verification module not loaded. Please refresh the page.', 'danger');
+        }
+    } catch (err) {
+        console.error('Error initializing face verification:', err);
+        showVerificationStatus('Error initializing face verification. Please refresh the page.', 'danger');
+    }
+    
+    // Code entry functionality
+    document.getElementById('showCodeEntry').addEventListener('click', function(e) {
+        e.preventDefault();
+        document.getElementById('webcamSection').style.display = 'none';
+        document.getElementById('codeEntryForm').style.display = 'block';
         
-        // Initialize camera and verification
-        initFaceVerification();
+        // Stop the webcam when switching to code entry
+        if (typeof FaceVerification !== 'undefined') {
+            FaceVerification.stopCamera();
+        }
     });
+    
+    document.getElementById('verifyCode').addEventListener('click', function() {
+        const code = document.getElementById('verificationCode').value.trim();
+        if (!code) {
+            showVerificationStatus('Please enter a verification code', 'danger');
+            return;
+        }
+        
+        showVerificationStatus('Verifying code...', 'info');
+        
+        fetch('/api/verify-code/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrftoken
+            },
+            body: JSON.stringify({
+                code: code
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showVerificationStatus('Code verification successful!', 'success');
+                
+                // Store user profile data in session storage (similar to face verification)
+                const userProfile = {
+                    id: data.user_profile_id,
+                    studentNumber: data.student_number,
+                    college: data.college,
+                    department: data.department,
+                    yearLevel: data.year_level
+                };
+                
+                // Store profile in session storage for use in voting process
+                sessionStorage.setItem('verifiedUserProfile', JSON.stringify(userProfile));
+                console.log('User profile stored in session storage:', userProfile);
+                
+                // Hide verification modal
+                const verificationModal = bootstrap.Modal.getInstance(document.getElementById('faceVerificationModal'));
+                if (verificationModal) {
+                    verificationModal.hide();
+                    console.log('Verification modal hidden');
+                }
+                
+                // Check if voting is available
+                fetch('/api/check-voting-status/', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': csrftoken
+                    },
+                    credentials: 'same-origin'
+                })
+                .then(response => response.json())
+                .then(result => {
+                    console.log('Voting status check:', result);
+                    
+                    if (result.is_voting_open) {
+                        // Voting is active, proceed with voting
+                        console.log('Voting is active, showing voting modal');
+                        startVotingProcess();
+                    } else {
+                        // Voting is not active, show the voting not available modal
+                        console.log('Voting is NOT active, showing not available modal');
+                        showVotingNotAvailableModal(result.message || 'Voting is currently closed.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking voting status:', error);
+                    // If there's an error, default to showing the voting not available modal
+                    showVotingNotAvailableModal('Error checking voting status. Please try again later.');
+                });
+            } else {
+                showVerificationStatus(data.message || 'Code verification failed', 'danger');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showVerificationStatus('Error during code verification', 'danger');
+        });
+    });
+    
+    function showVerificationStatus(message, type) {
+        const statusElement = document.getElementById('verification-status');
+        statusElement.textContent = message;
+        statusElement.className = `alert alert-${type}`;
+        statusElement.classList.remove('d-none');
+    }
     
     // Close modal and stop camera
     document.getElementById('closeModalBtn').addEventListener('click', function() {
-        FaceVerification.stopCamera();
+        if (typeof FaceVerification !== 'undefined') {
+            FaceVerification.stopCamera();
+        }
     });
     
     document.getElementById('backButton').addEventListener('click', function() {
-        FaceVerification.stopCamera();
+        if (typeof FaceVerification !== 'undefined') {
+            FaceVerification.stopCamera();
+        }
     });
     
     // Clean up session when leaving the page
@@ -596,5 +738,16 @@ function showCompletionModal() {
     // Clear votes from localStorage - voting is complete
     localStorage.removeItem('userVotes');
 }
+
+// Back to webcam functionality
+document.getElementById('backToWebcam').addEventListener('click', function() {
+    document.getElementById('codeEntryForm').style.display = 'none';
+    document.getElementById('webcamSection').style.display = 'block';
+    
+    // Reinitialize the webcam
+    if (typeof FaceVerification !== 'undefined') {
+        initFaceVerification();
+    }
+});
 </script>
 {% endblock %} 

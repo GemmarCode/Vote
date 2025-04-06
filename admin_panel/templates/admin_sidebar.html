@@ -39,8 +39,8 @@
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'results' %}active{% endif %}" 
-               href="{% url 'admin_panel:results' %}"
+            <a class="nav-link {% if request.resolver_match.url_name == 'admin_results' %}active{% endif %}" 
+               href="{% url 'admin_panel:admin_results' %}"
                style="color: white; padding: 15px 25px;">
                 <i class="fas fa-chart-bar me-2"></i>
                 Election Results
@@ -52,6 +52,14 @@
                style="color: white; padding: 15px 25px;">
                 <i class="fas fa-file-alt me-2"></i>
                 Generate Report
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'verification_codes' %}active{% endif %}" 
+               href="{% url 'admin_panel:verification_codes' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-key me-2"></i>
+                Verification Codes
             </a>
         </li>
     </ul>

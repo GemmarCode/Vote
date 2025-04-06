@@ -1,0 +1,223 @@
+{% extends 'admin_base.html' %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="card admin-card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">Verification Codes Management</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Generate New Code Form -->
+                    <div class="mb-4">
+                        <h6>Generate New Code</h6>
+                        <form id="generateCodeForm" class="row g-3">
+                            <div class="col-md-6">
+                                <label for="studentNumber" class="form-label">Student Number</label>
+                                <input type="text" class="form-control" id="studentNumber" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">&nbsp;</label>
+                                <button type="submit" class="btn btn-primary d-block">Generate Code</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Active Codes Table -->
+                    <div class="table-responsive">
+                        <h6>Active Verification Codes</h6>
+                        <table class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Student Number</th>
+                                    <th>Code</th>
+                                    <th>Created At</th>
+                                    <th>Expires At</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="codesTableBody">
+                                {% for code in verification_codes %}
+                                <tr>
+                                    <td>{{ code.student_number }}</td>
+                                    <td>{{ code.code }}</td>
+                                    <td>{{ code.created_at|date:"Y-m-d H:i:s" }}</td>
+                                    <td>{{ code.expires_at|date:"Y-m-d H:i:s" }}</td>
+                                    <td>
+                                        {% if code.is_used %}
+                                            <span class="badge bg-secondary">Used</span>
+                                        {% elif code.is_valid %}
+                                            <span class="badge bg-success">Active</span>
+                                        {% else %}
+                                            <span class="badge bg-danger">Expired</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary regenerate-code" 
+                                                data-id="{{ code.id }}"
+                                                {% if not code.is_valid %}disabled{% endif %}>
+                                            Regenerate
+                                        </button>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Code Display Modal -->
+<div class="modal fade" id="codeDisplayModal" tabindex="-1" aria-labelledby="codeDisplayModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title" id="codeDisplayModalLabel">Verification Code Generated</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-4">
+                    <i class="fas fa-key fa-3x text-primary mb-3"></i>
+                    <h4 class="mb-3">Your Verification Code</h4>
+                    <div class="code-display p-3 bg-light rounded">
+                        <h2 id="displayCode" class="mb-0 font-monospace"></h2>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <p><strong>Student Number:</strong> <span id="displayStudentNumber"></span></p>
+                    <p><strong>Expires At:</strong> <span id="displayExpiresAt"></span></p>
+                </div>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>Please save this code. It will be deleted after use.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="copyCodeBtn">
+                    <i class="fas fa-copy me-2"></i>Copy Code
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('generateCodeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const studentNumber = document.getElementById('studentNumber').value;
+    
+    fetch('/admin-panel/generate-code/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            student_number: studentNumber
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Display the code in the modal
+            document.getElementById('displayCode').textContent = data.code;
+            document.getElementById('displayStudentNumber').textContent = data.student_number;
+            document.getElementById('displayExpiresAt').textContent = data.expires_at;
+            
+            // Show the modal
+            const codeModal = new bootstrap.Modal(document.getElementById('codeDisplayModal'));
+            codeModal.show();
+            
+            // Clear the form
+            document.getElementById('studentNumber').value = '';
+            
+            // Reload the page after the modal is closed
+            document.getElementById('codeDisplayModal').addEventListener('hidden.bs.modal', function() {
+                location.reload();
+            }, { once: true });
+        } else {
+            alert('Error: ' + data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error generating code');
+    });
+});
+
+// Regenerate code functionality
+document.querySelectorAll('.regenerate-code').forEach(button => {
+    button.addEventListener('click', function() {
+        const codeId = this.dataset.id;
+        
+        fetch(`/admin-panel/regenerate-code/${codeId}/`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Display the code in the modal
+                document.getElementById('displayCode').textContent = data.code;
+                document.getElementById('displayStudentNumber').textContent = data.student_number;
+                document.getElementById('displayExpiresAt').textContent = data.expires_at;
+                
+                // Show the modal
+                const codeModal = new bootstrap.Modal(document.getElementById('codeDisplayModal'));
+                codeModal.show();
+                
+                // Reload the page after the modal is closed
+                document.getElementById('codeDisplayModal').addEventListener('hidden.bs.modal', function() {
+                    location.reload();
+                }, { once: true });
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Error regenerating code');
+        });
+    });
+});
+
+// Copy code to clipboard
+document.getElementById('copyCodeBtn').addEventListener('click', function() {
+    const code = document.getElementById('displayCode').textContent;
+    navigator.clipboard.writeText(code).then(function() {
+        // Change button text temporarily
+        const originalText = this.innerHTML;
+        this.innerHTML = '<i class="fas fa-check me-2"></i>Copied!';
+        setTimeout(() => {
+            this.innerHTML = originalText;
+        }, 2000);
+    }.bind(this)).catch(function(err) {
+        console.error('Could not copy text: ', err);
+    });
+});
+
+// Helper function to get CSRF token
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %} 

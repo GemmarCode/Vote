@@ -3,7 +3,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.http import JsonResponse
-from .models import UserProfile, Candidate, Vote, VotingPhase, FaceData
+from .models import UserProfile, Candidate, Vote, VotingPhase, FaceData, VerificationCode
 from admin_panel.models import ElectionSettings
 from django.core.exceptions import ValidationError
 from .face_utils import process_webcam_image, verify_voter_face, preprocess_face_image
@@ -256,19 +256,6 @@ def verify_face(request):
                 'message': 'Failed to process captured image'
             }, status=400)
         
-        # Create debug directory if it doesn't exist
-        debug_dir = os.path.join(settings.MEDIA_ROOT, 'debug')
-        os.makedirs(debug_dir, exist_ok=True)
-        
-        # For debugging: save the captured face
-        try:
-            timestamp = int(time.time())
-            debug_path = os.path.join(debug_dir, f'captured_{timestamp}.jpg')
-            cv2.imwrite(debug_path, captured_face)
-            print(f"Saved debug captured face to {debug_path}")
-        except Exception as e:
-            print(f"Warning: Could not save debug image: {str(e)}")
-            
         # Get all face images from the face_data directory
         face_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
         print(f"Checking faces in directory: {face_dir}")
@@ -286,11 +273,6 @@ def verify_face(request):
         best_distance = float('inf')
         verification_method = 'advanced'  # Use 'advanced' for new method or 'simple' for old method
         verification_attempts = 1  # Perform only 1 verification attempt to reduce processing time
-        
-        # Initialize verification log file
-        log_file_path = os.path.join(debug_dir, 'verification_log.txt')
-        with open(log_file_path, 'a') as log_file:
-            log_file.write(f"\n--- New Verification Session: {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
         
         # Collection of all valid candidates (those with ≥2 successful methods)
         valid_candidates = []
@@ -310,36 +292,9 @@ def verify_face(request):
                     stored_image = cv2.imread(stored_image_path)
                     
                     if stored_image is not None:
-                        # Save debug preprocessed image for the first few comparisons
-                        if best_match is None:
-                            try:
-                                preprocessed_captured = preprocess_face_image(captured_face)
-                                preprocessed_stored = preprocess_face_image(stored_image)
-                                
-                                if preprocessed_captured is not None and preprocessed_stored is not None:
-                                    debug_captured_path = os.path.join(debug_dir, f'preprocessed_captured_{timestamp}.jpg')
-                                    debug_stored_path = os.path.join(debug_dir, f'preprocessed_stored_{student_number}.jpg')
-                                    
-                                    cv2.imwrite(debug_captured_path, preprocessed_captured)
-                                    cv2.imwrite(debug_stored_path, preprocessed_stored)
-                                    print(f"Saved debug preprocessed images for {student_number}")
-                            except Exception as e:
-                                print(f"Warning: Could not save debug preprocessed images: {str(e)}")
-                        
                         # Use the advanced verification method
                         verification_result = verify_voter_face(captured_face, stored_image)
                         print(f"Verification result for {student_number}: {verification_result}")
-                        
-                        # Log verification result
-                        try:
-                            with open(log_file_path, 'a') as log_file:
-                                log_file.write(f"Student: {student_number}\n")
-                                log_file.write(f"Method: {verification_result.get('method', 'unknown')}\n")
-                                log_file.write(f"Distance: {verification_result.get('distance', 'unknown')}\n")
-                                log_file.write(f"Score: {verification_result.get('score', 1.0 - verification_result.get('distance', 1.0))}\n")
-                                log_file.write(f"Verified: {verification_result.get('verified', False)}\n\n")
-                        except Exception as e:
-                            print(f"Error writing to log file: {str(e)}")
                         
                         # Store the verification result for the best match
                         if best_match is None or student_number == best_match:
@@ -406,19 +361,6 @@ def verify_face(request):
             ]
             print(f"Successful verification methods: {successful_methods_count}/{len(verification_details)}")
             print(f"Method details: {', '.join(methods_details)}")
-        
-        # Final verification result
-        with open(log_file_path, 'a') as log_file:
-            log_file.write(f"FINAL RESULT:\n")
-            log_file.write(f"Face files checked: {len(face_files)}\n")
-            log_file.write(f"Best match: {best_match}\n")
-            log_file.write(f"Best score: {best_score}\n")
-            log_file.write(f"Best method: {best_method}\n")
-            log_file.write(f"Threshold: {threshold}\n")
-            log_file.write(f"Successful methods: {successful_methods_count}/{min_required_success} required\n")
-            log_file.write(f"Methods details: {', '.join(methods_details)}\n")
-            log_file.write(f"Verified: {best_match is not None and best_score > threshold and successful_methods_count >= min_required_success}\n")
-            log_file.write("-------------------------------------\n")
         
         # IMPORTANT: Verify BOTH conditions: score threshold AND minimum number of successful methods
         verification_passed = (best_match and 
@@ -742,3 +684,88 @@ def check_voting_status(request):
             'is_voting_open': False,
             'message': 'Error checking voting status.'
         }, status=500)
+
+@csrf_exempt
+def verify_code(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            code = data.get('code')
+            
+            if not code:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Verification code is required'
+                })
+            
+            # Find the verification code
+            try:
+                verification_code = VerificationCode.objects.get(code=code, is_used=False)
+            except VerificationCode.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Invalid or expired verification code'
+                })
+            
+            # Check if code is valid
+            if not verification_code.is_valid():
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Verification code has expired'
+                })
+            
+            # Get the user profile
+            try:
+                user_profile = UserProfile.objects.get(student_number=verification_code.student_number)
+            except UserProfile.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'User profile not found'
+                })
+            
+            # Store student number before deleting the code
+            student_number = verification_code.student_number
+            
+            # Delete the code instead of marking it as used
+            verification_code.delete()
+            
+            # Check if voting is available
+            voting_phase = VotingPhase.objects.first()
+            if not voting_phase or not voting_phase.is_active:
+                return JsonResponse({
+                    'success': True,
+                    'user_profile_id': user_profile.id,
+                    'student_number': user_profile.student_number,
+                    'college': user_profile.college,
+                    'department': user_profile.course,
+                    'year_level': user_profile.year_level,
+                    'redirect_url': reverse('user:mainpage')
+                })
+            
+            # Return success with user profile data
+            return JsonResponse({
+                'success': True,
+                'user_profile_id': user_profile.id,
+                'student_number': user_profile.student_number,
+                'college': user_profile.college,
+                'department': user_profile.course,
+                'year_level': user_profile.year_level,
+                'redirect_url': reverse('user:vote')
+            })
+            
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid request format'
+            })
+        except Exception as e:
+            print(f"Error during code verification: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': f'Error during verification: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method'
+    })

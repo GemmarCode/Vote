@@ -286,3 +286,16 @@ class CandidateProfile(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+class VerificationCode(models.Model):
+    student_number = models.CharField(max_length=20)
+    code = models.CharField(max_length=6, unique=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    is_used = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Code for {self.student_number}"
+
+    def is_valid(self):
+        return not self.is_used and timezone.now() <= self.expires_at
+

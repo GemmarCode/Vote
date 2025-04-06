@@ -10,6 +10,7 @@ urlpatterns = [
     path('results/', views.results_view, name='results'),
     path('candidates/', views.candidates_view, name='candidates'),
     path('api/verify-face/', views.verify_face, name='verify_face'),
+    path('api/verify-code/', views.verify_code, name='verify_code'),
     path('api/vote/<int:candidate_id>/', views.cast_vote, name='cast_vote'),
     path('api/check-voting-status/', views.check_voting_status, name='check_voting_status'),
 ]

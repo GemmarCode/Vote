@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
-from user.models import Candidate, Vote, UserProfile
+from user.models import Candidate, Vote, UserProfile, VerificationCode
 from .decorators import superuser_required
 from django.contrib import messages
 from django.db.models import Count
@@ -36,6 +36,9 @@ from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from django.views.decorators.csrf import csrf_exempt
+import random
+import string
 
 # Create your views here.
 
@@ -872,3 +875,202 @@ def generate_report(request):
         return response
     
     return render(request, 'admin_panel/reports.html', context)
+
+def admin_results(request):
+    """
+    View for displaying comprehensive election results in the admin panel.
+    This is separate from the user-side results page and provides more detailed analytics.
+    Only shows results after voting has ended.
+    """
+    # Check if voting has ended
+    try:
+        election_settings = ElectionSettings.objects.get(id=1)
+        current_time = timezone.now()
+        voting_ended = not election_settings.is_voting_open() and election_settings.voting_end and current_time > election_settings.voting_end
+        voting_status = "Active" if election_settings.is_voting_open() else "Not Started" if election_settings.voting_start and current_time < election_settings.voting_start else "Ended"
+    except ElectionSettings.DoesNotExist:
+        voting_ended = False
+        voting_status = "Not Configured"
+    
+    # If voting hasn't ended, just show the waiting message
+    if not voting_ended:
+        context = {
+            'voting_ended': False,
+            'voting_status': voting_status
+        }
+        return render(request, 'admin_panel/results.html', context)
+    
+    # Get all candidates and their votes
+    candidates = Candidate.objects.all().select_related('user_profile')
+    votes = Vote.objects.all()
+    
+    # Calculate statistics
+    total_voters = UserProfile.objects.count()
+    total_votes_cast = votes.count()
+    total_candidates = candidates.count()
+    voter_turnout = (total_votes_cast / total_voters * 100) if total_voters > 0 else 0
+    
+    # Get all users who haven't voted
+    non_voters = UserProfile.objects.filter(
+        ~Q(id__in=Vote.objects.values('user_profile'))
+    ).order_by('college', 'student_name')
+    
+    total_non_voters = non_voters.count()
+    non_voter_percentage = (total_non_voters / total_voters * 100) if total_voters > 0 else 0
+    
+    # Group votes by position
+    votes_by_position = {}
+    for candidate in candidates:
+        position = candidate.position
+        if position not in votes_by_position:
+            votes_by_position[position] = []
+        
+        # Count votes for this candidate
+        vote_count = votes.filter(candidate=candidate).count()
+        
+        # Calculate percentage
+        percentage = (vote_count / total_votes_cast * 100) if total_votes_cast > 0 else 0
+        
+        # Determine if this candidate is a winner (highest votes for their position)
+        is_winner = True
+        for other_candidate in votes_by_position.get(position, []):
+            if other_candidate['votes'] > vote_count:
+                is_winner = False
+                other_candidate['is_winner'] = False
+                break
+        
+        votes_by_position[position].append({
+            'candidate': candidate,
+            'votes': vote_count,
+            'percentage': percentage,
+            'is_winner': is_winner
+        })
+    
+    # Sort candidates by votes (descending) within each position
+    for position in votes_by_position:
+        votes_by_position[position] = sorted(
+            votes_by_position[position], 
+            key=lambda x: x['votes'], 
+            reverse=True
+        )
+    
+    # Calculate voter turnout by college
+    college_turnout = {}
+    colleges = UserProfile.objects.values_list('college', flat=True).distinct()
+    
+    for college in colleges:
+        # Count total voters in this college
+        total_college_voters = UserProfile.objects.filter(college=college).count()
+        
+        # Count voters who have voted
+        college_voters = UserProfile.objects.filter(
+            college=college,
+            id__in=Vote.objects.values('user_profile')
+        ).count()
+        
+        # Calculate percentage
+        percentage = (college_voters / total_college_voters * 100) if total_college_voters > 0 else 0
+        
+        college_turnout[college] = {
+            'total': total_college_voters,
+            'voted': college_voters,
+            'percentage': percentage
+        }
+    
+    context = {
+        'voting_ended': True,
+        'voting_status': voting_status,
+        'total_voters': total_voters,
+        'total_votes_cast': total_votes_cast,
+        'total_candidates': total_candidates,
+        'voter_turnout': voter_turnout,
+        'votes_by_position': votes_by_position,
+        'college_turnout': college_turnout,
+        'total_non_voters': total_non_voters,
+        'non_voter_percentage': non_voter_percentage,
+    }
+    
+    return render(request, 'admin_panel/results.html', context)
+
+def verification_codes_view(request):
+    """View for managing verification codes"""
+    verification_codes = VerificationCode.objects.all().order_by('-created_at')
+    return render(request, 'admin_panel/verification_codes.html', {
+        'verification_codes': verification_codes
+    })
+
+@csrf_exempt
+def generate_code(request):
+    """Generate a new verification code for a student"""
+    try:
+        data = json.loads(request.body)
+        student_number = data.get('student_number')
+
+        if not student_number:
+            return JsonResponse({
+                'success': False,
+                'message': 'Student number is required'
+            }, status=400)
+
+        # Check if student exists
+        try:
+            UserProfile.objects.get(student_number=student_number)
+        except UserProfile.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Student not found'
+            }, status=404)
+
+        # Generate a random 6-digit code
+        code = ''.join(random.choices(string.digits, k=6))
+        expires_at = timezone.now() + timedelta(hours=1)
+
+        # Create new verification code
+        verification_code = VerificationCode.objects.create(
+            student_number=student_number,
+            code=code,
+            expires_at=expires_at
+        )
+
+        return JsonResponse({
+            'success': True,
+            'student_number': student_number,
+            'code': code,
+            'expires_at': expires_at.strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'message': str(e)
+        }, status=500)
+
+@csrf_exempt
+def regenerate_code(request, code_id):
+    if request.method == 'POST':
+        try:
+            code = VerificationCode.objects.get(id=code_id)
+            # Generate a new code
+            new_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            code.code = new_code
+            code.created_at = timezone.now()
+            code.expires_at = timezone.now() + timedelta(hours=24)
+            code.is_used = False
+            code.save()
+            
+            return JsonResponse({
+                'success': True,
+                'code': new_code,
+                'student_number': code.student_number,
+                'expires_at': code.expires_at.strftime('%Y-%m-%d %H:%M:%S')
+            })
+        except VerificationCode.DoesNotExist:
+            return JsonResponse({'success': False, 'message': 'Code not found'}, status=404)
+        except Exception as e:
+            return JsonResponse({'success': False, 'message': str(e)}, status=500)
+    return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)

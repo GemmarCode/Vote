@@ -148,8 +148,8 @@ class FaceRecognition:
             
             return distance
         except Exception as e:
-                    logger.error(f"Error comparing faces: {str(e)}")
-                    return float('inf')
+            logger.error(f"Error comparing faces: {str(e)}")
+            return float('inf')
 
 class MultiFaceRecognition:
     """A class that combines multiple face recognition models for better accuracy"""
@@ -220,7 +220,7 @@ class MultiFaceRecognition:
                     faces['insightface'] = insightface_result[0]
                     logger.info("Face detected with InsightFace")
             except Exception as e:
-                                logger.error(f"Error in InsightFace detection: {str(e)}")
+                                        logger.error(f"Error in InsightFace detection: {str(e)}")
                         
         # dlib detection
         if self.dlib_available:
@@ -326,7 +326,7 @@ class MultiFaceRecognition:
                 scores['insightface'] = similarity
                 logger.info(f"InsightFace similarity: {similarity}")
             except Exception as e:
-                                logger.error(f"Error comparing InsightFace embeddings: {str(e)}")
+                                        logger.error(f"Error comparing InsightFace embeddings: {str(e)}")
         
         # Compare dlib embeddings
         if 'dlib' in embeddings1 and 'dlib' in embeddings2:
