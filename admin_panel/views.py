@@ -366,11 +366,21 @@ def manage_candidates(request):
     college_positions = Candidate.COLLEGE_POSITIONS
     local_positions = Candidate.LOCAL_POSITIONS
     
+    # Get all users who are not already candidates
+    existing_candidate_users = Candidate.objects.values_list('user_profile_id', flat=True)
+    available_users = UserProfile.objects.exclude(id__in=existing_candidate_users)
+    users_json = json.dumps([{
+        'id': user.id,
+        'student_number': user.student_number,
+        'name': user.student_name
+    } for user in available_users])
+    
     context = {
         'candidates': candidates,
         'national_positions': national_positions,
         'college_positions': college_positions,
         'local_positions': local_positions,
+        'users_json': users_json,
     }
     
     return render(request, 'manage_candidates.html', context)
