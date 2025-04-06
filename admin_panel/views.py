@@ -1,4 +1,4 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
 from user.models import Candidate, Vote, UserProfile
@@ -25,6 +25,17 @@ import tempfile
 import shutil
 from pathlib import Path
 from user.face_utils import FaceRecognition, preprocess_face_image
+from django.db.utils import IntegrityError
+from django.http import JsonResponse, HttpResponse
+from django.template.loader import render_to_string
+from django.db.models import Q
+from io import BytesIO
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import inch
 
 # Create your views here.
 
@@ -43,9 +54,8 @@ def dashboard(request):
     # Get national candidates and their vote trends
     national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
     national_candidates = Candidate.objects.filter(
-        position__in=national_positions, 
-        approved=True
-    ).select_related('user')
+        position__in=national_positions
+    ).select_related('user_profile')
     
     # Get votes from the last 24 hours grouped by hour
     time_threshold = timezone.now() - timedelta(hours=24)
@@ -81,7 +91,7 @@ def dashboard(request):
         
         # Only add candidates who have votes
         if any(point['count'] > 0 for point in trend_data):
-            candidate_name = f"{candidate.user.get_full_name()} ({candidate.position})"
+            candidate_name = f"{candidate.user_profile.student_name} ({candidate.position})"
             vote_trends[candidate_name] = trend_data
     
     context = {
@@ -205,126 +215,88 @@ def process_photo_from_path(photo_path, student_number):
 @user_passes_test(is_admin)
 def register_user(request):
     if request.method == 'POST':
-        student_number = request.POST.get('student_number')
-        student_name = request.POST.get('student_name')
-        sex = request.POST.get('sex')
-        year_level = request.POST.get('year_level')
-        course = request.POST.get('course')
-        college = request.POST.get('college')
-        photo = request.FILES.get('photo')
-        
         try:
-            # Check if student number already exists
-            if User.objects.filter(username=student_number).exists():
-                messages.error(request, 'Student number already exists.')
-                return redirect('admin_panel:register_user')
+            data = json.loads(request.body)
+            student_number = data.get('student_number')
+            student_name = data.get('student_name')
+            sex = data.get('sex')
+            year_level = data.get('year_level')
+            course = data.get('course')
+            college = data.get('college')
             
-            # Validate college
-            valid_colleges = ['CAS', 'CAF', 'CCJE', 'CBA', 'CTED', 'CIT']
-            if college not in valid_colleges:
-                messages.error(request, 'Invalid college selected.')
-                return redirect('admin_panel:register_user')
+            # Simple validation
+            if not all([student_number, student_name, sex, college, year_level, course]):
+                return JsonResponse({'error': 'All fields are required'}, status=400)
             
-            # Validate sex
-            valid_sex = ['M', 'F']
-            if sex not in valid_sex:
-                messages.error(request, 'Invalid sex selected.')
-                return redirect('admin_panel:register_user')
+            # Check if UserProfile already exists
+            if UserProfile.objects.filter(student_number=student_number).exists():
+                return JsonResponse({'error': 'Student number already exists'}, status=400)
             
-            # Validate year level
-            try:
-                year_level = int(year_level)
-                if year_level < 1 or year_level > 5:
-                    messages.error(request, 'Year level must be between 1 and 5.')
-                    return redirect('admin_panel:register_user')
-            except ValueError:
-                messages.error(request, 'Invalid year level.')
-                return redirect('admin_panel:register_user')
+            # Normalize year_level to string if it's an integer
+            if isinstance(year_level, int):
+                year_level = str(year_level)
             
-            # Process photo if provided
-            face_data = None
-            if photo:
-                try:
-                    face_data = process_face_photo(photo, student_number)
-                except ValueError as e:
-                    messages.error(request, str(e))
-                    return redirect('admin_panel:register_user')
+            # Check if User already exists
+            existing_user = User.objects.filter(username=student_number).first()
             
-            # Create new user with student number as username
-            user = User.objects.create_user(
-                username=student_number,
-                password=student_number,  # Default password is the student number
-                first_name=student_name,
-                is_active=False
-            )
+            if existing_user:
+                # Use existing user
+                user = existing_user
+            else:
+                # Create User
+                user = User.objects.create_user(
+                    username=student_number,
+                    password=student_number,  # Default password is their student number
+                    first_name=student_name,
+                    is_active=True
+                )
             
-            # Create user profile with additional fields
-            profile = UserProfile.objects.create(
-                user=user,
+            # Create UserProfile
+            UserProfile.objects.create(
                 student_number=student_number,
-                college=college,
-                department=course,  # Using course as department
-                year_level=str(year_level),  # Convert to string since the model expects string
-                gender=sex,  # Using sex as gender
-                age=18,  # Default age
-                contact_number='N/A',  # Default contact number
-                face_data=face_data
+                student_name=student_name,
+                sex=sex,
+                year_level=year_level,
+                course=course,
+                college=college
             )
             
-            # Log the admin activity
-            AdminActivity.objects.create(
-                admin_user=request.user,
-                action='CREATE',
-                action_model='User',
-                description=f"Registered new user: {student_number}"
-            )
+            return JsonResponse({'success': True})
             
-            messages.success(request, f'User {student_number} has been successfully registered.')
-            return redirect('admin_panel:manage_users')
-            
+        except ValueError as e:
+            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
-            messages.error(request, f'Error creating user: {str(e)}')
-            return redirect('admin_panel:register_user')
+            return JsonResponse({'error': str(e)}, status=500)
     
-    return render(request, 'register_user.html')
+    # If GET request, redirect to manage_users view
+    return redirect('admin_panel:manage_users')
 
 @login_required
 @user_passes_test(is_admin)
 def manage_candidates(request):
-    # Get all candidates, including unapproved ones
-    candidates = Candidate.objects.all().select_related('user')
+    # Get all candidates
+    candidates = Candidate.objects.all().select_related('user_profile')
     
-    # Handle approve/reject actions
     if request.method == 'POST':
-        # Get the action type
         action = request.POST.get('action')
         
-        # Handle approve/reject actions for existing candidates
-        if action in ['approve', 'reject']:
+        # Handle deleting a candidate
+        if action == 'delete':
             candidate_id = request.POST.get('candidate_id')
             try:
                 candidate = Candidate.objects.get(id=candidate_id)
-                if action == 'approve':
-                    candidate.approved = True
-                    candidate.save()
-                    messages.success(request, f'Candidate {candidate.user.get_full_name()} has been approved.')
-                elif action == 'reject':
-                    candidate.delete()
-                    messages.success(request, f'Candidate {candidate.user.get_full_name()} has been rejected.')
+                candidate.delete()
+                messages.success(request, 'Candidate deleted successfully.')
             except Candidate.DoesNotExist:
                 messages.error(request, 'Candidate not found.')
-            
             return redirect('admin_panel:manage_candidates')
         
         # Handle adding a new candidate
         else:
             try:
-                # Get form data
+                # Get essential form data
                 user_profile_id = request.POST.get('user_profile_id')
                 position = request.POST.get('position')
-                college = request.POST.get('college', '')
-                department = request.POST.get('department', '')
-                year_level = request.POST.get('year_level', '')
                 platform = request.POST.get('platform', '')
                 achievements = request.POST.get('achievements', '')
                 photo = request.FILES.get('photo')
@@ -338,105 +310,66 @@ def manage_candidates(request):
                     messages.error(request, 'Position is required.')
                     return redirect('admin_panel:manage_candidates')
                 
-                # Check if user exists
+                # Get the user profile
                 try:
                     user_profile = UserProfile.objects.get(id=user_profile_id)
-                    user = user_profile.user
                 except UserProfile.DoesNotExist:
-                    messages.error(request, 'Selected user profile does not exist.')
+                    messages.error(request, 'Selected user not found.')
                     return redirect('admin_panel:manage_candidates')
                 
                 # Check if user is already a candidate
-                if Candidate.objects.filter(user=user).exists():
-                    messages.error(request, f'{user.get_full_name()} is already a candidate.')
+                if Candidate.objects.filter(user_profile=user_profile).exists():
+                    messages.error(request, 'This student is already registered as a candidate.')
                     return redirect('admin_panel:manage_candidates')
                 
-                # Validate required fields based on position type
-                # National positions don't need additional fields
-                national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
-                
-                # College positions need college field
-                college_positions = [pos[0] for pos in Candidate.COLLEGE_POSITIONS]
-                
-                # Department positions need college, department and year level
-                department_positions = [pos[0] for pos in Candidate.LOCAL_POSITIONS if pos[0] not in college_positions]
-                
-                if position in college_positions and not college:
-                    messages.error(request, 'College is required for college positions.')
+                # Create candidate with essential fields
+                try:
+                    candidate = Candidate(
+                        user_profile=user_profile,
+                        position=position,
+                        platform=platform,
+                        achievements=achievements
+                    )
+                    
+                    # Save photo if provided
+                    if photo:
+                        candidate.photo = photo
+                    
+                    candidate.save()
+                    messages.success(request, f'Candidate with student number {user_profile.student_number} has been added successfully.')
                     return redirect('admin_panel:manage_candidates')
-                
-                if position in department_positions:
-                    if not college:
-                        messages.error(request, 'College is required for department positions.')
-                        return redirect('admin_panel:manage_candidates')
-                    if not department:
-                        messages.error(request, 'Department is required for department positions.')
-                        return redirect('admin_panel:manage_candidates')
-                    if not year_level:
-                        messages.error(request, 'Year level is required for department positions.')
-                        return redirect('admin_panel:manage_candidates')
-                
-                # Create candidate
-                candidate = Candidate(
-                    user=user,
-                    position=position,
-                    college=college if college else None,
-                    department=department if department else None,
-                    year_level=year_level if year_level else None,
-                    platform=platform,
-                    achievements=achievements,
-                    approved=True  # Auto-approve when added by admin
-                )
-                
-                # Save photo if provided
-                if photo:
-                    candidate.photo = photo
-                
-                candidate.save()
-                messages.success(request, f'Candidate {user.get_full_name()} has been added successfully.')
-                return redirect('admin_panel:manage_candidates')
+                    
+                except IntegrityError as e:
+                    import traceback
+                    error_trace = traceback.format_exc()
+                    print(f"Integrity Error adding candidate: {str(e)}")
+                    print(f"Detailed error traceback: {error_trace}")
+                    
+                    messages.error(request, f'Database error: This student is already registered as a candidate. Each student can only be a candidate once.')
+                    return redirect('admin_panel:manage_candidates')
                 
             except Exception as e:
+                import traceback
+                error_trace = traceback.format_exc()
+                print(f"Error adding candidate: {str(e)}")
+                print(f"Detailed error traceback: {error_trace}")
+                
                 messages.error(request, f'Error adding candidate: {str(e)}')
+                return redirect('admin_panel:manage_candidates')
         return redirect('admin_panel:manage_candidates')
 
     # Get position lists
     national_positions = Candidate.NATIONAL_POSITIONS
     college_positions = Candidate.COLLEGE_POSITIONS
     local_positions = Candidate.LOCAL_POSITIONS
-
-    # Get all users from UserProfile for search
-    users = UserProfile.objects.all().order_by('student_name')
     
-    # Prepare users data as JSON for JavaScript
-    users_json = []
-    for user in users:
-        users_json.append({
-            'id': user.id,
-            'student_number': user.student_number,
-            'name': user.student_name,
-            'college': user.college,
-            'course': user.course,
-            'year_level': user.year_level
-        })
-    
-    import json
-    users_json = json.dumps(users_json)
-
-    # Get unique colleges and departments for dropdowns
-    colleges = UserProfile.objects.values_list('college', flat=True).distinct()
-    departments = UserProfile.objects.values_list('course', flat=True).distinct()
-
     context = {
         'candidates': candidates,
-        'users': users,
-        'users_json': users_json,
         'national_positions': national_positions,
         'college_positions': college_positions,
         'local_positions': local_positions,
-        'colleges': colleges,
-        'departments': departments
     }
+    
     return render(request, 'manage_candidates.html', context)
 
 @login_required
@@ -476,7 +409,7 @@ def manage_elections(request):
 @user_passes_test(is_admin)
 def results(request):
     # Get election results data
-    candidates = Candidate.objects.all()
+    candidates = Candidate.objects.all().select_related('user_profile')
     results_data = []
     for candidate in candidates:
         votes_count = Vote.objects.filter(candidate=candidate).count()
@@ -577,7 +510,7 @@ def import_users(request):
                     
                     # Check for existing student number
                     if UserProfile.objects.filter(student_number=student_number).exists():
-                        error_logs.append(f"Row {index + 2}: Student number {student_number} already exists")
+                        error_logs.append(f"Row {index + 2}: Student number {student_number} already exists in UserProfile")
                         error_count += 1
                         continue
                     
@@ -624,8 +557,24 @@ def import_users(request):
                         error_count += 1
                         continue
 
+                    # Check if a User with this username already exists
+                    existing_user = User.objects.filter(username=student_number).first()
+                    
+                    if existing_user:
+                        # Use existing user
+                        user = existing_user
+                    else:
+                        # Create new User if one doesn't exist
+                        user = User.objects.create_user(
+                            username=student_number,
+                            password=student_number,  # Default password is student number
+                            first_name=student_name,
+                            is_active=True
+                        )
+
                     # Create new UserProfile
                     UserProfile.objects.create(
+                        user=user,
                         student_number=student_number,
                         student_name=student_name,
                         sex=sex_normalized,
@@ -766,3 +715,160 @@ def admin_panel_login(request):
             return redirect('admin_panel:admin_panel_login')
             
     return render(request, 'admin_panel_login.html')
+
+@login_required
+def generate_report(request):
+    # Get all candidates and their votes
+    candidates = Candidate.objects.all().select_related('user_profile')
+    votes = Vote.objects.all()
+    
+    # Get all users who haven't voted
+    non_voters = UserProfile.objects.filter(
+        ~Q(id__in=Vote.objects.values('user_profile'))
+    ).order_by('college', 'student_name')
+    
+    # Calculate statistics
+    total_voters = UserProfile.objects.count()
+    total_votes_cast = votes.count()
+    total_candidates = candidates.count()
+    voter_turnout = (total_votes_cast / total_voters * 100) if total_voters > 0 else 0
+    
+    # Group non-voters by college
+    non_voters_by_college = {}
+    for voter in non_voters:
+        if voter.college not in non_voters_by_college:
+            non_voters_by_college[voter.college] = []
+        non_voters_by_college[voter.college].append(voter)
+    
+    # Group votes by position
+    votes_by_position = {}
+    for candidate in candidates:
+        position = candidate.position
+        if position not in votes_by_position:
+            votes_by_position[position] = []
+        vote_count = votes.filter(candidate=candidate).count()
+        votes_by_position[position].append({
+            'candidate': candidate,
+            'votes': vote_count,
+            'percentage': (vote_count / total_votes_cast * 100) if total_votes_cast > 0 else 0
+        })
+        # Sort by vote count
+        votes_by_position[position].sort(key=lambda x: x['votes'], reverse=True)
+    
+    context = {
+        'total_voters': total_voters,
+        'total_votes_cast': total_votes_cast,
+        'voter_turnout': voter_turnout,
+        'total_candidates': total_candidates,
+        'votes_by_position': votes_by_position,
+        'non_voters_by_college': non_voters_by_college,
+    }
+    
+    if request.GET.get('format') == 'pdf':
+        # Create PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title_style = ParagraphStyle(
+            'CustomTitle',
+            parent=styles['Heading1'],
+            fontSize=24,
+            spaceAfter=30
+        )
+        elements.append(Paragraph("Election Report", title_style))
+        
+        # Summary Statistics
+        elements.append(Paragraph("Summary Statistics", styles['Heading2']))
+        summary_data = [
+            ["Total Voters", str(total_voters)],
+            ["Total Votes Cast", str(total_votes_cast)],
+            ["Voter Turnout", f"{voter_turnout:.1f}%"],
+            ["Total Candidates", str(total_candidates)]
+        ]
+        summary_table = Table(summary_data, colWidths=[2*inch, 2*inch])
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.lightgrey),
+            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 20))
+        
+        # Results by Position
+        for position, candidates in votes_by_position.items():
+            elements.append(Paragraph(f"Results for {position}", styles['Heading2']))
+            position_data = [["Candidate", "Student Number", "College", "Votes", "Percentage"]]
+            for candidate_info in candidates:
+                position_data.append([
+                    candidate_info['candidate'].user_profile.student_name,
+                    candidate_info['candidate'].user_profile.student_number,
+                    candidate_info['candidate'].user_profile.college,
+                    str(candidate_info['votes']),
+                    f"{candidate_info['percentage']:.1f}%"
+                ])
+            position_table = Table(position_data, colWidths=[1.5*inch, 1*inch, 1.5*inch, 0.75*inch, 0.75*inch])
+            position_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(position_table)
+            elements.append(Spacer(1, 20))
+        
+        # Non-voters by College
+        elements.append(Paragraph("Non-Voters by College", styles['Heading2']))
+        for college, voters in non_voters_by_college.items():
+            elements.append(Paragraph(college, styles['Heading3']))
+            non_voters_data = [["Student Number", "Name", "Course", "Year Level"]]
+            for voter in voters:
+                non_voters_data.append([
+                    voter.student_number,
+                    voter.student_name,
+                    voter.course,
+                    voter.year_level
+                ])
+            non_voters_table = Table(non_voters_data, colWidths=[1.25*inch, 2*inch, 1.25*inch, 0.75*inch])
+            non_voters_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 12),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                ('FONTSIZE', (0, 1), (-1, -1), 10),
+                ('GRID', (0, 0), (-1, -1), 1, colors.black)
+            ]))
+            elements.append(non_voters_table)
+            elements.append(Spacer(1, 20))
+        
+        # Build PDF
+        doc.build(elements)
+        
+        # Get the value of the BytesIO buffer and return the response
+        pdf = buffer.getvalue()
+        buffer.close()
+        
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="election_report.pdf"'
+        response.write(pdf)
+        return response
+    
+    return render(request, 'admin_panel/reports.html', context)

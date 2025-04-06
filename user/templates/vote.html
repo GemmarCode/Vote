@@ -474,7 +474,7 @@ function showNextPosition() {
                             </div>`
                         }
                     </div>
-                    <h5 class="mb-1">${candidate.user_name}</h5>
+                    <h5 class="mb-1">${candidate.user_profile.student_name}</h5>
                     <p class="text-muted mb-2">${candidate.college}</p>
                     <button class="btn w-100 vote-btn" 
                             data-candidate-id="${candidate.id}"
@@ -512,7 +512,7 @@ function selectCandidate(candidate) {
                         </div>`
                     }
                 </div>
-                <h5 class="mb-1">${candidate.user_name}</h5>
+                <h5 class="mb-1">${candidate.user_profile.student_name}</h5>
                 <p class="text-muted mb-0">${candidate.college}</p>
             </div>
         </div>
@@ -547,7 +547,7 @@ async function confirmVote() {
         currentVotes.push({
             candidateId: selectedCandidate.id,
             position: selectedCandidate.position,
-            candidateName: selectedCandidate.user_name,
+            candidateName: selectedCandidate.user_profile.student_name,
             timestamp: new Date().toISOString()
         });
         localStorage.setItem('userVotes', JSON.stringify(currentVotes));

@@ -27,38 +27,43 @@ class CandidateAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super(CandidateAdminForm, self).__init__(*args, **kwargs)
-        # Add autocomplete for user field
-        if 'user' in self.fields:
-            self.fields['user'].widget.attrs['class'] = 'select2'
+        # Add autocomplete for user_profile field
+        if 'user_profile' in self.fields:
+            self.fields['user_profile'].widget.attrs['class'] = 'select2'
 
 @admin.register(Candidate)
 class CandidateAdmin(admin.ModelAdmin):
     form = CandidateAdminForm
-    list_display = ('user', 'position', 'college', 'department', 'year_level', 'approved', 'created_at')
-    list_filter = ('position', 'college', 'department', 'year_level', 'approved')
-    search_fields = ('user__username', 'user__first_name', 'user__last_name', 'position', 'college', 'department')
+    list_display = ('user_profile', 'position', 'display_college', 'display_department', 'display_year_level', 'created_at')
+    list_filter = ('position',)
+    search_fields = ('user_profile__student_number', 'user_profile__student_name', 'position')
     readonly_fields = ('created_at', 'updated_at')
     
     fieldsets = (
         ('Basic Information', {
-            'fields': ('user', 'position', 'photo')
-        }),
-        ('Academic Details', {
-            'fields': ('college', 'department', 'year_level'),
-            'description': 'Fill these based on position requirements'
+            'fields': ('user_profile', 'position', 'photo')
         }),
         ('Candidate Details', {
             'fields': ('platform', 'achievements'),
             'description': 'Candidate platform and achievements'
-        }),
-        ('Status', {
-            'fields': ('approved',)
         }),
         ('Timestamps', {
             'fields': ('created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
+    
+    def display_college(self, obj):
+        return obj.get_college()
+    display_college.short_description = 'College'
+    
+    def display_department(self, obj):
+        return obj.get_department()
+    display_department.short_description = 'Department'
+    
+    def display_year_level(self, obj):
+        return obj.get_year_level()
+    display_year_level.short_description = 'Year Level'
     
     def save_model(self, request, obj, form, change):
         if not change:  # If this is a new candidate

@@ -163,18 +163,18 @@
     <div class="candidate-card">
         <div class="candidate-photo">
             {% if candidate.photo %}
-            <img src="{{ candidate.photo.url }}" alt="{{ candidate.user.get_full_name }}">
+            <img src="{{ candidate.photo.url }}" alt="{{ candidate.user_profile.student_name }}">
             {% else %}
             <i class="fas fa-user fa-2x" style="color: #34729C;"></i>
             {% endif %}
         </div>
         <div class="candidate-info">
-            <div class="candidate-name">{{ candidate.user.get_full_name }}</div>
+            <div class="candidate-name">{{ candidate.user_profile.student_name }}</div>
             <div class="candidate-position">{{ candidate.position }}</div>
             <div class="candidate-details">
-                {{ candidate.user.userprofile.college }} | 
-                {{ candidate.user.userprofile.department }} | 
-                Year {{ candidate.user.userprofile.year_level }}
+                {{ candidate.user_profile.college }} | 
+                {{ candidate.user_profile.course }} | 
+                Year {{ candidate.user_profile.year_level }}
             </div>
         </div>
         <div class="candidate-status {% if candidate.is_active %}status-active{% else %}status-inactive{% endif %}">

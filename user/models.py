@@ -103,34 +103,39 @@ class Candidate(models.Model):
     
     POSITION_CHOICES = NATIONAL_POSITIONS + COLLEGE_POSITIONS + LOCAL_POSITIONS
     
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    # Essential fields
+    user_profile = models.ForeignKey('UserProfile', on_delete=models.DO_NOTHING)
     position = models.CharField(max_length=50, choices=POSITION_CHOICES)
-    college = models.CharField(max_length=100, blank=True, null=True)
-    department = models.CharField(max_length=100, blank=True, null=True)
-    year_level = models.IntegerField(blank=True, null=True)
-    photo = models.ImageField(upload_to='candidate_photos/', blank=True, null=True)
     platform = models.TextField(help_text="Describe the candidate's platform and goals", blank=True, default="")
     achievements = models.TextField(help_text="List the candidate's achievements, one per line", blank=True, default="")
-    approved = models.BooleanField(default=False)
+    photo = models.ImageField(upload_to='candidate_photos/', blank=True, null=True)
+    
+    # System fields
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
-        ordering = ['position', 'college', 'department', 'year_level']
-        unique_together = [
-            ('position', 'college', 'department', 'year_level')
-        ]
+        ordering = ['position']
+        db_table = 'user_candidate'
 
     def __str__(self):
-        name = f"{self.user.get_full_name()} - {self.position}"
-        if self.college:
-            name += f" ({self.college}"
-            if self.department:
-                name += f", {self.department}"
-            if self.year_level:
-                name += f", Year {self.year_level}"
-            name += ")"
-        return name
+        return f"{self.user_profile.student_name} - {self.get_position_display()}"
+        
+    def get_student_number(self):
+        """Helper method to get student number from related UserProfile"""
+        return self.user_profile.student_number
+            
+    def get_college(self):
+        """Helper method to get college from related UserProfile"""
+        return self.user_profile.college
+            
+    def get_department(self):
+        """Helper method to get department/course from related UserProfile"""
+        return self.user_profile.course
+            
+    def get_year_level(self):
+        """Helper method to get year level from related UserProfile"""
+        return self.user_profile.year_level
 
 def capture_face():
     """Capture face and return encoding"""
@@ -204,12 +209,13 @@ def verify_face(stored_encoding):
     return False
 
 class Vote(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    candidate = models.ForeignKey(Candidate, on_delete=models.CASCADE)
+    user_profile = models.ForeignKey('UserProfile', on_delete=models.DO_NOTHING)
+    candidate = models.ForeignKey(Candidate, on_delete=models.DO_NOTHING)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ('user', 'candidate')  # Prevent double voting
+        db_table = 'user_vote'
+        unique_together = ('user_profile', 'candidate')
 
 class VotingPhase(models.Model):
     PHASE_CHOICES = [

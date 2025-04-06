@@ -1,0 +1,221 @@
+{% extends 'admin_base.html' %}
+
+{% block title %}Election Results{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <a href="{% url 'admin_panel:dashboard' %}" class="btn btn-secondary btn-sm mr-2">
+                            <i class="fas fa-arrow-left"></i> Back to Dashboard
+                        </a>
+                        <h6 class="m-0 font-weight-bold text-primary d-inline-block">Election Results</h6>
+                    </div>
+                    <div>
+                        <a href="{% url 'admin_panel:generate_report' %}" class="btn btn-info btn-sm">
+                            <i class="fas fa-file-alt"></i> Generate Report
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Summary Statistics -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card border-left-primary shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Voters</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_voters }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-left-success shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Votes Cast</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_votes_cast }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-vote-yea fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-left-info shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Voter Turnout</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ voter_turnout|floatformat:1 }}%</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card border-left-warning shadow h-100 py-2">
+                                <div class="card-body">
+                                    <div class="row no-gutters align-items-center">
+                                        <div class="col mr-2">
+                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Candidates</div>
+                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_candidates }}</div>
+                                        </div>
+                                        <div class="col-auto">
+                                            <i class="fas fa-user-tie fa-2x text-gray-300"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Results by Position -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Results by Position</h6>
+                        </div>
+                        <div class="card-body">
+                            {% for position, candidates in votes_by_position.items %}
+                            <div class="mb-4">
+                                <h5 class="font-weight-bold">{{ position }}</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-bordered" width="100%" cellspacing="0">
+                                        <thead>
+                                            <tr>
+                                                <th>Candidate</th>
+                                                <th>Student Number</th>
+                                                <th>College</th>
+                                                <th>Votes</th>
+                                                <th>Percentage</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for candidate in candidates %}
+                                            <tr {% if candidate.is_winner %}class="table-success"{% endif %}>
+                                                <td>{{ candidate.candidate.user_profile.student_name }}</td>
+                                                <td>{{ candidate.candidate.user_profile.student_number }}</td>
+                                                <td>{{ candidate.candidate.user_profile.college }}</td>
+                                                <td>{{ candidate.votes }}</td>
+                                                <td>{{ candidate.percentage|floatformat:1 }}%</td>
+                                                <td>
+                                                    {% if candidate.is_winner %}
+                                                    <span class="badge badge-success">Winner</span>
+                                                    {% else %}
+                                                    <span class="badge badge-secondary">Runner-up</span>
+                                                    {% endif %}
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Voter Turnout by College -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Voter Turnout by College</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-bordered" width="100%" cellspacing="0">
+                                    <thead>
+                                        <tr>
+                                            <th>College</th>
+                                            <th>Total Voters</th>
+                                            <th>Votes Cast</th>
+                                            <th>Turnout</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for college, stats in college_turnout.items %}
+                                        <tr>
+                                            <td>{{ college }}</td>
+                                            <td>{{ stats.total }}</td>
+                                            <td>{{ stats.voted }}</td>
+                                            <td>
+                                                <div class="progress">
+                                                    <div class="progress-bar {% if stats.percentage >= 70 %}bg-success{% elif stats.percentage >= 50 %}bg-info{% elif stats.percentage >= 30 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                         role="progressbar" 
+                                                         style="width: {{ stats.percentage }}%;" 
+                                                         aria-valuenow="{{ stats.percentage }}" 
+                                                         aria-valuemin="0" 
+                                                         aria-valuemax="100">
+                                                        {{ stats.percentage|floatformat:1 }}%
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Non-Voters Summary -->
+                    <div class="card shadow mb-4">
+                        <div class="card-header py-3">
+                            <h6 class="m-0 font-weight-bold text-primary">Non-Voters Summary</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-left-danger shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">Total Non-Voters</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_non_voters }}</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-user-slash fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-left-info shadow h-100 py-2">
+                                        <div class="card-body">
+                                            <div class="row no-gutters align-items-center">
+                                                <div class="col mr-2">
+                                                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Non-Voter Percentage</div>
+                                                    <div class="h5 mb-0 font-weight-bold text-gray-800">{{ non_voter_percentage|floatformat:1 }}%</div>
+                                                </div>
+                                                <div class="col-auto">
+                                                    <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

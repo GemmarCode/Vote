@@ -494,7 +494,7 @@ def verify_face(request):
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         print(traceback.format_exc())
-    return JsonResponse({
+        return JsonResponse({
             'success': False,
             'message': f'Error during verification: {str(e)}'
         }, status=500)

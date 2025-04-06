@@ -47,7 +47,7 @@
                 <h2 class="text-primary border-bottom border-primary pb-2 mb-4" style="color: #34729C !important;">{{ position }}</h2>
                 <div class="candidates">
                     {% for candidate in candidates %}
-                    <div class="candidate-card glassmorphism" data-college="{{ candidate.college }}">
+                    <div class="candidate-card glassmorphism" data-college="{{ candidate.user_profile.college }}">
                         <div class="card-body text-center p-4">
                             <div class="card-img-container mb-4">
                                 {% if candidate.photo %}
@@ -62,10 +62,10 @@
                                 {% endif %}
                             </div>
                             
-                            <h3 class="mb-2" style="color: #34729C;">{{ candidate.user.get_full_name }}</h3>
-                            <p class="position mb-1">{{ candidate.get_college_display }}</p>
-                            <p class="department mb-1">Program: {{ candidate.department }}</p>
-                            <p class="year mb-3">Year: {{ candidate.year_level }}</p>
+                            <h3 class="mb-2" style="color: #34729C;">{{ candidate.user_profile.student_name }}</h3>
+                            <p class="position mb-1">College: {{ candidate.user_profile.get_college_display }}</p>
+                            <p class="department mb-1">Program: {{ candidate.user_profile.course }}</p>
+                            <p class="year mb-3">Year: {{ candidate.user_profile.year_level }}</p>
                             
                             <!-- Platform Section -->
                             <div class="platform-section">
@@ -118,7 +118,7 @@
                     <h3 class="mb-3" style="color: #34729C;">{{ position }}</h3>
                     <div class="candidates">
                         {% for candidate in candidates %}
-                        <div class="candidate-card glassmorphism">
+                        <div class="candidate-card glassmorphism" data-college="{{ candidate.user_profile.college }}">
                             <div class="card-body text-center p-4">
                                 <div class="card-img-container mb-4">
                                     {% if candidate.photo %}
@@ -133,9 +133,9 @@
                                     {% endif %}
                                 </div>
                                 
-                                <h3 class="mb-2" style="color: #34729C;">{{ candidate.user.get_full_name }}</h3>
-                                <p class="department mb-1">Program: {{ candidate.department }}</p>
-                                <p class="year mb-3">Year: {{ candidate.year_level }}</p>
+                                <h3 class="mb-2" style="color: #34729C;">{{ candidate.user_profile.student_name }}</h3>
+                                <p class="department mb-1">Program: {{ candidate.user_profile.course }}</p>
+                                <p class="year mb-3">Year: {{ candidate.user_profile.year_level }}</p>
                                 
                                 <!-- Platform Section -->
                                 <div class="platform-section">

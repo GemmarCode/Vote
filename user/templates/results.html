@@ -70,8 +70,8 @@
                                 {% endif %}
                             </div>
                             <div class="flex-grow-1">
-                                <h5 class="mb-1" style="color: #1E5470;">{{ candidate.user.get_full_name }}</h5>
-                                <p class="mb-0 small" style="color: #34729C;">{{ candidate.college }}</p>
+                                <h5 class="mb-1" style="color: #1E5470;">{{ candidate.user_profile.student_name }}</h5>
+                                <p class="mb-0 small" style="color: #34729C;">{{ candidate.user_profile.college }}</p>
                             </div>
                             <div class="text-end">
                                 <h4 class="mb-0 fw-bold" style="color: #34729C;">{{ candidate.vote_count }}</h4>
@@ -95,14 +95,14 @@
 
         {% for college, positions in local_results.items %}
         {% if positions %}
-        <div class="mb-5">
-            <h3 class="mb-4" style="color: #34729C;">{{ college }}</h3>
+        <div class="college-results mb-5">
+            <h2 class="text-primary border-bottom border-primary pb-2 mb-4" style="color: #34729C !important;">{{ college }}</h2>
             <div class="row">
                 {% for position, candidates in positions.items %}
                 <div class="col-md-6 mb-4">
-                    <div class="card border-0 shadow-sm h-100" style="background-color: #CBEAEC;">
+                    <div class="card h-100 shadow-sm">
                         <div class="card-header py-3" style="background-color: #34729C;">
-                            <h4 class="card-title mb-0 text-white">{{ position }}</h4>
+                            <h5 class="card-title mb-0 text-white">{{ position }}</h5>
                         </div>
                         <div class="card-body">
                             {% for candidate in candidates %}
@@ -120,9 +120,9 @@
                                     {% endif %}
                                 </div>
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-1" style="color: #1E5470;">{{ candidate.user.get_full_name }}</h5>
+                                    <h5 class="mb-1" style="color: #1E5470;">{{ candidate.user_profile.student_name }}</h5>
                                     <p class="mb-0 small" style="color: #34729C;">
-                                        {{ candidate.department }} - Year {{ candidate.year_level }}
+                                        {{ candidate.user_profile.course }} - Year {{ candidate.user_profile.year_level }}
                                     </p>
                                 </div>
                                 <div class="text-end">
