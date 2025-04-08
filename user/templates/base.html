@@ -12,12 +12,12 @@
     
     <style>
         :root {
-            --primary: #34729C;
-            --primary-light: #6CB1DA;
-            --secondary: #D1ECFF;
-            --dark: #1E5470;
-            --accent: #6EC1D1;
-            --light: #CBEAEC;
+            --primary: #1976D2;
+            --primary-light: #42A5F5;
+            --secondary: #ffffff;
+            --dark: #0D47A1;
+            --accent: #2196F3;
+            --light: #E3F2FD;
         }
 
         body {
@@ -47,11 +47,12 @@
             border-radius: 15px;
             border: none;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            background-color: var(--light);
         }
 
         .form-control:focus {
             border-color: var(--accent);
-            box-shadow: 0 0 0 0.25rem rgba(110, 193, 209, 0.25);
+            box-shadow: 0 0 0 0.25rem rgba(33, 150, 243, 0.25);
         }
     </style>
     {% block extra_css %}{% endblock %}

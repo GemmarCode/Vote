@@ -223,26 +223,6 @@
                                 </div>
                             </div>
 
-                            <div class="form-group mb-3">
-                                <label for="photo">Student Photo</label>
-                                <input type="file" class="form-control" id="photo" name="photo" accept="image/*">
-                                <div class="invalid-feedback">
-                                    Please provide a photo.
-                                </div>
-                                <div class="alert alert-info mt-2">
-                                    <h6 class="mb-2"><i class="fas fa-info-circle me-2"></i>Photo Requirements:</h6>
-                                    <ul class="mb-0">
-                                        <li>Use a clear, front-facing photo</li>
-                                        <li>Ensure good lighting and minimal shadows</li>
-                                        <li>Face should be centered and clearly visible</li>
-                                        <li>Use original, unedited photos (no filters or effects)</li>
-                                        <li>Recommended resolution: at least 800x800 pixels</li>
-                                        <li>File format: JPG or PNG</li>
-                                        <li>Maximum file size: 5MB</li>
-                                    </ul>
-                                </div>
-                            </div>
-                            
                             <button type="button" class="btn btn-primary" onclick="submitRegistration()">Register User</button>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         </form>
@@ -367,16 +347,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
 function submitRegistration() {
     const form = document.getElementById('registerUserForm');
-    const formData = new FormData(form);
-    const data = Object.fromEntries(formData.entries());
+    
+    // Check form validity
+    if (!form.checkValidity()) {
+        form.classList.add('was-validated');
+        return;
+    }
+    
+    const formData = new FormData();
+    
+    // Add form fields to FormData
+    formData.append('student_number', document.getElementById('student_number').value);
+    formData.append('student_name', document.getElementById('student_name').value);
+    formData.append('sex', document.getElementById('sex').value);
+    formData.append('year_level', document.getElementById('year_level').value);
+    formData.append('course', document.getElementById('course').value);
+    formData.append('college', document.getElementById('college').value);
     
     fetch('{% url "admin_panel:register_user" %}', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json',
             'X-CSRFToken': '{{ csrf_token }}'
         },
-        body: JSON.stringify(data)
+        body: formData
     })
     .then(response => response.json())
     .then(result => {

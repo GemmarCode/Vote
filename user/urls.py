@@ -13,4 +13,5 @@ urlpatterns = [
     path('api/verify-code/', views.verify_code, name='verify_code'),
     path('api/vote/<int:candidate_id>/', views.cast_vote, name='cast_vote'),
     path('api/check-voting-status/', views.check_voting_status, name='check_voting_status'),
+    path('api/submit-all-votes/', views.submit_all_votes, name='submit_all_votes'),
 ]

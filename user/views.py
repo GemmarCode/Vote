@@ -59,37 +59,29 @@ def candidates_view(request):
     college_names = dict(UserProfile.COLLEGES)
     
     # First, handle national candidates
-    national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
-    for candidate in all_candidates.filter(position__in=national_positions):
-            position_name = position_names.get(candidate.position, candidate.position)
-            if position_name not in national_candidates:
-                national_candidates[position_name] = []
-            national_candidates[position_name].append(candidate)
+    # Keep positions in the order defined in the model
+    for position_code, position_display in Candidate.NATIONAL_POSITIONS:
+        candidates_for_position = all_candidates.filter(position=position_code)
+        if candidates_for_position.exists():
+            national_candidates[position_display] = list(candidates_for_position)
     
     # Then, organize local candidates by college
+    # Keep positions in the order defined in the model
     local_positions = [pos[0] for pos in Candidate.LOCAL_POSITIONS]
     for college_code, college_name in UserProfile.COLLEGES:
         college_candidates[college_name] = {}
-        # Filter candidates for this college
-        college_local_candidates = all_candidates.filter(
-            position__in=local_positions,
-            user_profile__college=college_code
-        )
         
-        # Group by position within each college
-        for candidate in college_local_candidates:
-            position_name = position_names.get(candidate.position, candidate.position)
-            if position_name not in college_candidates[college_name]:
-                college_candidates[college_name][position_name] = []
-            college_candidates[college_name][position_name].append(candidate)
-    
-    # Sort candidates within each position
-    for position in national_candidates:
-        national_candidates[position].sort(key=lambda x: x.user_profile.student_name)
-    
-    for college in college_candidates:
-        for position in college_candidates[college]:
-            college_candidates[college][position].sort(key=lambda x: x.user_profile.student_name)
+        # Process each local position in order
+        for position_code, position_display in Candidate.LOCAL_POSITIONS:
+            # Filter candidates for this college and position
+            college_position_candidates = all_candidates.filter(
+                position=position_code,
+                user_profile__college=college_code
+            )
+            
+            # Add to dictionary if candidates exist
+            if college_position_candidates.exists():
+                college_candidates[college_name][position_display] = list(college_position_candidates)
     
     # Remove empty college entries
     college_candidates = {k: v for k, v in college_candidates.items() if v}
@@ -128,7 +120,7 @@ def results_view(request):
         for position in local_positions:
             candidates = Candidate.objects.filter(
                 position=position,
-                college=college_code
+                user_profile__college=college_code
             ).annotate(
                 vote_count=models.Count('vote')
             ).order_by('-vote_count')
@@ -153,11 +145,14 @@ def voting_view(request):
             national_positions[pos_name] = json.dumps([
                 {
                     'id': c.id,
-                    'user_name': c.user_profile.student_name,
+                    'user_profile': {
+                        'student_name': c.user_profile.student_name,
+                        'student_number': c.user_profile.student_number
+                    },
                     'college': c.user_profile.college,
                     'department': c.user_profile.course,
                     'year_level': c.user_profile.year_level,
-                    'photo': c.photo.url if c.photo and c.photo.url else None,
+                    'photo': c.photo.url if c.photo and hasattr(c.photo, 'url') else None,
                     'position': c.position
                 } for c in candidates
             ])
@@ -170,11 +165,14 @@ def voting_view(request):
             local_positions[pos_name] = json.dumps([
                 {
                     'id': c.id,
-                    'user_name': c.user_profile.student_name,
+                    'user_profile': {
+                        'student_name': c.user_profile.student_name,
+                        'student_number': c.user_profile.student_number
+                    },
                     'college': c.user_profile.college,
                     'department': c.user_profile.course,
                     'year_level': c.user_profile.year_level,
-                    'photo': c.photo.url if c.photo and c.photo.url else None,
+                    'photo': c.photo.url if c.photo and hasattr(c.photo, 'url') else None,
                     'position': c.position
                 } for c in candidates
             ])
@@ -185,6 +183,12 @@ def voting_view(request):
         del request.session['face_verified']
     if 'user_profile_id' in request.session:
         del request.session['user_profile_id']
+    
+    # Log how many candidates are available 
+    total_candidates = Candidate.objects.count()
+    print(f"Loading voting view with {total_candidates} total candidates.")
+    print(f"National positions: {list(national_positions.keys())}")
+    print(f"Local positions: {list(local_positions.keys())}")
     
     context = {
         'national_candidates': national_positions,
@@ -497,29 +501,36 @@ def cast_vote(request, candidate_id):
     return JsonResponse({'success': False, 'message': 'Invalid request method'})
 
 def is_eligible_to_vote(user_profile, candidate):
-    """Check if a user is eligible to vote for a specific candidate based on position type"""
-    # Get position type (national, college, department)
+    """
+    Check if a user is eligible to vote for a specific candidate.
+    Rules:
+    - All users can vote for national positions
+    - Users can only vote for candidates from their own college for college positions
+    - Users can only vote for candidates from their own department and year level for department positions
+    """
+    # Get position type
+    national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
+    college_positions = [pos[0] for pos in Candidate.COLLEGE_POSITIONS]
+    department_positions = [pos[0] for pos in Candidate.LOCAL_POSITIONS]
+    
     position = candidate.position
     
     # National positions - everyone can vote
-    national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS if pos[0] not in 
-                         ['GOVERNOR', 'VICE_GOVERNOR', 'SECRETARY_COLLEGE', 'TREASURER_COLLEGE', 
-                          'AUDITOR_COLLEGE', 'PRO_COLLEGE']]
-    
     if position in national_positions:
         return True
     
-    # College positions - only users from the same college can vote
-    college_positions = ['GOVERNOR', 'VICE_GOVERNOR', 'SECRETARY_COLLEGE', 'TREASURER_COLLEGE', 
-                         'AUDITOR_COLLEGE', 'PRO_COLLEGE']
-    
+    # College positions - only users from the same college
     if position in college_positions:
         return user_profile.college == candidate.user_profile.college
     
-    # Department positions - users from same department, college, and year level
-    return (user_profile.college == candidate.user_profile.college and
-            user_profile.course == candidate.user_profile.course and
-            user_profile.year_level == candidate.user_profile.year_level)
+    # Department positions - only users from the same department and year level
+    if position in department_positions:
+        return (user_profile.college == candidate.user_profile.college and
+                user_profile.course == candidate.user_profile.course and
+                user_profile.year_level == candidate.user_profile.year_level)
+    
+    # Unknown position type
+    return False
 
 @staff_member_required
 def admin_dashboard(request):
@@ -769,3 +780,164 @@ def verify_code(request):
         'success': False,
         'message': 'Invalid request method'
     })
+
+@csrf_exempt
+def submit_all_votes(request):
+    """
+    API endpoint to submit all votes at once.
+    Receives a list of votes, validates each one, then saves them all in a single transaction.
+    """
+    if request.method != 'POST':
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid request method'
+        }, status=405)
+    
+    try:
+        # Parse the request data
+        data = json.loads(request.body.decode('utf-8'))
+        user_profile_id = data.get('user_profile_id')
+        votes = data.get('votes', [])
+        
+        print(f"[VOTE DEBUG] Processing {len(votes)} votes for user profile ID: {user_profile_id}")
+        print(f"[VOTE DEBUG] Votes data: {votes}")
+        
+        # Validation checks
+        if not user_profile_id:
+            print("[VOTE ERROR] No user profile ID provided")
+            return JsonResponse({
+                'success': False,
+                'message': 'User profile ID required. Please verify your identity first.'
+            }, status=400)
+        
+        if not votes or not isinstance(votes, list) or len(votes) == 0:
+            print("[VOTE ERROR] No votes provided")
+            return JsonResponse({
+                'success': False,
+                'message': 'No votes provided.'
+            }, status=400)
+        
+        # Check if voting phase is active
+        settings = ElectionSettings.objects.first()
+        if not settings or not settings.is_voting_open():
+            print("[VOTE ERROR] Voting is not currently active")
+            return JsonResponse({
+                'success': False, 
+                'message': 'Voting is not currently active'
+            }, status=403)
+        
+        # Get the user profile
+        try:
+            user_profile = UserProfile.objects.get(id=user_profile_id)
+            print(f"[VOTE DEBUG] Found user profile: {user_profile.student_number} ({user_profile.student_name})")
+        except UserProfile.DoesNotExist:
+            print(f"[VOTE ERROR] User profile not found for ID: {user_profile_id}")
+            return JsonResponse({
+                'success': False, 
+                'message': 'User profile not found in database'
+            }, status=404)
+        
+        # Prepare storage for vote objects and errors
+        vote_objects = []
+        positions_voted = set()
+        errors = []
+        
+        # Validate each vote
+        for i, vote_data in enumerate(votes):
+            candidate_id = vote_data.get('candidateId')
+            position = vote_data.get('position')
+            
+            print(f"[VOTE DEBUG] Processing vote {i+1}: candidate ID {candidate_id}, position {position}")
+            
+            # Skip if already validated a vote for this position
+            if position in positions_voted:
+                print(f"[VOTE WARNING] Multiple votes for position {position}")
+                errors.append(f"Multiple votes for position {position} - only the first will be counted")
+                continue
+                
+            try:
+                # Get candidate
+                candidate = Candidate.objects.get(id=candidate_id)
+                print(f"[VOTE DEBUG] Found candidate: {candidate.user_profile.student_name} for position {candidate.position}")
+                
+                # Verify position matches
+                if candidate.position != position:
+                    print(f"[VOTE ERROR] Position mismatch: expected {position}, got {candidate.position}")
+                    errors.append(f"Position mismatch for candidate {candidate_id}")
+                    continue
+                
+                # Verify eligibility based on position type and user profile
+                if not is_eligible_to_vote(user_profile, candidate):
+                    print(f"[VOTE ERROR] User {user_profile.student_number} not eligible to vote for {candidate.position}")
+                    errors.append(f"Not eligible to vote for {candidate.position}")
+                    continue
+                
+                # Create vote object (don't save yet)
+                vote_objects.append(Vote(user_profile=user_profile, candidate=candidate))
+                positions_voted.add(position)
+                print(f"[VOTE DEBUG] Vote validated for {candidate.position}")
+                
+            except Candidate.DoesNotExist:
+                print(f"[VOTE ERROR] Candidate {candidate_id} not found")
+                errors.append(f"Candidate {candidate_id} not found")
+                continue
+            except Exception as e:
+                print(f"[VOTE ERROR] Unexpected error processing vote for candidate {candidate_id}: {str(e)}")
+                errors.append(f"Error processing vote: {str(e)}")
+                continue
+        
+        # If no valid votes, return error
+        if not vote_objects:
+            print("[VOTE ERROR] No valid votes to submit")
+            return JsonResponse({
+                'success': False,
+                'message': 'No valid votes to submit.',
+                'errors': errors
+            }, status=400)
+        
+        # Check if user has already voted for any positions
+        existing_votes = Vote.objects.filter(user_profile=user_profile)
+        existing_positions = existing_votes.values_list('candidate__position', flat=True)
+        
+        if existing_positions:
+            print(f"[VOTE ERROR] User already voted for positions: {list(existing_positions)}")
+            return JsonResponse({
+                'success': False,
+                'message': 'You have already voted for some positions.',
+                'positions': list(existing_positions)
+            }, status=400)
+        
+        # Save all votes in a single transaction
+        try:
+            with transaction.atomic():
+                for vote in vote_objects:
+                    vote.save()
+                    print(f"[VOTE SUCCESS] Vote recorded - User: {user_profile.student_number}, Candidate: {vote.candidate.user_profile.student_number}, Position: {vote.candidate.position}")
+        except Exception as e:
+            print(f"[VOTE ERROR] Failed to save votes: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': f'Error saving votes to database: {str(e)}'
+            }, status=500)
+        
+        print(f"[VOTE SUCCESS] Successfully submitted {len(vote_objects)} votes for user {user_profile.student_number}")
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully submitted {len(vote_objects)} votes.',
+            'positions_voted': list(positions_voted),
+            'warnings': errors if errors else None
+        })
+        
+    except json.JSONDecodeError:
+        print("[VOTE ERROR] Invalid JSON data")
+        return JsonResponse({
+            'success': False,
+            'message': 'Invalid JSON data'
+        }, status=400)
+    except Exception as e:
+        print(f"[VOTE ERROR] Unexpected error: {str(e)}")
+        print(traceback.format_exc())
+        return JsonResponse({
+            'success': False,
+            'message': f'Error submitting votes: {str(e)}'
+        }, status=500)

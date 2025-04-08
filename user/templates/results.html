@@ -5,33 +5,33 @@
 {% include 'nav.html' %}
 
 <!-- Hero Section -->
-<div class="bg-gradient py-4" style="background: linear-gradient(135deg, #34729C, #6CB1DA);">
+<div class="py-4" style="background-color: white;">
     <div class="container">
-        <h1 class="text-center text-white mb-0 fw-bold">Election Results</h1>
+        <h1 class="text-center mb-0 fw-bold header-title">Election Results</h1>
     </div>
 </div>
 
 <!-- Results Content -->
-<div class="container-fluid py-5" style="background-color: #D1ECFF;">
+<div class="container-fluid py-5" style="background-color: white;">
     <!-- Voting Statistics -->
     <div class="row justify-content-center mb-5">
         <div class="col-md-6">
-            <div class="card border-0 shadow-sm" style="background-color: #CBEAEC;">
+            <div class="card border-0 shadow">
                 <div class="card-body text-center p-4">
-                    <h4 class="mb-4" style="color: #1E5470;">Voting Statistics</h4>
+                    <h4 class="mb-4 fw-bold" style="color: #1976D2;">Voting Statistics</h4>
                     <div class="row">
                         <div class="col-6">
                             <div class="mb-3">
-                                <i class="fas fa-users fa-2x mb-2" style="color: #34729C;"></i>
-                                <h5 style="color: #1E5470;">Total Voters</h5>
-                                <h3 class="fw-bold" style="color: #34729C;">{{ total_voters }}</h3>
+                                <i class="fas fa-users fa-2x mb-2" style="color: #42A5F5;"></i>
+                                <h5 style="color: #1976D2;">Total Voters</h5>
+                                <h3 class="fw-bold" style="color: #1976D2;">{{ total_voters }}</h3>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="mb-3">
-                                <i class="fas fa-vote-yea fa-2x mb-2" style="color: #34729C;"></i>
-                                <h5 style="color: #1E5470;">Votes Cast</h5>
-                                <h3 class="fw-bold" style="color: #34729C;">{{ total_votes_cast }}</h3>
+                                <i class="fas fa-vote-yea fa-2x mb-2" style="color: #42A5F5;"></i>
+                                <h5 style="color: #1976D2;">Votes Cast</h5>
+                                <h3 class="fw-bold" style="color: #1976D2;">{{ total_votes_cast }}</h3>
                             </div>
                         </div>
                     </div>
@@ -43,20 +43,20 @@
     <!-- National Positions -->
     <div class="mb-5">
         <div class="d-flex align-items-center mb-4">
-            <h2 class="mb-0 fw-bold" style="color: #1E5470;">National Positions</h2>
-            <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #6EC1D1;"></div>
+            <h2 class="mb-0 fw-bold header-title" style="color: #1976D2;">National Positions</h2>
+            <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #42A5F5;"></div>
         </div>
 
         <div class="row">
             {% for position, candidates in national_results.items %}
             <div class="col-md-6 mb-4">
-                <div class="card border-0 shadow-sm h-100" style="background-color: #CBEAEC;">
-                    <div class="card-header py-3" style="background-color: #34729C;">
+                <div class="card border-0 shadow h-100">
+                    <div class="card-header py-3" style="background-color: #1976D2;">
                         <h3 class="card-title mb-0 text-white">{{ position }}</h3>
                     </div>
                     <div class="card-body">
                         {% for candidate in candidates %}
-                        <div class="d-flex align-items-center mb-3 p-3 rounded {% if forloop.first %}bg-success bg-opacity-10 winner-border{% else %}regular-border{% endif %}">
+                        <div class="d-flex align-items-center mb-3 p-3 rounded {% if forloop.first %}winner-card{% else %}regular-card{% endif %}">
                             <div class="me-3">
                                 {% if candidate.photo %}
                                     <img src="{{ candidate.photo.url }}" 
@@ -64,17 +64,17 @@
                                          style="width: 60px; height: 60px; object-fit: cover;">
                                 {% else %}
                                     <div class="rounded-circle d-flex align-items-center justify-content-center"
-                                         style="width: 60px; height: 60px; background-color: #D1ECFF;">
-                                        <i class="fas fa-user fa-2x" style="color: #34729C;"></i>
+                                         style="width: 60px; height: 60px; background-color: #E3F2FD;">
+                                        <i class="fas fa-user fa-2x" style="color: #1976D2;"></i>
                                     </div>
                                 {% endif %}
                             </div>
                             <div class="flex-grow-1">
-                                <h5 class="mb-1" style="color: #1E5470;">{{ candidate.user_profile.student_name }}</h5>
-                                <p class="mb-0 small" style="color: #34729C;">{{ candidate.user_profile.college }}</p>
+                                <h5 class="mb-1" style="color: #1976D2;">{{ candidate.user_profile.student_name }}</h5>
+                                <p class="mb-0 small" style="color: #42A5F5;">{{ candidate.user_profile.college }}</p>
                             </div>
                             <div class="text-end">
-                                <h4 class="mb-0 fw-bold" style="color: #34729C;">{{ candidate.vote_count }}</h4>
+                                <h4 class="mb-0 fw-bold" style="color: #1976D2;">{{ candidate.vote_count }}</h4>
                                 <small class="text-muted">votes</small>
                             </div>
                         </div>
@@ -89,24 +89,24 @@
     <!-- Local Positions -->
     <div>
         <div class="d-flex align-items-center mb-4">
-            <h2 class="mb-0 fw-bold" style="color: #1E5470;">Local Positions</h2>
-            <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #6EC1D1;"></div>
+            <h2 class="mb-0 fw-bold header-title" style="color: #1976D2;">Local Positions</h2>
+            <div class="flex-grow-1 ms-3" style="height: 2px; background-color: #42A5F5;"></div>
         </div>
 
         {% for college, positions in local_results.items %}
         {% if positions %}
         <div class="college-results mb-5">
-            <h2 class="text-primary border-bottom border-primary pb-2 mb-4" style="color: #34729C !important;">{{ college }}</h2>
+            <h2 class="text-primary border-bottom pb-2 mb-4 header-title" style="color: #1976D2 !important; border-color: #42A5F5 !important;">{{ college }}</h2>
             <div class="row">
                 {% for position, candidates in positions.items %}
                 <div class="col-md-6 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-header py-3" style="background-color: #34729C;">
+                    <div class="card border-0 shadow h-100">
+                        <div class="card-header py-3" style="background-color: #1976D2;">
                             <h5 class="card-title mb-0 text-white">{{ position }}</h5>
                         </div>
                         <div class="card-body">
                             {% for candidate in candidates %}
-                            <div class="d-flex align-items-center mb-3 p-3 rounded {% if forloop.first %}bg-success bg-opacity-10 winner-border{% else %}regular-border{% endif %}">
+                            <div class="d-flex align-items-center mb-3 p-3 rounded {% if forloop.first %}winner-card{% else %}regular-card{% endif %}">
                                 <div class="me-3">
                                     {% if candidate.photo %}
                                         <img src="{{ candidate.photo.url }}" 
@@ -114,19 +114,19 @@
                                              style="width: 60px; height: 60px; object-fit: cover;">
                                     {% else %}
                                         <div class="rounded-circle d-flex align-items-center justify-content-center"
-                                             style="width: 60px; height: 60px; background-color: #D1ECFF;">
-                                            <i class="fas fa-user fa-2x" style="color: #34729C;"></i>
+                                             style="width: 60px; height: 60px; background-color: #E3F2FD;">
+                                            <i class="fas fa-user fa-2x" style="color: #1976D2;"></i>
                                         </div>
                                     {% endif %}
                                 </div>
                                 <div class="flex-grow-1">
-                                    <h5 class="mb-1" style="color: #1E5470;">{{ candidate.user_profile.student_name }}</h5>
-                                    <p class="mb-0 small" style="color: #34729C;">
+                                    <h5 class="mb-1" style="color: #1976D2;">{{ candidate.user_profile.student_name }}</h5>
+                                    <p class="mb-0 small" style="color: #42A5F5;">
                                         {{ candidate.user_profile.course }} - Year {{ candidate.user_profile.year_level }}
                                     </p>
                                 </div>
                                 <div class="text-end">
-                                    <h4 class="mb-0 fw-bold" style="color: #34729C;">{{ candidate.vote_count }}</h4>
+                                    <h4 class="mb-0 fw-bold" style="color: #1976D2;">{{ candidate.vote_count }}</h4>
                                     <small class="text-muted">votes</small>
                                 </div>
                             </div>
@@ -144,23 +144,43 @@
 
 <style>
 .card {
-    transition: transform 0.2s ease-in-out;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border-radius: 10px;
+    overflow: hidden;
 }
 
 .card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(25, 118, 210, 0.2);
 }
 
-.bg-success.bg-opacity-10 {
-    background-color: rgba(40, 167, 69, 0.1) !important;
+.card-header {
+    border-bottom: none;
 }
 
-.winner-border {
-    border: 1px solid #28a745;
+.winner-card {
+    background-color: rgba(25, 118, 210, 0.08);
+    border-left: 4px solid #1976D2;
 }
 
-.regular-border {
-    border: 1px solid #dee2e6;
+.regular-card {
+    background-color: white;
+    border: 1px solid #e9ecef;
+}
+
+h2, h3, h4, h5 {
+    font-weight: 600;
+}
+
+.bg-gradient {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.header-title {
+    color: #1976D2 !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    position: relative;
+    font-weight: 700;
 }
 </style>
 {% endblock %} 

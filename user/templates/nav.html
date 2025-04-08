@@ -1,32 +1,28 @@
 <!-- Navigation -->
 {% load static %}
-<nav class="navbar navbar-expand-lg navbar-dark" style="background-color: #34729C;">
+<nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, var(--primary), var(--primary-light));">
     <div class="container">
-        <a class="navbar-brand" href="{% url 'user:mainpage' %}">
-            <img src="{% static 'images/logo.png' %}" alt="Logo" height="40">
-            Smart Vote
-        </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav me-auto">
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'user:mainpage' %}">Home</a>
+                    <a class="nav-link hover-effect" href="{% url 'user:mainpage' %}">Home</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'user:candidates' %}">Candidates</a>
+                    <a class="nav-link hover-effect" href="{% url 'user:candidates' %}">Candidates</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'user:results' %}">Results</a>
+                    <a class="nav-link hover-effect" href="{% url 'user:results' %}">Results</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'user:vote' %}">Vote</a>
+                    <a class="nav-link hover-effect" href="{% url 'user:vote' %}">Vote</a>
                 </li>
             </ul>
             <ul class="navbar-nav">
                 <li class="nav-item">
-                    <a class="nav-link" href="{% url 'admin_panel:admin_panel_login' %}">
+                    <a class="nav-link hover-effect" href="{% url 'admin_panel:admin_panel_login' %}">
                         <i class="fas fa-lock me-1"></i>Admin Access
                     </a>
                 </li>
@@ -54,7 +50,7 @@
     left: 50%;
     width: 0;
     height: 2px;
-    background-color: #D1ECFF;
+    background-color: var(--light);
     transition: all 0.3s ease;
     transform: translateX(-50%);
 }

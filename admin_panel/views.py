@@ -219,13 +219,13 @@ def process_photo_from_path(photo_path, student_number):
 def register_user(request):
     if request.method == 'POST':
         try:
-            data = json.loads(request.body)
-            student_number = data.get('student_number')
-            student_name = data.get('student_name')
-            sex = data.get('sex')
-            year_level = data.get('year_level')
-            course = data.get('course')
-            college = data.get('college')
+            # Get form data from POST
+            student_number = request.POST.get('student_number')
+            student_name = request.POST.get('student_name')
+            sex = request.POST.get('sex')
+            year_level = request.POST.get('year_level')
+            course = request.POST.get('course')
+            college = request.POST.get('college')
             
             # Simple validation
             if not all([student_number, student_name, sex, college, year_level, course]):
@@ -256,6 +256,7 @@ def register_user(request):
             
             # Create UserProfile
             UserProfile.objects.create(
+                user=user,
                 student_number=student_number,
                 student_name=student_name,
                 sex=sex,
@@ -266,8 +267,6 @@ def register_user(request):
             
             return JsonResponse({'success': True})
             
-        except ValueError as e:
-            return JsonResponse({'error': 'Invalid JSON data'}, status=400)
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
     
@@ -400,11 +399,23 @@ def manage_elections(request):
             
             # Update settings with parsed datetime objects
             if candidacy_deadline:
-                settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M'))
+                try:
+                    settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M:%S'))
+                except ValueError:
+                    # Fallback to format without seconds
+                    settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M'))
             if voting_start:
-                settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M'))
+                try:
+                    settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M:%S'))
+                except ValueError:
+                    # Fallback to format without seconds
+                    settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M'))
             if voting_end:
-                settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M'))
+                try:
+                    settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M:%S'))
+                except ValueError:
+                    # Fallback to format without seconds
+                    settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M'))
             
             settings.save()
             messages.success(request, 'Election settings updated successfully.')
@@ -964,6 +975,24 @@ def admin_results(request):
             reverse=True
         )
     
+    # Create an ordered dictionary for position results based on hierarchy
+    ordered_votes_by_position = {}
+    
+    # First add national positions in order
+    for position_code, position_display in Candidate.NATIONAL_POSITIONS:
+        if position_code in votes_by_position:
+            ordered_votes_by_position[position_display] = votes_by_position[position_code]
+    
+    # Then add college positions in order
+    for position_code, position_display in Candidate.COLLEGE_POSITIONS:
+        if position_code in votes_by_position:
+            ordered_votes_by_position[position_display] = votes_by_position[position_code]
+    
+    # Finally add local positions in order
+    for position_code, position_display in Candidate.LOCAL_POSITIONS:
+        if position_code in votes_by_position:
+            ordered_votes_by_position[position_display] = votes_by_position[position_code]
+    
     # Calculate voter turnout by college
     college_turnout = {}
     colleges = UserProfile.objects.values_list('college', flat=True).distinct()
@@ -994,7 +1023,7 @@ def admin_results(request):
         'total_votes_cast': total_votes_cast,
         'total_candidates': total_candidates,
         'voter_turnout': voter_turnout,
-        'votes_by_position': votes_by_position,
+        'votes_by_position': ordered_votes_by_position,
         'college_turnout': college_turnout,
         'total_non_voters': total_non_voters,
         'non_voter_percentage': non_voter_percentage,

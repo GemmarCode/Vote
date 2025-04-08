@@ -4,67 +4,101 @@
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
-            <div class="card admin-card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Verification Codes Management</h5>
+            <div class="admin-card">
+                <div class="card-header py-3" style="background-color: #1976D2;">
+                    <h5 class="card-title mb-0 text-white">Verification Codes Management</h5>
                 </div>
-                <div class="card-body">
+                <div class="card-body p-4">
                     <!-- Generate New Code Form -->
-                    <div class="mb-4">
-                        <h6>Generate New Code</h6>
+                    <div class="mb-4 p-3 rounded" style="background-color: rgba(25, 118, 210, 0.05); border-left: 4px solid #1976D2;">
+                        <h6 class="header-title mb-3">Generate New Code</h6>
                         <form id="generateCodeForm" class="row g-3">
                             <div class="col-md-6">
-                                <label for="studentNumber" class="form-label">Student Number</label>
-                                <input type="text" class="form-control" id="studentNumber" required>
+                                <label for="studentNumber" class="form-label" style="color: #1976D2; font-weight: 600;">Student Number</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                        <i class="fas fa-id-card"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="studentNumber" required placeholder="Enter student number">
+                                </div>
                             </div>
-                            <div class="col-md-6">
-                                <label class="form-label">&nbsp;</label>
-                                <button type="submit" class="btn btn-primary d-block">Generate Code</button>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-key me-2"></i>Generate Code
+                                </button>
                             </div>
                         </form>
                     </div>
 
                     <!-- Active Codes Table -->
-                    <div class="table-responsive">
-                        <h6>Active Verification Codes</h6>
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Student Number</th>
-                                    <th>Code</th>
-                                    <th>Created At</th>
-                                    <th>Expires At</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="codesTableBody">
-                                {% for code in verification_codes %}
-                                <tr>
-                                    <td>{{ code.student_number }}</td>
-                                    <td>{{ code.code }}</td>
-                                    <td>{{ code.created_at|date:"Y-m-d H:i:s" }}</td>
-                                    <td>{{ code.expires_at|date:"Y-m-d H:i:s" }}</td>
-                                    <td>
-                                        {% if code.is_used %}
-                                            <span class="badge bg-secondary">Used</span>
-                                        {% elif code.is_valid %}
-                                            <span class="badge bg-success">Active</span>
-                                        {% else %}
-                                            <span class="badge bg-danger">Expired</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary regenerate-code" 
-                                                data-id="{{ code.id }}"
-                                                {% if not code.is_valid %}disabled{% endif %}>
-                                            Regenerate
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="header-title mb-0">Active Verification Codes</h6>
+                            <div class="d-flex gap-2">
+                                <div class="input-group" style="width: 250px;">
+                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="codeSearch" placeholder="Search student number" onkeyup="searchCodes()">
+                                </div>
+                                <select class="form-select" id="statusFilter" style="width: 150px;" onchange="filterCodes()">
+                                    <option value="all">All Statuses</option>
+                                    <option value="active">Active</option>
+                                    <option value="used">Used</option>
+                                    <option value="expired">Expired</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th>Student Number</th>
+                                        <th>Code</th>
+                                        <th>Created At</th>
+                                        <th>Expires At</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="codesTableBody">
+                                    {% for code in verification_codes %}
+                                    <tr class="code-row" data-student="{{ code.student_number }}" data-status="{% if code.is_used %}used{% elif code.is_valid %}active{% else %}expired{% endif %}">
+                                        <td>{{ code.student_number }}</td>
+                                        <td><code class="code-text">{{ code.code }}</code></td>
+                                        <td>{{ code.created_at|date:"Y-m-d H:i:s" }}</td>
+                                        <td>{{ code.expires_at|date:"Y-m-d H:i:s" }}</td>
+                                        <td>
+                                            {% if code.is_used %}
+                                                <span class="status-badge status-used">
+                                                    <i class="fas fa-check-circle me-1"></i>Used
+                                                </span>
+                                            {% elif code.is_valid %}
+                                                <span class="status-badge status-active">
+                                                    <i class="fas fa-clock me-1"></i>Active
+                                                </span>
+                                            {% else %}
+                                                <span class="status-badge status-expired">
+                                                    <i class="fas fa-times-circle me-1"></i>Expired
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm btn-primary regenerate-code" 
+                                                    data-id="{{ code.id }}"
+                                                    {% if not code.is_valid %}disabled{% endif %}>
+                                                <i class="fas fa-sync-alt me-1"></i>Regenerate
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-4">No verification codes have been generated yet.</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -76,28 +110,36 @@
 <div class="modal fade" id="codeDisplayModal" tabindex="-1" aria-labelledby="codeDisplayModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header" style="background-color: #1976D2; color: white;">
                 <h5 class="modal-title" id="codeDisplayModalLabel">Verification Code Generated</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="text-center mb-4">
-                    <i class="fas fa-key fa-3x text-primary mb-3"></i>
-                    <h4 class="mb-3">Your Verification Code</h4>
-                    <div class="code-display p-3 bg-light rounded">
+                    <div class="verification-code-icon mb-3">
+                        <i class="fas fa-key"></i>
+                    </div>
+                    <h4 class="mb-3" style="color: #1976D2;">Your Verification Code</h4>
+                    <div class="code-display p-3 rounded">
                         <h2 id="displayCode" class="mb-0 font-monospace"></h2>
                     </div>
                 </div>
                 <div class="mb-3">
-                    <p><strong>Student Number:</strong> <span id="displayStudentNumber"></span></p>
-                    <p><strong>Expires At:</strong> <span id="displayExpiresAt"></span></p>
+                    <div class="code-info-item">
+                        <i class="fas fa-id-card"></i>
+                        <span><strong>Student Number:</strong> <span id="displayStudentNumber"></span></span>
+                    </div>
+                    <div class="code-info-item">
+                        <i class="fas fa-hourglass-end"></i>
+                        <span><strong>Expires At:</strong> <span id="displayExpiresAt"></span></span>
+                    </div>
                 </div>
-                <div class="alert alert-info">
+                <div class="alert" style="background-color: #E3F2FD; color: #1976D2; border-left: 4px solid #1976D2;">
                     <i class="fas fa-info-circle me-2"></i>Please save this code. It will be deleted after use.
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Close</button>
                 <button type="button" class="btn btn-primary" id="copyCodeBtn">
                     <i class="fas fa-copy me-2"></i>Copy Code
                 </button>
@@ -105,6 +147,141 @@
         </div>
     </div>
 </div>
+
+<style>
+.admin-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.admin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+}
+
+.header-title {
+    color: #1976D2;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn-primary {
+    background-color: #1976D2;
+    border-color: #1976D2;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover, .btn-primary:focus {
+    background-color: #1565C0;
+    border-color: #1565C0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(25, 118, 210, 0.3);
+}
+
+.btn-primary:disabled {
+    background-color: #BBDEFB;
+    border-color: #BBDEFB;
+    transform: none;
+    box-shadow: none;
+}
+
+.table-header {
+    background-color: rgba(25, 118, 210, 0.1);
+}
+
+.table-header th {
+    color: #1976D2;
+    font-weight: 600;
+}
+
+.table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(25, 118, 210, 0.05);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.status-active {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4CAF50;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.status-used {
+    background-color: rgba(158, 158, 158, 0.1);
+    color: #757575;
+    border: 1px solid rgba(158, 158, 158, 0.2);
+}
+
+.status-expired {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.2);
+}
+
+.code-text {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    background-color: #E3F2FD;
+    color: #1976D2;
+    padding: 3px 6px;
+    border-radius: 4px;
+}
+
+.verification-code-icon {
+    width: 70px;
+    height: 70px;
+    background-color: #E3F2FD;
+    color: #1976D2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-size: 2rem;
+    margin: 0 auto;
+    border: 3px solid #1976D2;
+}
+
+.code-display {
+    background-color: #E3F2FD;
+    letter-spacing: 4px;
+    color: #1976D2;
+    border: 2px dashed #1976D2;
+}
+
+.code-info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+    color: #616161;
+}
+
+.code-info-item i {
+    width: 25px;
+    color: #1976D2;
+    margin-right: 10px;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #1976D2;
+    box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+}
+</style>
 
 <script>
 document.getElementById('generateCodeForm').addEventListener('submit', function(e) {
@@ -203,6 +380,32 @@ document.getElementById('copyCodeBtn').addEventListener('click', function() {
         console.error('Could not copy text: ', err);
     });
 });
+
+// Search functionality
+function searchCodes() {
+    const searchTerm = document.getElementById('codeSearch').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const rows = document.querySelectorAll('.code-row');
+    
+    rows.forEach(row => {
+        const studentNumber = row.getAttribute('data-student').toLowerCase();
+        const status = row.getAttribute('data-status');
+        
+        const matchesSearch = studentNumber.includes(searchTerm);
+        const matchesFilter = statusFilter === 'all' || status === statusFilter;
+        
+        if (matchesSearch && matchesFilter) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+
+// Filter by status
+function filterCodes() {
+    searchCodes(); // Reuse the search function which also handles filtering
+}
 
 // Helper function to get CSRF token
 function getCookie(name) {

@@ -3,13 +3,13 @@
 {% block admin_content %}
 <div class="d-flex">
     <!-- Main Content -->
-    <div class="flex-grow-1 p-4" style="background-color: #D1ECFF;">
+    <div class="flex-grow-1 p-4" style="background-color: white;">
         <div class="container-fluid">
-            <h1 class="mb-4" style="color: #1E5470;">Add Candidates</h1>
+            <h1 class="mb-4 header-title">Add Candidates</h1>
 
             <!-- Add Candidate Form -->
-            <div class="card" style="background-color: #CBEAEC;">
-                <div class="card-header py-3" style="background-color: #34729C;">
+            <div class="admin-card">
+                <div class="card-header py-3" style="background-color: #1976D2;">
                     <h5 class="card-title mb-0 text-white">Add New Candidate</h5>
                 </div>
                 <div class="card-body p-4">
@@ -18,7 +18,7 @@
                         <div class="row g-3">
                             <!-- User Selection -->
                             <div class="col-md-6">
-                                <label class="form-label">Search Student Number</label>
+                                <label class="form-label" style="color: #1976D2;">Search Student Number</label>
                                 <div class="input-group">
                                     <input type="text" class="form-control" id="userSearch" placeholder="Enter student number..." autocomplete="off">
                                     <input type="hidden" name="user_profile_id" id="selectedUserId" required>
@@ -28,7 +28,7 @@
 
                             <!-- Position -->
                             <div class="col-md-6">
-                                <label class="form-label">Position</label>
+                                <label class="form-label" style="color: #1976D2;">Position</label>
                                 <select class="form-select" name="position" id="positionSelect" required>
                                     <option value="">Select position...</option>
                                     <optgroup label="National Positions">
@@ -52,25 +52,25 @@
 
                             <!-- Photo Upload -->
                             <div class="col-12">
-                                <label class="form-label">Candidate Photo</label>
+                                <label class="form-label" style="color: #1976D2;">Candidate Photo</label>
                                 <input type="file" class="form-control" name="photo" accept="image/*">
                             </div>
 
                             <!-- Platform -->
                             <div class="col-12">
-                                <label class="form-label">Platform</label>
+                                <label class="form-label" style="color: #1976D2;">Platform</label>
                                 <textarea class="form-control" name="platform" rows="4" required></textarea>
                             </div>
 
                             <!-- Achievements -->
                             <div class="col-12">
-                                <label class="form-label">Achievements</label>
+                                <label class="form-label" style="color: #1976D2;">Achievements</label>
                                 <textarea class="form-control" name="achievements" rows="4"></textarea>
                             </div>
 
                             <!-- Submit Button -->
                             <div class="col-12 mt-4">
-                                <button type="button" id="submitBtn" class="btn btn-lg w-100" style="background-color: #34729C; color: white;">
+                                <button type="button" id="submitBtn" class="btn btn-lg w-100" style="background-color: #1976D2; color: white;">
                                     <i class="fas fa-plus-circle me-2"></i>Add Candidate
                                 </button>
                             </div>
@@ -83,7 +83,7 @@
             <div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
-                        <div class="modal-header" style="background-color: #34729C; color: white;">
+                        <div class="modal-header" style="background-color: #1976D2; color: white;">
                             <h5 class="modal-title" id="confirmModalLabel">Confirm Candidate Addition</h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
@@ -96,7 +96,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="button" id="confirmAddBtn" class="btn btn-primary" style="background-color: #34729C;">Confirm</button>
+                            <button type="button" id="confirmAddBtn" class="btn btn-primary" style="background-color: #1976D2;">Confirm</button>
                         </div>
                     </div>
                 </div>
@@ -106,7 +106,7 @@
             <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
                 <div class="modal-dialog">
                     <div class="modal-content">
-                        <div class="modal-header" style="background-color: #28a745; color: white;">
+                        <div class="modal-header" style="background-color: #1976D2; color: white;">
                             <h5 class="modal-title" id="successModalLabel">Success!</h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
@@ -114,21 +114,21 @@
                             <p>Candidate has been successfully added!</p>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-success" data-bs-dismiss="modal">OK</button>
+                            <button type="button" class="btn btn-primary" data-bs-dismiss="modal" style="background-color: #1976D2;">OK</button>
                         </div>
                     </div>
                 </div>
             </div>
 
             <!-- List of Added Candidates -->
-            <div class="card mt-4" style="background-color: #CBEAEC;">
-                <div class="card-header py-3" style="background-color: #34729C;">
+            <div class="admin-card mt-4">
+                <div class="card-header py-3" style="background-color: #1976D2;">
                     <h5 class="card-title mb-0 text-white">Added Candidates</h5>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table">
-                            <thead>
+                            <thead class="table-header">
                                 <tr>
                                     <th>Photo</th>
                                     <th>Student Number</th>
@@ -147,8 +147,8 @@
                                                  style="width: 40px; height: 40px; object-fit: cover; border-radius: 50%;">
                                         {% else %}
                                             <div class="rounded-circle d-flex align-items-center justify-content-center"
-                                                 style="width: 40px; height: 40px; background-color: #D1ECFF;">
-                                                <i class="fas fa-user" style="color: #34729C;"></i>
+                                                 style="width: 40px; height: 40px; background-color: #E3F2FD;">
+                                                <i class="fas fa-user" style="color: #1976D2;"></i>
                                             </div>
                                         {% endif %}
                                     </td>
@@ -189,7 +189,7 @@
 <div class="modal fade" id="platformModal" tabindex="-1" aria-labelledby="platformModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header" style="background-color: #34729C; color: white;">
+      <div class="modal-header" style="background-color: #1976D2; color: white;">
         <h5 class="modal-title" id="platformModalLabel">Candidate Platform</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -207,7 +207,7 @@
 <div class="modal fade" id="achievementsModal" tabindex="-1" aria-labelledby="achievementsModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <div class="modal-header" style="background-color: #34729C; color: white;">
+      <div class="modal-header" style="background-color: #1976D2; color: white;">
         <h5 class="modal-title" id="achievementsModalLabel">Candidate Achievements</h5>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
@@ -220,6 +220,52 @@
     </div>
   </div>
 </div>
+
+<style>
+.header-title {
+    color: #1976D2 !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+}
+
+.admin-card {
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    overflow: hidden;
+}
+
+.admin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+}
+
+.table-header {
+    background-color: rgba(25, 118, 210, 0.1);
+}
+
+.table-header th {
+    color: #1976D2;
+    font-weight: 600;
+}
+
+.btn-info {
+    background-color: #42A5F5;
+    border-color: #42A5F5;
+}
+
+.btn-info:hover {
+    background-color: #1976D2;
+    border-color: #1976D2;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #1976D2;
+    box-shadow: 0 0 0 0.25rem rgba(25, 118, 210, 0.25);
+}
+</style>
 
 {% block extra_js %}
 <script>

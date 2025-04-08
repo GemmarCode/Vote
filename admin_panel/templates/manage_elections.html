@@ -3,7 +3,7 @@
 {% block admin_content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 style="color: #34729C;">Manage Elections</h1>
+        <h1 class="header-title">Manage Elections</h1>
     </div>
 
     {% if messages %}
@@ -16,28 +16,34 @@
     {% endif %}
 
     <div class="admin-card">
+        <div class="card-header py-3" style="background-color: #1976D2;">
+            <h5 class="card-title mb-0 text-white">Election Timeline Settings</h5>
+        </div>
         <div class="card-body p-4">
-            <h5 class="mb-4" style="color: #34729C;">
-                <i class="fas fa-clock me-2"></i>Election Timeline Settings
-            </h5>
-
             <form method="POST" class="needs-validation" novalidate>
                 {% csrf_token %}
                 
                 <!-- Candidacy Filing Deadline -->
                 <div class="mb-4">
-                    <label for="candidacy_deadline" class="form-label">Candidacy Filing Deadline</label>
+                    <label for="candidacy_deadline" class="form-label" style="color: #1976D2; font-weight: 600;">
+                        <i class="fas fa-file-signature me-2"></i>Candidacy Filing Deadline
+                    </label>
                     <input type="datetime-local" 
-                           class="form-control" 
+                           class="form-control shadow-sm" 
                            id="candidacy_deadline" 
                            name="candidacy_deadline"
-                           value="{{ settings.candidacy_deadline|date:'Y-m-d\TH:i' }}"
+                           value="{{ settings.candidacy_deadline|date:'Y-m-d\TH:i:s' }}"
                            required>
-                    <div class="form-text">Current status: 
+                    <div class="form-text mt-2 d-flex align-items-center">
+                        <span class="me-2">Current status:</span> 
                         {% if settings.is_candidacy_open %}
-                            <span class="badge bg-success">Open</span>
+                            <span class="status-badge status-open">
+                                <i class="fas fa-check-circle me-1"></i>Open
+                            </span>
                         {% else %}
-                            <span class="badge bg-danger">Closed</span>
+                            <span class="status-badge status-closed">
+                                <i class="fas fa-times-circle me-1"></i>Closed
+                            </span>
                         {% endif %}
                     </div>
                 </div>
@@ -45,35 +51,70 @@
                 <!-- Voting Period -->
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <label for="voting_start" class="form-label">Voting Start Date</label>
+                        <label for="voting_start" class="form-label" style="color: #1976D2; font-weight: 600;">
+                            <i class="fas fa-hourglass-start me-2"></i>Voting Start Date
+                        </label>
                         <input type="datetime-local" 
-                               class="form-control" 
+                               class="form-control shadow-sm" 
                                id="voting_start" 
                                name="voting_start"
-                               value="{{ settings.voting_start|date:'Y-m-d\TH:i' }}"
+                               value="{{ settings.voting_start|date:'Y-m-d\TH:i:s' }}"
                                required>
                     </div>
                     <div class="col-md-6">
-                        <label for="voting_end" class="form-label">Voting End Date</label>
+                        <label for="voting_end" class="form-label" style="color: #1976D2; font-weight: 600;">
+                            <i class="fas fa-hourglass-end me-2"></i>Voting End Date
+                        </label>
                         <input type="datetime-local" 
-                               class="form-control" 
+                               class="form-control shadow-sm" 
                                id="voting_end" 
                                name="voting_end"
-                               value="{{ settings.voting_end|date:'Y-m-d\TH:i' }}"
+                               value="{{ settings.voting_end|date:'Y-m-d\TH:i:s' }}"
                                required>
                     </div>
-                    <div class="col-12 mt-2">
-                        <div class="form-text">Voting status: 
+                    <div class="col-12 mt-3">
+                        <div class="form-text d-flex align-items-center">
+                            <span class="me-2">Voting status:</span> 
                             {% if settings.is_voting_open %}
-                                <span class="badge bg-success">Open</span>
+                                <span class="status-badge status-open">
+                                    <i class="fas fa-vote-yea me-1"></i>Open
+                                </span>
                             {% else %}
-                                <span class="badge bg-danger">Closed</span>
+                                <span class="status-badge status-closed">
+                                    <i class="fas fa-lock me-1"></i>Closed
+                                </span>
                             {% endif %}
                         </div>
                     </div>
                 </div>
 
-                <button type="submit" class="btn btn-primary">
+                <!-- Current Election Timeline Visualization -->
+                <div class="election-timeline mb-4 p-3 rounded">
+                    <h6 class="mb-3" style="color: #1976D2;">
+                        <i class="fas fa-calendar-alt me-2"></i>Election Timeline Visualization
+                    </h6>
+                    <div class="timeline-container">
+                        <div class="timeline-line"></div>
+                        <div class="timeline-event" style="left: 0%;">
+                            <div class="timeline-dot"></div>
+                            <div class="timeline-label">Now</div>
+                        </div>
+                        <div class="timeline-event" id="candidacyDeadlineMarker">
+                            <div class="timeline-dot" style="background-color: #FFA000;"></div>
+                            <div class="timeline-label">Candidacy Deadline</div>
+                        </div>
+                        <div class="timeline-event" id="votingStartMarker">
+                            <div class="timeline-dot" style="background-color: #4CAF50;"></div>
+                            <div class="timeline-label">Voting Start</div>
+                        </div>
+                        <div class="timeline-event" id="votingEndMarker">
+                            <div class="timeline-dot" style="background-color: #F44336;"></div>
+                            <div class="timeline-label">Voting End</div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-lg">
                     <i class="fas fa-save me-2"></i>Save Settings
                 </button>
             </form>
@@ -82,23 +123,127 @@
 </div>
 
 <style>
+.header-title {
+    color: #1976D2 !important;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+    position: relative;
+}
+
 .admin-card {
-    background: rgba(255, 255, 255, 0.9);
+    background: white;
     border-radius: 15px;
-    border: 1px solid rgba(52, 114, 156, 0.1);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+    margin-bottom: 30px;
+}
+
+.admin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
 }
 
 .form-control {
-    background: rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(52, 114, 156, 0.1);
+    background: white;
+    border: 1px solid rgba(25, 118, 210, 0.1);
     border-radius: 8px;
+    padding: 10px 15px;
+    transition: all 0.3s ease;
 }
 
 .form-control:focus {
     background: white;
-    border-color: #34729C;
-    box-shadow: 0 0 0 0.2rem rgba(52, 114, 156, 0.25);
+    border-color: #1976D2;
+    box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+    transform: translateY(-2px);
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    border-radius: 50px;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.status-open {
+    background-color: rgba(76, 175, 80, 0.1);
+    color: #4CAF50;
+    border: 1px solid rgba(76, 175, 80, 0.2);
+}
+
+.status-closed {
+    background-color: rgba(244, 67, 54, 0.1);
+    color: #F44336;
+    border: 1px solid rgba(244, 67, 54, 0.2);
+}
+
+.btn-primary {
+    background-color: #1976D2;
+    border-color: #1976D2;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: #1565C0;
+    border-color: #1565C0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(25, 118, 210, 0.3);
+}
+
+.election-timeline {
+    background-color: rgba(25, 118, 210, 0.05);
+    border: 1px solid rgba(25, 118, 210, 0.1);
+}
+
+.timeline-container {
+    position: relative;
+    height: 60px;
+    margin: 20px 0;
+}
+
+.timeline-line {
+    position: absolute;
+    top: 20px;
+    left: 0;
+    width: 100%;
+    height: 4px;
+    background-color: #E0E0E0;
+    border-radius: 4px;
+}
+
+.timeline-event {
+    position: absolute;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100px;
+    margin-left: -50px;
+}
+
+.timeline-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: #1976D2;
+    margin-bottom: 8px;
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.3);
+}
+
+.timeline-label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+    color: #616161;
+    white-space: nowrap;
 }
 </style>
 
@@ -117,5 +262,34 @@
         }, false)
     })
 })()
+
+// Timeline visualization
+document.addEventListener('DOMContentLoaded', function() {
+    const now = new Date();
+    
+    const candidacyDeadline = new Date("{{ settings.candidacy_deadline|date:'Y-m-d\TH:i:s' }}");
+    const votingStart = new Date("{{ settings.voting_start|date:'Y-m-d\TH:i:s' }}");
+    const votingEnd = new Date("{{ settings.voting_end|date:'Y-m-d\TH:i:s' }}");
+    
+    // Calculate the earliest and latest dates for scaling
+    const earliest = new Date(Math.min(now, candidacyDeadline, votingStart));
+    const latest = new Date(Math.max(now, candidacyDeadline, votingStart, votingEnd));
+    
+    // Add some padding (5 days before and after)
+    earliest.setDate(earliest.getDate() - 5);
+    latest.setDate(latest.getDate() + 5);
+    
+    const totalDuration = latest - earliest;
+    
+    // Calculate positions (percentage of total timeline)
+    const candidacyPosition = ((candidacyDeadline - earliest) / totalDuration) * 100;
+    const votingStartPosition = ((votingStart - earliest) / totalDuration) * 100;
+    const votingEndPosition = ((votingEnd - earliest) / totalDuration) * 100;
+    
+    // Update timeline markers
+    document.getElementById('candidacyDeadlineMarker').style.left = `${candidacyPosition}%`;
+    document.getElementById('votingStartMarker').style.left = `${votingStartPosition}%`;
+    document.getElementById('votingEndMarker').style.left = `${votingEndPosition}%`;
+});
 </script>
 {% endblock %} 

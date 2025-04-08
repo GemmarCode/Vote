@@ -6,11 +6,11 @@
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
             <div class="d-flex align-items-center">
-                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
-                    <i class="fas fa-users fa-2x" style="color: #34729C;"></i>
+                <div class="rounded-circle p-3 me-3" style="background: rgba(25, 118, 210, 0.1);">
+                    <i class="fas fa-users fa-2x" style="color: #1976D2;"></i>
                 </div>
                 <div>
-                    <h3 class="mb-0" style="color: #34729C;">{{ total_users }}</h3>
+                    <h3 class="mb-0" style="color: #1976D2;">{{ total_users }}</h3>
                     <p class="text-muted mb-0">Total Users</p>
                 </div>
             </div>
@@ -20,92 +20,127 @@
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
             <div class="d-flex align-items-center">
-                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
-                    <i class="fas fa-user-tie fa-2x" style="color: #34729C;"></i>
+                <div class="rounded-circle p-3 me-3" style="background: rgba(25, 118, 210, 0.1);">
+                    <i class="fas fa-user-tie fa-2x" style="color: #1976D2;"></i>
                 </div>
                 <div>
-                    <h3 class="mb-0" style="color: #34729C;">{{ total_candidates }}</h3>
+                    <h3 class="mb-0" style="color: #1976D2;">{{ total_candidates }}</h3>
                     <p class="text-muted mb-0">Total Candidates</p>
                 </div>
             </div>
-                        </div>
-                    </div>
+        </div>
+    </div>
     
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
             <div class="d-flex align-items-center">
-                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
-                    <i class="fas fa-vote-yea fa-2x" style="color: #34729C;"></i>
+                <div class="rounded-circle p-3 me-3" style="background: rgba(25, 118, 210, 0.1);">
+                    <i class="fas fa-vote-yea fa-2x" style="color: #1976D2;"></i>
                 </div>
                 <div>
-                    <h3 class="mb-0" style="color: #34729C;">{{ total_votes }}</h3>
+                    <h3 class="mb-0" style="color: #1976D2;">{{ total_votes }}</h3>
                     <p class="text-muted mb-0">Total Votes</p>
                 </div>
             </div>
-                        </div>
-                    </div>
+        </div>
+    </div>
     
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
             <div class="d-flex align-items-center">
-                <div class="rounded-circle p-3 me-3" style="background: rgba(52, 114, 156, 0.1);">
-                    <i class="fas fa-chart-pie fa-2x" style="color: #34729C;"></i>
+                <div class="rounded-circle p-3 me-3" style="background: rgba(25, 118, 210, 0.1);">
+                    <i class="fas fa-chart-pie fa-2x" style="color: #1976D2;"></i>
                 </div>
                 <div>
-                    <h3 class="mb-0" style="color: #34729C;">{{ voter_turnout }}%</h3>
+                    <h3 class="mb-0" style="color: #1976D2;">{{ voter_turnout }}%</h3>
                     <p class="text-muted mb-0">Voter Turnout</p>
                 </div>
             </div>
-                        </div>
-                    </div>
-                </div>
+        </div>
+    </div>
+</div>
 
 <!-- Vote Trends Graph -->
 <div class="row mt-4">
     <div class="col-12">
         <div class="admin-card p-4">
-            <h4 class="mb-4" style="color: #34729C;">
+            <h4 class="mb-4 header-title">
                 <i class="fas fa-chart-line me-2"></i>National Candidates Vote Trends
             </h4>
             <div style="position: relative; height: 400px; width: 100%;">
                 <canvas id="voteTrendsChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Activity -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="admin-card p-4">
-            <h4 class="mb-4" style="color: #34729C;">Recent Activity</h4>
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead>
-                                <tr>
-                                    <th>Time</th>
-                            <th>Action</th>
-                                    <th>Details</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for activity in recent_activities %}
-                                <tr>
-                            <td>{{ activity.created_at }}</td>
-                                    <td>{{ activity.action }}</td>
-                                    <td>{{ activity.details }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr>
-                            <td colspan="3" class="text-center">No recent activity</td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Recent Activity -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="admin-card p-4">
+            <h4 class="mb-4 header-title">Recent Activity</h4>
+            <div class="table-responsive">
+                <table class="table">
+                    <thead class="table-header">
+                        <tr>
+                            <th>Time</th>
+                            <th>Action</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for activity in recent_activities %}
+                        <tr>
+                            <td>{{ activity.created_at }}</td>
+                            <td>{{ activity.action }}</td>
+                            <td>{{ activity.details }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="3" class="text-center">No recent activity</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    overflow: hidden;
+}
+
+.admin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+}
+
+.header-title {
+    color: #1976D2;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+}
+
+.table-header {
+    background-color: rgba(25, 118, 210, 0.1);
+}
+
+.table-header th {
+    color: #1976D2;
+    font-weight: 600;
+}
+
+.table td {
+    border-color: rgba(25, 118, 210, 0.1);
+}
+</style>
 
 <!-- Chart.js and Moment.js -->
 <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
@@ -130,8 +165,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Generate colors for each candidate
     const colors = [
-        '#34729C', '#6CB1DA', '#1E5470', '#CBEAEC', '#D1ECFF',
-        '#2C6085', '#5A9BC0', '#183D54', '#A8D5D8', '#B0D9F2'
+        '#1976D2', '#42A5F5', '#0D47A1', '#E3F2FD', '#BBDEFB',
+        '#1565C0', '#2196F3', '#0D47A1', '#B3E5FC', '#81D4FA'
     ];
     
     // Prepare datasets
@@ -182,12 +217,12 @@ document.addEventListener('DOMContentLoaded', function() {
                         tooltipFormat: 'MMM D, HH:mm'
                     },
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
+                        color: 'rgba(25, 118, 210, 0.1)'
                     },
                     title: {
                         display: true,
                         text: 'Time',
-                        color: '#34729C',
+                        color: '#1976D2',
                         font: {
                             size: 14,
                             weight: 'bold'
@@ -197,12 +232,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 y: {
                     beginAtZero: true,
                     grid: {
-                        color: 'rgba(0, 0, 0, 0.1)'
+                        color: 'rgba(25, 118, 210, 0.1)'
                     },
                     title: {
                         display: true,
                         text: 'Number of Votes',
-                        color: '#34729C',
+                        color: '#1976D2',
                         font: {
                             size: 14,
                             weight: 'bold'
@@ -223,19 +258,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         font: {
                             size: 12
                         },
-                        color: '#34729C'
+                        color: '#1976D2'
                     }
                 },
                 tooltip: {
                     mode: 'index',
                     intersect: false,
                     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    titleColor: '#34729C',
+                    titleColor: '#1976D2',
                     titleFont: {
                         weight: 'bold'
                     },
-                    bodyColor: '#34729C',
-                    borderColor: '#34729C',
+                    bodyColor: '#1976D2',
+                    borderColor: '#1976D2',
                     borderWidth: 1,
                     padding: 10,
                     callbacks: {

@@ -4,29 +4,29 @@
 {% block content %}
 {% include 'nav.html' %}
 
-<header class="bg-gradient py-4" style="background: linear-gradient(135deg, #34729C, #6CB1DA);">
-    <h1 class="text-center text-white mb-0 display-4 fw-bold">University Election Candidates</h1>
+<header class="py-4" style="background-color: var(--secondary);">
+    <h1 class="text-center mb-0 display-4 fw-bold header-title" style="color: var(--primary);">University Election Candidates</h1>
 </header>
 
 <!-- Filter Section -->
-<div class="bg-white py-3 shadow-sm sticky-top" style="backdrop-filter: blur(10px); background: rgba(255, 255, 255, 0.8) !important; z-index: 1000;">
+<div class="bg-white py-3 shadow-sm sticky-top" style="backdrop-filter: blur(10px); background: var(--secondary) !important; z-index: 1000; border-bottom: 1px solid rgba(25, 118, 210, 0.1);">
     <div class="container">
         <div class="row align-items-center">
             <div class="col-md-6">
                 <div class="d-flex">
                     <button class="btn btn-lg flex-grow-1 position-btn active" data-filter="national" 
-                            style="background: rgba(52, 114, 156, 0.9); color: white; margin-right: 10px; backdrop-filter: blur(10px);">
+                            style="background: var(--primary); color: white; margin-right: 10px;">
                         <i class="fas fa-flag me-2"></i>National Positions
                     </button>
                     <button class="btn btn-lg flex-grow-1 position-btn" data-filter="local" 
-                            style="background: rgba(108, 177, 218, 0.9); color: white; backdrop-filter: blur(10px);">
+                            style="background: var(--primary-light); color: white;">
                         <i class="fas fa-building me-2"></i>Local Positions
                     </button>
                 </div>
             </div>
             <div class="col-md-6">
                 <select class="form-select form-select-lg" id="collegeFilter" 
-                        style="background: rgba(209, 236, 255, 0.9); backdrop-filter: blur(10px);">
+                        style="background: var(--light); color: var(--dark); border: 1px solid rgba(25, 118, 210, 0.2);">
                     <option value="all">All Colleges</option>
                     {% for code, name in colleges %}
                     <option value="{{ code }}">{{ name }}</option>
@@ -38,62 +38,63 @@
 </div>
 
 <!-- Main Content -->
-<div class="colleges py-5" style="background-color: #D1ECFF; min-height: 100vh;">
+<div class="colleges py-5" style="background-color: var(--secondary); min-height: 100vh;">
     <div class="container">
         <!-- National Positions Section -->
         <div id="nationalSection" class="position-section">
             {% for position, candidates in national_candidates.items %}
             <div class="college mb-5">
-                <h2 class="text-primary border-bottom border-primary pb-2 mb-4" style="color: #34729C !important;">{{ position }}</h2>
+                <h2 class="text-center mb-5 fw-bold section-title">{{ position }}</h2>
                 <div class="candidates">
                     {% for candidate in candidates %}
-                    <div class="candidate-card glassmorphism" data-college="{{ candidate.user_profile.college }}">
+                    <div class="candidate-card" data-college="{{ candidate.user_profile.college }}">
                         <div class="card-body text-center p-4">
                             <div class="card-img-container mb-4">
                                 {% if candidate.photo %}
                                     <img src="{{ candidate.photo.url }}" 
                                          class="rounded-circle mx-auto d-block" 
-                                         style="width: 120px; height: 120px; object-fit: cover; border: 4px solid rgba(255, 255, 255, 0.3);">
+                                         style="width: 120px; height: 120px; object-fit: cover; border: 4px solid rgba(25, 118, 210, 0.2);">
                                 {% else %}
                                     <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center"
-                                         style="width: 120px; height: 120px; background: rgba(209, 236, 255, 0.3); border: 4px solid rgba(255, 255, 255, 0.3);">
-                                        <i class="fas fa-user fa-3x" style="color: rgba(52, 114, 156, 0.8);"></i>
+                                         style="width: 120px; height: 120px; background: var(--light); border: 4px solid rgba(25, 118, 210, 0.2);">
+                                        <i class="fas fa-user fa-3x" style="color: var(--primary);"></i>
                                     </div>
                                 {% endif %}
                             </div>
                             
-                            <h3 class="mb-2" style="color: #34729C;">{{ candidate.user_profile.student_name }}</h3>
-                            <p class="position mb-1">College: {{ candidate.user_profile.get_college_display }}</p>
-                            <p class="department mb-1">Program: {{ candidate.user_profile.course }}</p>
-                            <p class="year mb-3">Year: {{ candidate.user_profile.year_level }}</p>
+                            <h3 class="mb-2" style="color: var(--primary);">{{ candidate.user_profile.student_name }}</h3>
+                            <p class="position mb-1" style="color: #000000;">College: {{ candidate.user_profile.get_college_display }}</p>
+                            <p class="department mb-1" style="color: #000000;">Program: {{ candidate.user_profile.course }}</p>
+                            <p class="year mb-3" style="color: #000000;">Year: {{ candidate.user_profile.year_level }}</p>
                             
                             <!-- Platform Section -->
                             <div class="platform-section">
-                                <button class="btn btn-sm w-80 glassmorphism-button" 
+                                <button class="btn btn-sm w-80" 
                                         data-bs-toggle="collapse" 
                                         data-bs-target="#platform{{ candidate.id }}"
-                                        style="background: rgba(52, 114, 156, 0.9);">
+                                        style="background: var(--primary); color: white; width: 80%; margin: 0 auto;">
                                     <i class="fas fa-scroll me-2"></i>View Platform
                                 </button>
                                 <div class="collapse mt-2" id="platform{{ candidate.id }}">
-                                    <div class="card card-body glassmorphism-light">
-                                        <h6 class="fw-bold mb-2" style="color: #34729C;">Platform:</h6>
-                                        <p class="mb-0">{{ candidate.platform }}</p>
+                                    <div class="card card-body" style="background: var(--light); border: 1px solid rgba(25, 118, 210, 0.1);">
+                                        <h6 class="fw-bold mb-2" style="color: var(--primary);">Platform:</h6>
+                                        <p class="mb-0" style="color: #000000;">{{ candidate.platform }}</p>
                                     </div>
                                 </div>
                             </div>
                             
                             <!-- Achievements Section -->
                             <div class="achievements-section mt-2">
-                                <button class="btn btn-sm w-80 glassmorphism-button-light" 
+                                <button class="btn btn-sm w-80" 
                                         data-bs-toggle="collapse" 
-                                        data-bs-target="#achievements{{ candidate.id }}">
+                                        data-bs-target="#achievements{{ candidate.id }}"
+                                        style="background: var(--primary-light); color: white; width: 80%; margin: 0 auto;">
                                     <i class="fas fa-trophy me-2"></i>View Achievements
                                 </button>
                                 <div class="collapse mt-2" id="achievements{{ candidate.id }}">
-                                    <div class="card card-body glassmorphism-light">
-                                        <h6 class="fw-bold mb-2" style="color: #34729C;">Achievements:</h6>
-                                        <p class="mb-0">{{ candidate.achievements }}</p>
+                                    <div class="card card-body" style="background: var(--light); border: 1px solid rgba(25, 118, 210, 0.1);">
+                                        <h6 class="fw-bold mb-2" style="color: var(--primary);">Achievements:</h6>
+                                        <p class="mb-0" style="color: #000000;">{{ candidate.achievements }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -110,60 +111,61 @@
             {% for college_name, positions in college_candidates.items %}
             {% if positions %}
             <div class="college mb-5" data-college="{{ college_name }}">
-                <h2 class="text-primary border-bottom border-primary pb-2 mb-4" style="color: #34729C !important;">
+                <h2 class="text-center mb-5 fw-bold section-title">
                     <i class="fas fa-university me-2"></i>{{ college_name }}
                 </h2>
                 {% for position, candidates in positions.items %}
                 <div class="position-group mb-4">
-                    <h3 class="mb-3" style="color: #34729C;">{{ position }}</h3>
+                    <h3 class="mb-3 text-center" style="color: var(--primary);">{{ position }}</h3>
                     <div class="candidates">
                         {% for candidate in candidates %}
-                        <div class="candidate-card glassmorphism" data-college="{{ candidate.user_profile.college }}">
+                        <div class="candidate-card" data-college="{{ candidate.user_profile.college }}">
                             <div class="card-body text-center p-4">
                                 <div class="card-img-container mb-4">
                                     {% if candidate.photo %}
                                         <img src="{{ candidate.photo.url }}" 
                                              class="rounded-circle mx-auto d-block" 
-                                             style="width: 120px; height: 120px; object-fit: cover; border: 4px solid rgba(255, 255, 255, 0.3);">
+                                             style="width: 120px; height: 120px; object-fit: cover; border: 4px solid rgba(25, 118, 210, 0.2);">
                                     {% else %}
                                         <div class="rounded-circle mx-auto d-flex align-items-center justify-content-center"
-                                             style="width: 120px; height: 120px; background: rgba(209, 236, 255, 0.3); border: 4px solid rgba(255, 255, 255, 0.3);">
-                                            <i class="fas fa-user fa-3x" style="color: rgba(52, 114, 156, 0.8);"></i>
+                                             style="width: 120px; height: 120px; background: var(--light); border: 4px solid rgba(25, 118, 210, 0.2);">
+                                            <i class="fas fa-user fa-3x" style="color: var(--primary);"></i>
                                         </div>
                                     {% endif %}
                                 </div>
                                 
-                                <h3 class="mb-2" style="color: #34729C;">{{ candidate.user_profile.student_name }}</h3>
-                                <p class="department mb-1">Program: {{ candidate.user_profile.course }}</p>
-                                <p class="year mb-3">Year: {{ candidate.user_profile.year_level }}</p>
+                                <h3 class="mb-2" style="color: var(--primary);">{{ candidate.user_profile.student_name }}</h3>
+                                <p class="department mb-1" style="color: #000000;">Program: {{ candidate.user_profile.course }}</p>
+                                <p class="year mb-3" style="color: #000000;">Year: {{ candidate.user_profile.year_level }}</p>
                                 
                                 <!-- Platform Section -->
                                 <div class="platform-section">
-                                    <button class="btn btn-sm w-80 glassmorphism-button" 
+                                    <button class="btn btn-sm w-80" 
                                             data-bs-toggle="collapse" 
                                             data-bs-target="#platform{{ candidate.id }}"
-                                            style="background: rgba(52, 114, 156, 0.9);">
+                                            style="background: var(--primary); color: white; width: 80%; margin: 0 auto;">
                                         <i class="fas fa-scroll me-2"></i>View Platform
                                     </button>
                                     <div class="collapse mt-2" id="platform{{ candidate.id }}">
-                                        <div class="card card-body glassmorphism-light">
-                                            <h6 class="fw-bold mb-2" style="color: #34729C;">Platform:</h6>
-                                            <p class="mb-0">{{ candidate.platform }}</p>
+                                        <div class="card card-body" style="background: var(--light); border: 1px solid rgba(25, 118, 210, 0.1);">
+                                            <h6 class="fw-bold mb-2" style="color: var(--primary);">Platform:</h6>
+                                            <p class="mb-0" style="color: #000000;">{{ candidate.platform }}</p>
                                         </div>
                                     </div>
                                 </div>
                                 
                                 <!-- Achievements Section -->
                                 <div class="achievements-section mt-2">
-                                    <button class="btn btn-sm w-80 glassmorphism-button-light" 
+                                    <button class="btn btn-sm w-80" 
                                             data-bs-toggle="collapse" 
-                                            data-bs-target="#achievements{{ candidate.id }}">
+                                            data-bs-target="#achievements{{ candidate.id }}"
+                                            style="background: var(--primary-light); color: white; width: 80%; margin: 0 auto;">
                                         <i class="fas fa-trophy me-2"></i>View Achievements
                                     </button>
                                     <div class="collapse mt-2" id="achievements{{ candidate.id }}">
-                                        <div class="card card-body glassmorphism-light">
-                                            <h6 class="fw-bold mb-2" style="color: #34729C;">Achievements:</h6>
-                                            <p class="mb-0">{{ candidate.achievements }}</p>
+                                        <div class="card card-body" style="background: var(--light); border: 1px solid rgba(25, 118, 210, 0.1);">
+                                            <h6 class="fw-bold mb-2" style="color: var(--primary);">Achievements:</h6>
+                                            <p class="mb-0" style="color: #000000;">{{ candidate.achievements }}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -182,10 +184,10 @@
 
 <style>
 body {
-    font-family: Arial, sans-serif;
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     margin: 0;
     padding: 0;
-    background-color: #D1ECFF;
+    background-color: var(--secondary);
 }
 
 .colleges {
@@ -201,57 +203,27 @@ body {
 
 .candidate-card {
     width: 300px;
-    background: rgba(255, 255, 255, 0.7);
-    backdrop-filter: blur(10px);
+    background: white;
     border-radius: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
     transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
 }
 
 .candidate-card:hover {
     transform: translateY(-10px);
-    box-shadow: 0 15px 40px rgba(31, 38, 135, 0.2);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+    border: 1px solid rgba(25, 118, 210, 0.15);
 }
 
-.glassmorphism-button {
-    background: rgba(52, 114, 156, 0.9);
-    color: white;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+.btn {
     transition: all 0.3s ease;
-    width: 80%;
-    margin: 0 auto;
 }
 
-.glassmorphism-button:hover {
-    background: rgba(52, 114, 156, 1);
-    color: white;
+.btn:hover {
     transform: translateY(-2px);
-}
-
-.glassmorphism-button-light {
-    background: rgba(108, 177, 218, 0.9);
-    color: white;
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    transition: all 0.3s ease;
-    width: 80%;
-    margin: 0 auto;
-}
-
-.glassmorphism-button-light:hover {
-    background: rgba(108, 177, 218, 1);
-    color: white;
-    transform: translateY(-2px);
-}
-
-.glassmorphism-light {
-    background: rgba(209, 236, 255, 0.7);
-    backdrop-filter: blur(4px);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    text-align: left;
-    font-size: 0.9em;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
 }
 
 .card-img-container {
@@ -278,16 +250,67 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: rgba(209, 236, 255, 0.5);
+    background: rgba(227, 242, 253, 0.5);
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(108, 177, 218, 0.8);
+    background: rgba(66, 165, 245, 0.8);
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(52, 114, 156, 0.8);
+    background: rgba(25, 118, 210, 0.8);
+}
+
+/* Header title style */
+.header-title {
+    color: var(--primary) !important;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1) !important;
+    position: relative;
+    padding: 0 15px;
+    font-weight: 700;
+}
+
+/* Section title styles */
+.section-title {
+    color: var(--primary) !important;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1) !important;
+    position: relative;
+    display: block;
+    padding: 0 15px;
+    font-weight: 700;
+    text-align: center;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.section-title:before, .section-title:after {
+    content: '';
+    display: block;
+    height: 3px;
+    position: absolute;
+    background-color: var(--primary);
+    width: 80px;
+    transition: width 0.5s ease;
+    top: 50%;
+}
+
+.section-title:before {
+    left: 20%;
+}
+
+.section-title:after {
+    right: 20%;
+}
+
+.section-title:hover:before {
+    width: 100px;
+    left: 18%;
+}
+
+.section-title:hover:after {
+    width: 100px;
+    right: 18%;
 }
 </style>
 
@@ -302,10 +325,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update button states
             positionBtns.forEach(b => {
                 b.classList.remove('active');
-                b.style.background = 'rgba(108, 177, 218, 0.9)';
+                b.style.background = 'var(--primary-light)';
             });
             this.classList.add('active');
-            this.style.background = 'rgba(52, 114, 156, 0.9)';
+            this.style.background = 'var(--primary)';
             
             // Show/hide sections
             const filter = this.dataset.filter;

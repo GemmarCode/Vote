@@ -6,24 +6,24 @@
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
-            <div class="card shadow mb-4">
+            <div class="results-card">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Election Results</h6>
+                    <h6 class="m-0 font-weight-bold results-title">Election Results</h6>
                 </div>
                 <div class="card-body">
                     {% if voting_ended %}
                         <!-- Results by Position -->
-                        <div class="card shadow mb-4">
+                        <div class="results-card mb-4">
                             <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Results by Position</h6>
+                                <h6 class="m-0 font-weight-bold results-subtitle">Results by Position</h6>
                             </div>
                             <div class="card-body">
                                 {% for position, candidates in votes_by_position.items %}
                                 <div class="mb-4">
-                                    <h5 class="font-weight-bold">{{ position }}</h5>
+                                    <h5 class="font-weight-bold position-title">{{ position }}</h5>
                                     <div class="table-responsive">
                                         <table class="table table-bordered" width="100%" cellspacing="0">
-                                            <thead class="thead-dark">
+                                            <thead class="results-table-header">
                                                 <tr>
                                                     <th>Candidate</th>
                                                     <th>Student Number</th>
@@ -35,17 +35,19 @@
                                             </thead>
                                             <tbody>
                                                 {% for candidate in candidates %}
-                                                <tr {% if candidate.is_winner %}class="table-success"{% endif %}>
+                                                <tr class="{% if candidate.is_winner %}winner-row{% endif %}">
                                                     <td>{{ candidate.candidate.user_profile.student_name }}</td>
                                                     <td>{{ candidate.candidate.user_profile.student_number }}</td>
-                                                    <td>{{ candidate.candidate.user_profile.college }}</td>
+                                                    <td>{{ candidate.candidate.user_profile.get_college_display }}</td>
                                                     <td>{{ candidate.votes }}</td>
                                                     <td>{{ candidate.percentage|floatformat:1 }}%</td>
                                                     <td>
                                                         {% if candidate.is_winner %}
-                                                        <span class="badge badge-success">Winner</span>
+                                                        <span class="winner-badge">
+                                                            <i class="fas fa-crown me-1"></i>Winner
+                                                        </span>
                                                         {% else %}
-                                                        <span class="badge badge-secondary">Runner-up</span>
+                                                        <span class="runner-badge">Runner-up</span>
                                                         {% endif %}
                                                     </td>
                                                 </tr>
@@ -60,61 +62,61 @@
 
                         <!-- Summary Statistics -->
                         <div class="row mb-4">
-                            <div class="col-md-3">
-                                <div class="card border-left-primary shadow h-100 py-2">
+                            <div class="col-md-3 mb-4">
+                                <div class="stats-card">
                                     <div class="card-body">
                                         <div class="row no-gutters align-items-center">
                                             <div class="col mr-2">
-                                                <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Voters</div>
-                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_voters }}</div>
+                                                <div class="stats-label">Total Voters</div>
+                                                <div class="h5 mb-0 font-weight-bold stats-value">{{ total_voters }}</div>
                                             </div>
                                             <div class="col-auto">
-                                                <i class="fas fa-users fa-2x text-gray-300"></i>
+                                                <i class="fas fa-users fa-2x stats-icon"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="card border-left-success shadow h-100 py-2">
+                            <div class="col-md-3 mb-4">
+                                <div class="stats-card">
                                     <div class="card-body">
                                         <div class="row no-gutters align-items-center">
                                             <div class="col mr-2">
-                                                <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Votes Cast</div>
-                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_votes_cast }}</div>
+                                                <div class="stats-label">Total Votes Cast</div>
+                                                <div class="h5 mb-0 font-weight-bold stats-value">{{ total_votes_cast }}</div>
                                             </div>
                                             <div class="col-auto">
-                                                <i class="fas fa-vote-yea fa-2x text-gray-300"></i>
+                                                <i class="fas fa-vote-yea fa-2x stats-icon"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="card border-left-info shadow h-100 py-2">
+                            <div class="col-md-3 mb-4">
+                                <div class="stats-card">
                                     <div class="card-body">
                                         <div class="row no-gutters align-items-center">
                                             <div class="col mr-2">
-                                                <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Voter Turnout</div>
-                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ voter_turnout|floatformat:1 }}%</div>
+                                                <div class="stats-label">Voter Turnout</div>
+                                                <div class="h5 mb-0 font-weight-bold stats-value">{{ voter_turnout|floatformat:1 }}%</div>
                                             </div>
                                             <div class="col-auto">
-                                                <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                                                <i class="fas fa-percentage fa-2x stats-icon"></i>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-3">
-                                <div class="card border-left-warning shadow h-100 py-2">
+                            <div class="col-md-3 mb-4">
+                                <div class="stats-card">
                                     <div class="card-body">
                                         <div class="row no-gutters align-items-center">
                                             <div class="col mr-2">
-                                                <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Candidates</div>
-                                                <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_candidates }}</div>
+                                                <div class="stats-label">Total Candidates</div>
+                                                <div class="h5 mb-0 font-weight-bold stats-value">{{ total_candidates }}</div>
                                             </div>
                                             <div class="col-auto">
-                                                <i class="fas fa-user-tie fa-2x text-gray-300"></i>
+                                                <i class="fas fa-user-tie fa-2x stats-icon"></i>
                                             </div>
                                         </div>
                                     </div>
@@ -123,14 +125,14 @@
                         </div>
 
                         <!-- Voter Turnout by College -->
-                        <div class="card shadow mb-4">
+                        <div class="results-card mb-4">
                             <div class="card-header py-3">
-                                <h6 class="m-0 font-weight-bold text-primary">Voter Turnout by College</h6>
+                                <h6 class="m-0 font-weight-bold results-subtitle">Voter Turnout by College</h6>
                             </div>
                             <div class="card-body">
                                 <div class="table-responsive">
                                     <table class="table table-bordered" width="100%" cellspacing="0">
-                                        <thead class="thead-dark">
+                                        <thead class="results-table-header">
                                             <tr>
                                                 <th>College</th>
                                                 <th>Total Voters</th>
@@ -145,13 +147,10 @@
                                                 <td>{{ stats.total }}</td>
                                                 <td>{{ stats.voted }}</td>
                                                 <td>
-                                                    <div class="progress">
-                                                        <div class="progress-bar {% if stats.percentage >= 70 %}bg-success{% elif stats.percentage >= 50 %}bg-info{% elif stats.percentage >= 30 %}bg-warning{% else %}bg-danger{% endif %}" 
-                                                             role="progressbar" 
-                                                             style="width: {{ stats.percentage }}%;" 
-                                                             aria-valuenow="{{ stats.percentage }}" 
-                                                             aria-valuemin="0" 
-                                                             aria-valuemax="100">
+                                                    <div class="progress results-progress">
+                                                        <div class="progress-bar results-progress-bar" role="progressbar" 
+                                                             aria-valuenow="{{ stats.percentage }}" aria-valuemin="0" aria-valuemax="100"
+                                                             style="width: {{ stats.percentage }}%">
                                                             {{ stats.percentage|floatformat:1 }}%
                                                         </div>
                                                     </div>
@@ -164,11 +163,11 @@
                             </div>
                         </div>
                     {% else %}
-                        <div class="alert alert-warning">
-                            <h4 class="alert-heading"><i class="fas fa-clock"></i> Voting is still in progress</h4>
+                        <div class="alert-box">
+                            <h4 class="alert-heading"><i class="fas fa-clock alert-icon"></i> Voting is still in progress</h4>
                             <p>Results will be available after the voting period has ended.</p>
                             <hr>
-                            <p class="mb-0">Current voting status: <span class="badge badge-info">{{ voting_status }}</span></p>
+                            <p class="mb-0">Current voting status: <span class="status-badge">{{ voting_status }}</span></p>
                         </div>
                     {% endif %}
                 </div>
@@ -176,4 +175,118 @@
         </div>
     </div>
 </div>
+
+<style>
+/* Card Styles */
+.results-card, .stats-card {
+    background: white;
+    border-radius: 15px;
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.results-card:hover, .stats-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+}
+
+.stats-card {
+    height: 100%;
+    border-left: 4px solid #1976D2;
+}
+
+.card-header {
+    background-color: white;
+    border-bottom: 1px solid rgba(25, 118, 210, 0.1);
+}
+
+/* Typography */
+.results-title, .results-subtitle, .position-title {
+    color: #1976D2;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+    font-weight: 700;
+}
+
+.stats-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #1976D2;
+}
+
+.stats-value {
+    color: #333;
+}
+
+.stats-icon {
+    color: #42A5F5;
+}
+
+/* Table Styles */
+.table {
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.results-table-header {
+    background-color: #1976D2;
+    color: white;
+}
+
+.winner-row {
+    background-color: rgba(25, 118, 210, 0.1);
+}
+
+/* Badges */
+.winner-badge, .runner-badge, .status-badge {
+    padding: 0.5em 0.75em;
+    font-weight: 500;
+    border-radius: 6px;
+    color: white;
+    display: inline-flex;
+    align-items: center;
+}
+
+.winner-badge {
+    background-color: #1976D2;
+}
+
+.runner-badge {
+    background-color: #42A5F5;
+}
+
+.status-badge {
+    background-color: #1976D2;
+}
+
+/* Progress Bar */
+.results-progress {
+    height: 1.2rem;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.results-progress-bar {
+    background-color: #1976D2;
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+/* Alert Box */
+.alert-box {
+    background-color: #E3F2FD;
+    border-left: 4px solid #1976D2;
+    color: #0D47A1;
+    padding: 1.25rem;
+    border-radius: 8px;
+}
+
+.alert-icon {
+    color: #1976D2;
+    margin-right: 10px;
+}
+</style>
 {% endblock %} 

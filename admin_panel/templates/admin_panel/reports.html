@@ -6,81 +6,96 @@
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
-            <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <div class="admin-card mb-4">
+                <div class="card-header py-3 d-flex justify-content-between align-items-center" style="background-color: #1976D2;">
                     <div>
-                        <a href="{% url 'admin_panel:dashboard' %}" class="btn btn-secondary btn-sm mr-2">
+                        <a href="{% url 'admin_panel:dashboard' %}" class="btn btn-light btn-sm me-2">
                             <i class="fas fa-arrow-left"></i> Back to Dashboard
                         </a>
-                        <h6 class="m-0 font-weight-bold text-primary d-inline-block">Election Report</h6>
+                        <h6 class="m-0 font-weight-bold text-white d-inline-block">Election Report</h6>
                     </div>
                     <div>
-                        <button onclick="window.print()" class="btn btn-info btn-sm">
+                        <button onclick="window.print()" class="btn btn-light btn-sm me-2">
                             <i class="fas fa-print"></i> Print Preview
                         </button>
-                        <a href="?format=pdf" class="btn btn-primary btn-sm">
+                        <a href="?format=pdf" class="btn btn-light btn-sm">
                             <i class="fas fa-download"></i> Download PDF
                         </a>
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- Report Header -->
+                    <div class="text-center mb-4 d-print-block">
+                        <h2 class="header-title mb-3">Election Results Report</h2>
+                        <p class="text-muted">Generated on: {% now "F j, Y - H:i" %}</p>
+                        <hr class="divider">
+                    </div>
+
                     <!-- Summary Statistics -->
                     <div class="row mb-4">
-                        <div class="col-md-3">
-                            <div class="card border-left-primary shadow h-100 py-2">
+                        <div class="col-md-3 mb-3">
+                            <div class="stats-card h-100">
                                 <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">Total Voters</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_voters }}</div>
+                                    <div class="row align-items-center">
+                                        <div class="col-4 text-center">
+                                            <div class="stats-icon">
+                                                <i class="fas fa-users"></i>
+                                            </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-users fa-2x text-gray-300"></i>
+                                        <div class="col-8">
+                                            <h6 class="stats-label">Total Voters</h6>
+                                            <h3 class="stats-value">{{ total_voters }}</h3>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <div class="card border-left-success shadow h-100 py-2">
+                        <div class="col-md-3 mb-3">
+                            <div class="stats-card h-100">
                                 <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total Votes Cast</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_votes_cast }}</div>
+                                    <div class="row align-items-center">
+                                        <div class="col-4 text-center">
+                                            <div class="stats-icon" style="background-color: rgba(76, 175, 80, 0.1); color: #4CAF50;">
+                                                <i class="fas fa-vote-yea"></i>
+                                            </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-vote-yea fa-2x text-gray-300"></i>
+                                        <div class="col-8">
+                                            <h6 class="stats-label">Total Votes Cast</h6>
+                                            <h3 class="stats-value">{{ total_votes_cast }}</h3>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <div class="card border-left-info shadow h-100 py-2">
+                        <div class="col-md-3 mb-3">
+                            <div class="stats-card h-100">
                                 <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">Voter Turnout</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ voter_turnout|floatformat:1 }}%</div>
+                                    <div class="row align-items-center">
+                                        <div class="col-4 text-center">
+                                            <div class="stats-icon" style="background-color: rgba(33, 150, 243, 0.1); color: #2196F3;">
+                                                <i class="fas fa-percentage"></i>
+                                            </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-percentage fa-2x text-gray-300"></i>
+                                        <div class="col-8">
+                                            <h6 class="stats-label">Voter Turnout</h6>
+                                            <h3 class="stats-value">{{ voter_turnout|floatformat:1 }}%</h3>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-3">
-                            <div class="card border-left-warning shadow h-100 py-2">
+                        <div class="col-md-3 mb-3">
+                            <div class="stats-card h-100">
                                 <div class="card-body">
-                                    <div class="row no-gutters align-items-center">
-                                        <div class="col mr-2">
-                                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">Total Candidates</div>
-                                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ total_candidates }}</div>
+                                    <div class="row align-items-center">
+                                        <div class="col-4 text-center">
+                                            <div class="stats-icon" style="background-color: rgba(255, 152, 0, 0.1); color: #FF9800;">
+                                                <i class="fas fa-user-tie"></i>
+                                            </div>
                                         </div>
-                                        <div class="col-auto">
-                                            <i class="fas fa-user-tie fa-2x text-gray-300"></i>
+                                        <div class="col-8">
+                                            <h6 class="stats-label">Total Candidates</h6>
+                                            <h3 class="stats-value">{{ total_candidates }}</h3>
                                         </div>
                                     </div>
                                 </div>
@@ -89,33 +104,72 @@
                     </div>
 
                     <!-- Results by Position -->
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Results by Position</h6>
+                    <div class="admin-card mb-4">
+                        <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
+                            <h6 class="m-0 font-weight-bold header-title">Results by Position</h6>
                         </div>
                         <div class="card-body">
+                            <div class="mb-3 d-flex justify-content-end no-print">
+                                <button class="btn btn-sm btn-outline-primary me-2" onclick="toggleAllTables()">
+                                    <i class="fas fa-expand-alt"></i> Expand/Collapse All
+                                </button>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                        <i class="fas fa-filter"></i> Filter
+                                    </button>
+                                    <ul class="dropdown-menu">
+                                        <li><a class="dropdown-item" href="#" onclick="filterPositions('all')">All Positions</a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="filterPositions('national')">National Only</a></li>
+                                        <li><a class="dropdown-item" href="#" onclick="filterPositions('college')">College Only</a></li>
+                                    </ul>
+                                </div>
+                            </div>
+                            
                             {% for position, candidates in votes_by_position.items %}
-                            <div class="mb-4">
-                                <h5 class="font-weight-bold">{{ position }}</h5>
-                                <div class="table-responsive">
-                                    <table class="table table-bordered" width="100%" cellspacing="0">
-                                        <thead>
+                            <div class="position-results mb-4" data-position-type="{% if 'College' in position or 'Governor' in position %}college{% else %}national{% endif %}">
+                                <div class="position-header d-flex align-items-center cursor-pointer" onclick="toggleTable(this)">
+                                    <i class="fas fa-chevron-down me-2 toggle-icon"></i>
+                                    <h5 class="font-weight-bold mb-0">{{ position }}</h5>
+                                    {% if candidates.0.is_winner %}
+                                        <span class="winner-badge ms-3">
+                                            <i class="fas fa-crown me-1"></i>Winner: {{ candidates.0.candidate.user_profile.student_name }}
+                                        </span>
+                                    {% endif %}
+                                </div>
+                                <div class="table-responsive mt-3 position-table">
+                                    <table class="table table-bordered">
+                                        <thead class="table-header">
                                             <tr>
                                                 <th>Candidate</th>
                                                 <th>Student Number</th>
                                                 <th>College</th>
                                                 <th>Votes</th>
                                                 <th>Percentage</th>
+                                                <th>Result</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {% for candidate in candidates %}
-                                            <tr>
+                                            <tr class="{% if candidate.is_winner %}winner-row{% endif %}">
                                                 <td>{{ candidate.candidate.user_profile.student_name }}</td>
                                                 <td>{{ candidate.candidate.user_profile.student_number }}</td>
                                                 <td>{{ candidate.candidate.user_profile.college }}</td>
                                                 <td>{{ candidate.votes }}</td>
-                                                <td>{{ candidate.percentage|floatformat:1 }}%</td>
+                                                <td>
+                                                    <div class="d-flex align-items-center">
+                                                        <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                                            <div class="progress-bar" style="width: {{ candidate.percentage }}%; background-color: {% if candidate.is_winner %}#1976D2{% else %}#42A5F5{% endif %}"></div>
+                                                        </div>
+                                                        <span>{{ candidate.percentage|floatformat:1 }}%</span>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    {% if candidate.is_winner %}
+                                                    <span class="badge" style="background-color: #1976D2;">Winner</span>
+                                                    {% else %}
+                                                    <span class="badge" style="background-color: #E3F2FD; color: #1976D2;">Runner-up</span>
+                                                    {% endif %}
+                                                </td>
                                             </tr>
                                             {% endfor %}
                                         </tbody>
@@ -127,38 +181,58 @@
                     </div>
 
                     <!-- Non-Voters by College -->
-                    <div class="card shadow mb-4">
-                        <div class="card-header py-3">
-                            <h6 class="m-0 font-weight-bold text-primary">Non-Voters by College</h6>
+                    <div class="admin-card mb-4">
+                        <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
+                            <h6 class="m-0 font-weight-bold header-title">Non-Voters by College</h6>
                         </div>
                         <div class="card-body">
-                            {% for college, voters in non_voters_by_college.items %}
-                            <div class="mb-4">
-                                <h5 class="font-weight-bold">{{ college }}</h5>
-                                <div class="table-responsive">
-                                    <table class="table table-bordered" width="100%" cellspacing="0">
-                                        <thead>
-                                            <tr>
-                                                <th>Student Number</th>
-                                                <th>Name</th>
-                                                <th>Course</th>
-                                                <th>Year Level</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {% for voter in voters %}
-                                            <tr>
-                                                <td>{{ voter.student_number }}</td>
-                                                <td>{{ voter.student_name }}</td>
-                                                <td>{{ voter.course }}</td>
-                                                <td>{{ voter.year_level }}</td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
+                            <div class="mb-3 d-flex justify-content-end no-print">
+                                <div class="input-group" style="max-width: 300px;">
+                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                        <i class="fas fa-search"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="nonVoterSearch" placeholder="Search by name or student #" oninput="searchNonVoters(this.value)">
                                 </div>
                             </div>
-                            {% endfor %}
+                            
+                            <div class="accordion" id="nonVotersAccordion">
+                                {% for college, voters in non_voters_by_college.items %}
+                                <div class="accordion-item mb-3 college-item">
+                                    <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}">
+                                            <span class="fw-bold">{{ college }}</span>
+                                            <span class="badge rounded-pill ms-2" style="background-color: #E3F2FD; color: #1976D2;">{{ voters|length }} students</span>
+                                        </button>
+                                    </h2>
+                                    <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" data-bs-parent="#nonVotersAccordion">
+                                        <div class="accordion-body p-0">
+                                            <div class="table-responsive">
+                                                <table class="table table-hover non-voters-table mb-0">
+                                                    <thead class="table-header">
+                                                        <tr>
+                                                            <th>Student Number</th>
+                                                            <th>Name</th>
+                                                            <th>Course</th>
+                                                            <th>Year Level</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for voter in voters %}
+                                                        <tr class="non-voter-row" data-student-number="{{ voter.student_number }}" data-name="{{ voter.student_name|lower }}">
+                                                            <td>{{ voter.student_number }}</td>
+                                                            <td>{{ voter.student_name }}</td>
+                                                            <td>{{ voter.course }}</td>
+                                                            <td>{{ voter.year_level }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -168,42 +242,283 @@
 </div>
 
 <style>
+    .admin-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+        border: 1px solid rgba(25, 118, 210, 0.08);
+        overflow: hidden;
+    }
+    
+    .admin-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+    }
+    
+    .header-title {
+        color: #1976D2 !important;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        font-weight: 700;
+    }
+    
+    .divider {
+        height: 2px;
+        background: linear-gradient(to right, transparent, #1976D2, transparent);
+        margin: 1.5rem auto;
+        width: 50%;
+    }
+    
+    .stats-card {
+        border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(25, 118, 210, 0.1);
+        border: none;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }
+    
+    .stats-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(25, 118, 210, 0.2);
+    }
+    
+    .stats-icon {
+        width: 50px;
+        height: 50px;
+        background-color: rgba(25, 118, 210, 0.1);
+        color: #1976D2;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    
+    .stats-label {
+        color: #616161;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .stats-value {
+        color: #1976D2;
+        font-weight: 700;
+        margin: 0;
+    }
+    
+    .table-header {
+        background-color: rgba(25, 118, 210, 0.1);
+    }
+    
+    .table-header th {
+        color: #1976D2;
+        font-weight: 600;
+    }
+    
+    .winner-row {
+        background-color: rgba(25, 118, 210, 0.05);
+    }
+    
+    .position-header {
+        padding: 10px 15px;
+        background-color: rgba(25, 118, 210, 0.05);
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    .position-header:hover {
+        background-color: rgba(25, 118, 210, 0.1);
+    }
+    
+    .winner-badge {
+        background-color: rgba(25, 118, 210, 0.1);
+        color: #1976D2;
+        padding: 5px 10px;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    .cursor-pointer {
+        cursor: pointer;
+    }
+    
+    .progress {
+        background-color: #E3F2FD;
+        border-radius: 10px;
+    }
+    
+    .accordion-button:not(.collapsed) {
+        background-color: rgba(25, 118, 210, 0.05);
+        color: #1976D2;
+    }
+    
+    .accordion-button:focus {
+        box-shadow: 0 0 0 0.25rem rgba(25, 118, 210, 0.25);
+    }
+    
+    .no-print {
+        display: block;
+    }
+    
     @media print {
-        .btn, .card-header .btn {
+        .no-print, .btn, .card-header .btn, .position-header .toggle-icon {
             display: none !important;
         }
-        .card {
+        
+        .admin-card {
             border: none !important;
             box-shadow: none !important;
+            transform: none !important;
         }
+        
+        .admin-card:hover {
+            transform: none !important;
+        }
+        
         .card-header {
             background-color: #f8f9fc !important;
             border-bottom: 1px solid #e3e6f0 !important;
         }
+        
         .container-fluid {
             padding: 0 !important;
         }
+        
+        .position-table {
+            display: block !important;
+        }
+        
+        .position-header {
+            background-color: transparent !important;
+        }
+        
         .row {
             margin: 0 !important;
         }
+        
         .col-12 {
             padding: 0 !important;
         }
+        
         .card-body {
             padding: 0.5rem !important;
         }
+        
         .table {
             font-size: 0.8rem !important;
         }
+        
         .mb-4 {
             margin-bottom: 1rem !important;
         }
+        
         .h5 {
             font-size: 1rem !important;
         }
+        
         .h6 {
             font-size: 0.9rem !important;
         }
+        
+        .accordion-collapse {
+            display: block !important;
+        }
     }
 </style>
+
+<script>
+    // Toggle table visibility
+    function toggleTable(header) {
+        const table = header.nextElementSibling;
+        const icon = header.querySelector('.toggle-icon');
+        
+        if (table.style.display === 'none') {
+            table.style.display = 'block';
+            icon.classList.remove('fa-chevron-right');
+            icon.classList.add('fa-chevron-down');
+        } else {
+            table.style.display = 'none';
+            icon.classList.remove('fa-chevron-down');
+            icon.classList.add('fa-chevron-right');
+        }
+    }
+    
+    // Toggle all tables
+    function toggleAllTables() {
+        const tables = document.querySelectorAll('.position-table');
+        const icons = document.querySelectorAll('.toggle-icon');
+        const firstTableVisible = tables[0].style.display !== 'none';
+        
+        tables.forEach(table => {
+            table.style.display = firstTableVisible ? 'none' : 'block';
+        });
+        
+        icons.forEach(icon => {
+            if (firstTableVisible) {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-right');
+            } else {
+                icon.classList.remove('fa-chevron-right');
+                icon.classList.add('fa-chevron-down');
+            }
+        });
+    }
+    
+    // Filter positions
+    function filterPositions(type) {
+        const positions = document.querySelectorAll('.position-results');
+        
+        positions.forEach(position => {
+            if (type === 'all' || position.dataset.positionType === type) {
+                position.style.display = 'block';
+            } else {
+                position.style.display = 'none';
+            }
+        });
+    }
+    
+    // Search non-voters
+    function searchNonVoters(query) {
+        query = query.toLowerCase();
+        const rows = document.querySelectorAll('.non-voter-row');
+        const collegeItems = document.querySelectorAll('.college-item');
+        
+        rows.forEach(row => {
+            const studentNumber = row.dataset.studentNumber.toLowerCase();
+            const name = row.dataset.name.toLowerCase();
+            
+            if (studentNumber.includes(query) || name.includes(query)) {
+                row.style.display = '';
+                
+                // Expand the parent accordion if it's collapsed
+                const accordion = row.closest('.accordion-collapse');
+                if (accordion && !accordion.classList.contains('show')) {
+                    const accordionButton = accordion.previousElementSibling.querySelector('.accordion-button');
+                    accordionButton.click();
+                }
+            } else {
+                row.style.display = 'none';
+            }
+        });
+        
+        // Hide college items with no matching students
+        collegeItems.forEach(item => {
+            const visibleRows = item.querySelectorAll('.non-voter-row[style=""]').length;
+            if (visibleRows === 0 && query !== '') {
+                item.style.display = 'none';
+            } else {
+                item.style.display = '';
+            }
+        });
+    }
+    
+    // Initialize all position tables as expanded
+    document.addEventListener('DOMContentLoaded', function() {
+        // All tables start expanded by default
+    });
+</script>
 {% endblock %} 

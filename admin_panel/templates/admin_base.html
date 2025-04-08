@@ -7,7 +7,7 @@
     {% include 'admin_sidebar.html' %}
     
     <!-- Main Content -->
-    <div class="main-content" style="flex-grow: 1; margin-left: 250px; background-color: #D1ECFF; min-height: 100vh;">
+    <div class="main-content" style="flex-grow: 1; margin-left: 250px; background-color: var(--secondary); min-height: 100vh;">
         <div class="container-fluid py-4">
             {% block admin_content %}
             {% endblock %}
@@ -23,11 +23,11 @@
 
 /* Glassmorphism card style */
 .admin-card {
-    background: rgba(255, 255, 255, 0.7);
+    background: var(--light);
     backdrop-filter: blur(10px);
     border-radius: 15px;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    border: 1px solid rgba(33, 150, 243, 0.2);
+    box-shadow: 0 8px 32px 0 rgba(33, 150, 243, 0.1);
 }
 
 /* Custom scrollbar for main content */
@@ -36,16 +36,16 @@
 }
 
 .main-content::-webkit-scrollbar-track {
-    background: rgba(209, 236, 255, 0.5);
+    background: rgba(227, 242, 253, 0.5);
 }
 
 .main-content::-webkit-scrollbar-thumb {
-    background: rgba(108, 177, 218, 0.8);
+    background: rgba(66, 165, 245, 0.8);
     border-radius: 4px;
 }
 
 .main-content::-webkit-scrollbar-thumb:hover {
-    background: rgba(52, 114, 156, 0.8);
+    background: rgba(25, 118, 210, 0.8);
 }
 </style>
 {% endblock %} 
