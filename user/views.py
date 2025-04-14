@@ -325,6 +325,7 @@ def verify_face(request):
                             best_score = score
                             best_distance = verification_result.get('distance', 1.0)
                             best_method = verification_result.get('method', 'unknown')
+                            best_verification_result = verification_result
                             print(f"Found better match ({score}) for {student_number}")
                     else:
                         print(f"Failed to load image: {filename}")
