@@ -256,7 +256,6 @@ def register_user(request):
             
             # Create UserProfile
             UserProfile.objects.create(
-                user=user,
                 student_number=student_number,
                 student_name=student_name,
                 sex=sex,
@@ -598,7 +597,6 @@ def import_users(request):
 
                     # Create new UserProfile
                     UserProfile.objects.create(
-                        user=user,
                         student_number=student_number,
                         student_name=student_name,
                         sex=sex_normalized,

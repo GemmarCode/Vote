@@ -24,10 +24,10 @@
                             <canvas id="canvas" class="d-none"></canvas>
                         </div>
                     </div>
-                    <div class="alert" style="background-color: #E3F2FD; color: #1976D2; border-left: 4px solid #1976D2;">
+                    <div class="alert alert-info">
                         <i class="fas fa-info-circle me-2"></i>Please position your face in the camera for verification
                     </div>
-                    <div id="verification-status" class="alert d-none"></div>
+                    <div id="verification-status" class="alert d-none" role="alert"></div>
                     
                     <!-- Code Entry Option -->
                     <div class="text-center mt-2 mb-3">
@@ -38,7 +38,13 @@
                     
                     <div class="d-flex gap-2">
                         <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #1976D2; color: white;" disabled>
-                            <i class="fas fa-check-circle me-2"></i>Verify Face
+                            <span class="normal-state">
+                                <i class="fas fa-check-circle me-2"></i>Verify Face
+                            </span>
+                            <span class="loading-state d-none">
+                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                Verifying...
+                            </span>
                         </button>
                     </div>
                 </div>

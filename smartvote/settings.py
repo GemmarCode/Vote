@@ -47,7 +47,7 @@ INSTALLED_APPS = [
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
+    os.path.join(BASE_DIR, 'user/static'),
 ]
 
 MIDDLEWARE = [
@@ -105,7 +105,7 @@ WSGI_APPLICATION = 'smartvote.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE':'django.db.backends.mysql',
-        'NAME': 'voting7',
+        'NAME': 'vote7',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',
