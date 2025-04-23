@@ -1,0 +1,620 @@
+{% extends 'admin_base.html' %}
+{% load static %}
+
+{% block title %}Admin Settings{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+{% endblock %}
+
+{% block admin_content %}
+<div class="container-fluid">
+    <!-- Success/Error Messages -->
+    {% if messages %}
+    <div class="row mb-4">
+        <div class="col-12">
+            {% for message in messages %}
+                <div class="alert {% if message.tags == 'success' %}alert-success{% else %}alert-danger{% endif %} alert-dismissible fade show" role="alert">
+                    <i class="fas {% if message.tags == 'success' %}fa-check-circle{% else %}fa-exclamation-circle{% endif %} me-2"></i>
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row mb-4">
+        <div class="col-12 text-end">
+            <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                <i class="fas fa-key me-2"></i>Change Admin Password
+            </button>
+            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#activityLogsModal">
+                <i class="fas fa-history me-2"></i>Activity Logs
+            </button>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <div class="admin-card">
+                <div class="card-header py-3" style="background-color: #1976D2;">
+                    <h5 class="card-title mb-0 text-white">Create Committee Account</h5>
+                </div>
+                <div class="card-body p-4">
+                    <form method="post" action="{% url 'admin_panel:create_committee' %}" class="needs-validation" novalidate>
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label for="user_profile" class="form-label" style="color: #1976D2; font-weight: 600;">Select Student</label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                    <i class="fas fa-user"></i>
+                                </span>
+                                <select class="form-select select2" id="user_profile" name="user_profile_id" required>
+                                    <option value="">Search for a student...</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="username" class="form-label" style="color: #1976D2; font-weight: 600;">Username</label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                    <i class="fas fa-id-card"></i>
+                                </span>
+                                <input type="text" class="form-control" id="username" name="username" readonly required>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="password" class="form-label" style="color: #1976D2; font-weight: 600;">Password</label>
+                            <div class="input-group">
+                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                    <i class="fas fa-lock"></i>
+                                </span>
+                                <input type="password" class="form-control" id="password" name="password" required>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-user-plus me-2"></i>Create Committee Account
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="admin-card">
+                <div class="card-header py-3" style="background-color: #1976D2;">
+                    <h5 class="card-title mb-0 text-white">Existing Committee Accounts</h5>
+                </div>
+                <div class="card-body p-4">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead class="table-header">
+                                <tr>
+                                    <th>Username</th>
+                                    <th>Name</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for account in committee_accounts %}
+                                <tr>
+                                    <td>{{ account.user.username }}</td>
+                                    <td>{{ account.user.first_name }}</td>
+                                    <td>
+                                        <form method="post" action="{% url 'admin_panel:delete_committee' account.id %}" class="d-inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this committee account?')">
+                                                <i class="fas fa-trash-alt me-1"></i>Delete
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1" aria-labelledby="changePasswordModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #1976D2;">
+                <h5 class="modal-title text-white" id="changePasswordModalLabel">Change Admin Password</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form method="post" action="{% url 'admin_panel:change_password' %}" id="changePasswordForm" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="current_password" class="form-label" style="color: #1976D2; font-weight: 600;">Current Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="current_password" name="current_password" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="new_password" class="form-label" style="color: #1976D2; font-weight: 600;">New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                <i class="fas fa-key"></i>
+                            </span>
+                            <input type="password" class="form-control" id="new_password" name="new_password" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="confirm_password" class="form-label" style="color: #1976D2; font-weight: 600;">Confirm New Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                <i class="fas fa-check-circle"></i>
+                            </span>
+                            <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" form="changePasswordForm" class="btn btn-primary">
+                    <i class="fas fa-save me-2"></i>Change Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Success Modal -->
+<div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title" id="successModalLabel">
+                    <i class="fas fa-check-circle me-2"></i>Success
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="fas fa-user-check fa-3x text-success mb-3"></i>
+                <h4 class="mb-3">Committee Account Created</h4>
+                <p class="mb-0" id="successMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-success" data-bs-dismiss="modal">Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Error Modal -->
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="errorModalLabel">
+                    <i class="fas fa-exclamation-circle me-2"></i>Error
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body text-center py-4">
+                <i class="fas fa-exclamation-triangle fa-3x text-danger mb-3"></i>
+                <h4 class="mb-3">Error</h4>
+                <p class="mb-0" id="errorMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activity Logs Modal -->
+<div class="modal fade" id="activityLogsModal" tabindex="-1" aria-labelledby="activityLogsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #1976D2;">
+                <h5 class="modal-title text-white" id="activityLogsModalLabel">Activity Logs</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" class="form-control" id="accountSearch" placeholder="Search by username, name, or role...">
+                    </div>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Last Activity</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountsTableBody">
+                            {% for user in users %}
+                            <tr class="user-row" data-username="{{ user.username }}" data-name="{{ user.get_full_name }}" data-role="{% if user.is_superuser %}Admin{% else %}Committee{% endif %}">
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.get_full_name }}</td>
+                                <td>
+                                    {% if user.is_superuser %}
+                                        <span class="badge bg-danger">Admin</span>
+                                    {% else %}
+                                        <span class="badge bg-info">Committee</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% with last_activity=user.adminactivity_set.first %}
+                                        {% if last_activity %}
+                                            {{ last_activity.created_at|date:"M d, Y H:i" }}
+                                        {% else %}
+                                            No activity
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-primary btn-sm view-logs-btn" data-user-id="{{ user.id }}">
+                                        <i class="fas fa-eye me-1"></i>View Logs
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Activity Logs Modal -->
+<div class="modal fade" id="userLogsModal" tabindex="-1" aria-labelledby="userLogsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #1976D2;">
+                <h5 class="modal-title text-white" id="userLogsModalLabel">User Activity Logs</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="userLogsContent">
+                    <!-- Content will be loaded here via AJAX -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.admin-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(25, 118, 210, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    border: 1px solid rgba(25, 118, 210, 0.08);
+    overflow: hidden;
+    margin-bottom: 20px;
+}
+
+.admin-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
+}
+
+.table-header {
+    background-color: rgba(25, 118, 210, 0.1);
+}
+
+.table-header th {
+    color: #1976D2;
+    font-weight: 600;
+}
+
+.btn-primary {
+    background-color: #1976D2;
+    border-color: #1976D2;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: #1565C0;
+    border-color: #1565C0;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(25, 118, 210, 0.3);
+}
+
+.form-control, .form-select {
+    border: 1px solid rgba(25, 118, 210, 0.1);
+    border-radius: 8px;
+    padding: 10px 15px;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    border-color: #1976D2;
+    box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+    transform: translateY(-2px);
+}
+
+.input-group-text {
+    border: 1px solid rgba(25, 118, 210, 0.1);
+    border-radius: 8px;
+}
+
+.table tbody tr {
+    transition: all 0.2s ease;
+}
+
+.table tbody tr:hover {
+    background-color: rgba(25, 118, 210, 0.05);
+}
+
+/* Select2 Custom Styles */
+.select2-container--bootstrap-5 .select2-selection {
+    border: 1px solid rgba(25, 118, 210, 0.1);
+    border-radius: 8px;
+    min-height: 42px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single {
+    padding: 8px 15px;
+}
+
+.select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+    color: #333;
+    line-height: 24px;
+}
+
+.select2-container--bootstrap-5 .select2-dropdown {
+    border: 1px solid rgba(25, 118, 210, 0.1);
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(25, 118, 210, 0.1);
+}
+
+.select2-container--bootstrap-5 .select2-results__option--highlighted[aria-selected] {
+    background-color: #1976D2;
+}
+
+.select2-container--bootstrap-5 .select2-search__field {
+    border: 1px solid rgba(25, 118, 210, 0.1);
+    border-radius: 4px;
+    padding: 8px;
+}
+
+.select2-container--bootstrap-5 .select2-search__field:focus {
+    border-color: #1976D2;
+    box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+}
+</style>
+
+{% block extra_js %}
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<!-- Add SweetAlert2 library -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script>
+    // Parse the users data from the context
+    const users = {{ users_json|safe }};
+    
+    // Initialize Select2
+    $(document).ready(function() {
+        const userSelect = $('#user_profile');
+        
+        // Populate the student dropdown
+        users.forEach(user => {
+            const option = new Option(`${user.student_number} - ${user.name}`, user.id);
+            userSelect.append(option);
+        });
+        
+        // Initialize Select2 with search configuration
+        userSelect.select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Search for a student...',
+            allowClear: true,
+            width: '100%',
+            minimumInputLength: 1,
+            matcher: function(params, data) {
+                // If there are no search terms, return all of the data
+                if ($.trim(params.term) === '') {
+                    return data;
+                }
+
+                // Do not display the item if there is no 'text' property
+                if (typeof data.text === 'undefined') {
+                    return null;
+                }
+
+                // `params.term` should be the term that is used for searching
+                // `data.text` is the text that is displayed for the data object
+                if (data.text.toLowerCase().indexOf(params.term.toLowerCase()) > -1) {
+                    return data;
+                }
+
+                // Return `null` if the term should not be displayed
+                return null;
+            }
+        });
+        
+        // Auto-fill username when student is selected
+        userSelect.on('change', function() {
+            const selectedUser = users.find(user => user.id === parseInt(this.value));
+            if (selectedUser) {
+                $('#username').val(selectedUser.student_number);
+            } else {
+                $('#username').val('');
+            }
+        });
+
+        // Handle form submission
+        $('form[action*="create_committee"]').on('submit', function(e) {
+            e.preventDefault();
+            
+            // Validate form
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                $(this).addClass('was-validated');
+                return;
+            }
+            
+            const formData = new FormData(this);
+            
+            // Show loading state
+            const submitBtn = $(this).find('button[type="submit"]');
+            const originalText = submitBtn.html();
+            submitBtn.html('<i class="fas fa-spinner fa-spin me-2"></i>Creating...');
+            submitBtn.prop('disabled', true);
+            
+            // Submit form using traditional form submission
+            this.submit();
+        });
+
+        // Password change form submission
+        $('#changePasswordForm').on('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = $(this).find('button[type="submit"]');
+            const originalText = submitBtn.html();
+            submitBtn.html('<i class="fas fa-spinner fa-spin me-2"></i>Changing...');
+            submitBtn.prop('disabled', true);
+
+            const formData = new FormData(this);
+            
+            $.ajax({
+                url: $(this).attr('action'),
+                method: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Password changed successfully!');
+                        $('#changePasswordModal').modal('hide');
+                        $('#changePasswordForm')[0].reset();
+                    } else {
+                        alert(response.error || 'Failed to change password');
+                    }
+                },
+                error: function() {
+                    alert('An error occurred while changing the password');
+                },
+                complete: function() {
+                    submitBtn.html(originalText);
+                    submitBtn.prop('disabled', false);
+                }
+            });
+        });
+        
+        // Check for success message in URL parameters
+        $(document).ready(function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const success = urlParams.get('success');
+            const studentName = urlParams.get('student_name');
+            
+            if (success === 'true' && studentName) {
+                // Show success modal
+                $('#successMessage').text(`Committee account has been created successfully for ${studentName}`);
+                $('#successModal').modal('show');
+                
+                // Reset the form
+                $('#user_profile').val('').trigger('change');
+                $('#username').val('');
+                $('#password').val('');
+            }
+        });
+
+        // Function to show user activity logs
+        function showUserLogs(userId) {
+            const $modal = $('#userLogsModal');
+            const $content = $('#userLogsContent');
+            
+            // Show loading state
+            $content.html(`
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading activity logs...</p>
+                </div>
+            `);
+            
+            // Load the content first
+            $.get(`/admin-panel/user-activity-logs/${userId}/`, function(data) {
+                $content.html(data);
+                // Show the modal after content is loaded
+                $modal.modal('show');
+            }).fail(function() {
+                $content.html(`
+                    <div class="alert alert-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        Failed to load activity logs. Please try again.
+                    </div>
+                `);
+                $modal.modal('show');
+            });
+        }
+
+        // Initialize the modal with proper options
+        const userLogsModal = new bootstrap.Modal(document.getElementById('userLogsModal'), {
+            backdrop: 'static',
+            keyboard: false
+        });
+
+        // Attach click handler to view logs buttons
+        $(document).on('click', '.view-logs-btn', function() {
+            const userId = $(this).data('user-id');
+            showUserLogs(userId);
+        });
+
+        // Reset modal content when it's hidden
+        $('#userLogsModal').on('hidden.bs.modal', function () {
+            $('#userLogsContent').empty();
+        });
+
+        // Account search functionality
+        $('#accountSearch').on('keyup', function() {
+            const searchText = $(this).val().toLowerCase();
+            const $rows = $('.user-row');
+            
+            if (searchText.length === 0) {
+                $rows.show();
+                return;
+            }
+            
+            $rows.each(function() {
+                const $row = $(this);
+                const username = $row.data('username').toLowerCase();
+                const name = $row.data('name').toLowerCase();
+                const role = $row.data('role').toLowerCase();
+                
+                if (username.includes(searchText) || 
+                    name.includes(searchText) || 
+                    role.includes(searchText)) {
+                    $row.show();
+                } else {
+                    $row.hide();
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}
+{% endblock %} 

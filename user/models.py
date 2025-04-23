@@ -40,35 +40,19 @@ class UserProfile(models.Model):
     year_level = models.CharField(max_length=20, choices=YEAR_LEVEL_CHOICES)
     course = models.CharField(max_length=100)
     college = models.CharField(max_length=10, choices=COLLEGES)
+    school_year = models.CharField(max_length=9, help_text="Format: YYYY-YYYY")  # e.g., "2023-2024"
 
     class Meta:
         db_table = 'user_profile'
         verbose_name = 'User Profile'
         verbose_name_plural = 'User Profiles'
+        unique_together = ['student_number', 'school_year']
 
     def __str__(self):
         return f"{self.student_name} - {self.student_number}"
 
     def get_college_display(self):
         return dict(self.COLLEGES).get(self.college, self.college)
-
-    def set_face_data(self, data):
-        """Helper method to properly set face data"""
-        if isinstance(data, str):
-            self.face_data = data.encode('utf-8')
-        elif isinstance(data, bytes):
-            self.face_data = data
-        elif isinstance(data, np.ndarray):
-            self.face_data = data.tobytes()
-    
-    def get_face_data(self):
-        """Helper method to get face data as numpy array"""
-        if not self.face_data:
-            return None
-        try:
-            return np.frombuffer(self.face_data, dtype=np.uint8).reshape((200, 200))
-        except:
-            return None
 
 class Candidate(models.Model):
     # Position Constants
@@ -109,6 +93,7 @@ class Candidate(models.Model):
     platform = models.TextField(help_text="Describe the candidate's platform and goals", blank=True, default="")
     achievements = models.TextField(help_text="List the candidate's achievements, one per line", blank=True, default="")
     photo = models.ImageField(upload_to='candidate_photos/', blank=True, null=True)
+    school_year = models.CharField(max_length=9, help_text="Format: YYYY-YYYY")
     
     # System fields
     created_at = models.DateTimeField(auto_now_add=True)
@@ -117,6 +102,7 @@ class Candidate(models.Model):
     class Meta:
         ordering = ['position']
         db_table = 'user_candidate'
+        unique_together = ['user_profile', 'school_year']
 
     def __str__(self):
         return f"{self.user_profile.student_name} - {self.get_position_display()}"
@@ -209,13 +195,14 @@ def verify_face(stored_encoding):
     return False
 
 class Vote(models.Model):
-    user_profile = models.ForeignKey('UserProfile', on_delete=models.DO_NOTHING)
-    candidate = models.ForeignKey(Candidate, on_delete=models.DO_NOTHING)
+    user_profile = models.ForeignKey('UserProfile', on_delete=models.CASCADE)
+    candidate = models.ForeignKey('Candidate', on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
+    school_year = models.CharField(max_length=9, help_text="Format: YYYY-YYYY")
 
     class Meta:
         db_table = 'user_vote'
-        unique_together = ('user_profile', 'candidate')
+        unique_together = ['user_profile', 'candidate', 'school_year']
 
 class VotingPhase(models.Model):
     PHASE_CHOICES = [

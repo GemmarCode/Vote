@@ -111,7 +111,7 @@
                             {% endfor %}
                         {% endif %}
                         
-                        <form method="POST" enctype="multipart/form-data" action="{% url 'admin_panel:import_users' %}">
+                        <form id="excelImportForm" enctype="multipart/form-data">
                             {% csrf_token %}
                             <div class="form-group mb-3">
                                 <label for="excel_file">Excel File</label>
@@ -120,7 +120,7 @@
                                     Excel file should have columns: student_number, student_name, sex, year_level, course, college
                                 </small>
                             </div>
-                            <button type="submit" class="btn btn-success">
+                            <button type="submit" class="btn btn-success" id="importExcelBtn">
                                 <i class="fas fa-file-excel me-2"></i>Import Student Data
                             </button>
                         </form>
@@ -133,7 +133,7 @@
                         <h3 class="card-title">Import Student Photos</h3>
                     </div>
                     <div class="card-body">
-                        <form method="POST" enctype="multipart/form-data" action="{% url 'admin_panel:import_photos' %}">
+                        <form id="photoImportForm" enctype="multipart/form-data">
                             {% csrf_token %}
                             <div class="form-group mb-3">
                                 <label for="photos_zip">Student Photos (ZIP file)</label>
@@ -142,7 +142,7 @@
                                     Upload a ZIP file containing photos named as student_id.jpg/png (e.g., 2020-0001.jpg)
                                 </small>
                             </div>
-                            <button type="submit" class="btn btn-primary">
+                            <button type="submit" class="btn btn-primary" id="importPhotosBtn">
                                 <i class="fas fa-images me-2"></i>Import Student Photos
                             </button>
                         </form>
@@ -233,6 +233,34 @@
     </div>
 </div>
 
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="loadingModalTitle">Processing...</h5>
+            </div>
+            <div class="modal-body">
+                <div class="text-center mb-3">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div class="progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" 
+                         id="importProgress"
+                         style="width: 0%">0%</div>
+                </div>
+                <p id="loadingMessage" class="text-center mb-3">Please wait while we process your request...</p>
+                <div class="text-center">
+                    <button type="button" class="btn btn-danger" id="cancelImportBtn">Cancel Import</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <style>
 .user-avatar {
     width: 35px;
@@ -299,24 +327,164 @@ document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('searchInput');
     const filterCollege = document.getElementById('filterCollege');
     const tables = document.querySelectorAll('table');
+    const loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
+    let currentController = null;
     
-    console.log('DEBUG - Number of tables found:', tables.length);
-    tables.forEach((table, index) => {
-        const rows = table.querySelectorAll('tbody tr');
-        console.log(`DEBUG - Table ${index + 1} number of rows:`, rows.length);
+    // Function to update progress
+    function updateProgress(progress) {
+        const progressBar = document.getElementById('importProgress');
+        const percentage = Math.round(progress * 100);
+        progressBar.style.width = `${percentage}%`;
+        progressBar.textContent = `${percentage}%`;
+    }
+
+    // Function to show loading modal
+    function showLoadingModal(title, message) {
+        document.getElementById('loadingModalTitle').textContent = title;
+        document.getElementById('loadingMessage').textContent = message;
+        loadingModal.show();
+    }
+
+    // Function to hide loading modal
+    function hideLoadingModal() {
+        loadingModal.hide();
+        updateProgress(0);
+    }
+
+    // Handle Excel Import
+    document.getElementById('excelImportForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        currentController = new AbortController();
+        
+        try {
+            showLoadingModal('Importing Student Data', 'Processing Excel file...');
+            
+            const response = await fetch('{% url "admin_panel:import_users" %}', {
+                method: 'POST',
+                body: formData,
+                signal: currentController.signal
+            });
+            
+            if (response.ok) {
+                hideLoadingModal();
+                location.reload();
+            } else {
+                const error = await response.text();
+                throw new Error(error);
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                alert('Import cancelled by user.');
+            } else {
+                alert('Error importing student data: ' + error.message);
+            }
+            hideLoadingModal();
+        }
     });
 
+    // Handle Photo Import
+    document.getElementById('photoImportForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(this);
+        currentController = new AbortController();
+        let isCancelled = false;
+        
+        try {
+            showLoadingModal('Importing Student Photos', 'Processing ZIP file...');
+            
+            const response = await fetch('{% url "admin_panel:import_photos" %}', {
+                method: 'POST',
+                body: formData,
+                signal: currentController.signal
+            });
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+                
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n').filter(line => line.trim());
+                
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+                        
+                        switch (data.status) {
+                            case 'processing':
+                                updateProgress(data.progress / 100);
+                                document.getElementById('loadingMessage').textContent = 
+                                    `Processing: ${data.current_file}\nSuccess: ${data.success_count}, Errors: ${data.error_count}`;
+                                break;
+                                
+                            case 'completed':
+                                hideLoadingModal();
+                                let message = `Successfully imported ${data.success_count} photos.`;
+                                if (data.error_count > 0) {
+                                    message += `\nFailed to import ${data.error_count} photos.`;
+                                    if (data.errors.length > 0) {
+                                        message += `\nErrors: ${data.errors.join('; ')}`;
+                                        if (data.additional_errors > 0) {
+                                            message += `\nand ${data.additional_errors} more errors.`;
+                                        }
+                                    }
+                                }
+                                alert(message);
+                                location.reload();
+                                break;
+                                
+                            case 'error':
+                                throw new Error(data.message);
+                                
+                            case 'cancelled':
+                                isCancelled = true;
+                                hideLoadingModal();
+                                alert('Import cancelled by user.');
+                                break;
+                        }
+                    } catch (error) {
+                        console.error('Error parsing progress data:', error);
+                    }
+                }
+            }
+            
+            if (!isCancelled) {
+                hideLoadingModal();
+                location.reload();
+            }
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                alert('Import cancelled by user.');
+            } else {
+                alert('Error importing photos: ' + error.message);
+            }
+            hideLoadingModal();
+        }
+    });
+
+    // Handle Cancel Button
+    document.getElementById('cancelImportBtn').addEventListener('click', function() {
+        if (currentController) {
+            currentController.abort();
+            currentController = null;
+        }
+    });
+
+    // Table filtering functionality
     function filterTables() {
         const searchTerm = searchInput.value.toLowerCase();
         const selectedCollege = filterCollege.value;
-        console.log('DEBUG - Filtering with:', { searchTerm, selectedCollege });
-
+        
         tables.forEach(table => {
             const rows = table.querySelectorAll('tbody tr');
-            console.log('DEBUG - Processing rows:', rows.length);
             
             rows.forEach(row => {
-                if (row.cells.length <= 1) return; // Skip empty state rows
+                if (row.cells.length <= 1) return;
                 
                 const studentNumber = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
                 const fullName = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
@@ -332,7 +500,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 row.style.display = (matchesSearch && matchesCollege) ? '' : 'none';
             });
 
-            // Show/hide empty state message
             const visibleRows = Array.from(rows).filter(row => row.style.display !== 'none');
             const emptyMessage = table.querySelector('tbody tr td[colspan]')?.parentElement;
             if (emptyMessage) {
@@ -348,7 +515,6 @@ document.addEventListener('DOMContentLoaded', function() {
 function submitRegistration() {
     const form = document.getElementById('registerUserForm');
     
-    // Check form validity
     if (!form.checkValidity()) {
         form.classList.add('was-validated');
         return;
@@ -356,7 +522,6 @@ function submitRegistration() {
     
     const formData = new FormData();
     
-    // Add form fields to FormData
     formData.append('student_number', document.getElementById('student_number').value);
     formData.append('student_name', document.getElementById('student_name').value);
     formData.append('sex', document.getElementById('sex').value);
@@ -374,7 +539,6 @@ function submitRegistration() {
     .then(response => response.json())
     .then(result => {
         if (result.success) {
-            // Close modal and refresh page
             bootstrap.Modal.getInstance(document.getElementById('registerUserModal')).hide();
             location.reload();
         } else {
@@ -385,18 +549,6 @@ function submitRegistration() {
         console.error('Error:', error);
         alert('Error registering user');
     });
-}
-
-function editUser(userId) {
-    // Implement edit functionality
-    console.log('Edit user:', userId);
-}
-
-function deleteUser(userId) {
-    if (confirm('Are you sure you want to delete this user?')) {
-        // Implement delete functionality
-        console.log('Delete user:', userId);
-    }
 }
 </script>
 {% endblock %} 

@@ -8,41 +8,48 @@
 <div class="modal fade" id="faceVerificationModal" data-bs-backdrop="static" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="background-color: white;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #1976D2, #42A5F5);">
-                <h5 class="modal-title text-white">
+            <div class="modal-header py-2" style="background: linear-gradient(135deg, #1976D2, #42A5F5);">
+                <h5 class="modal-title text-white fs-6">
                     <i class="fas fa-camera me-2"></i>Face Verification Required
                 </h5>
                 <a href="{% url 'user:mainpage' %}" class="btn-close btn-close-white" id="closeModalBtn" aria-label="Close"></a>
             </div>
-            <div class="modal-body text-center">
+            <div class="modal-body p-2">
                 <!-- Webcam Section -->
                 <div id="webcamSection">
-                    <div class="mb-3">
+                    <!-- Add Student Number Input Here -->
+                    <div class="form-group mb-2 px-2">
+                        <label for="studentNumberInput" class="form-label fw-bold mb-1" style="color: #1976D2;">Enter Your Student Number:</label>
+                        <input type="text" id="studentNumberInput" class="form-control form-control-md text-center" placeholder="" required autofocus>
+                        <div class="invalid-feedback">Please enter your student number.</div>
+                    </div>
+                    
+                    <div class="mb-2">
                         <div id="camera-container" class="rounded overflow-hidden mx-auto position-relative" 
-                             style="max-width: 400px; background-color: #E3F2FD;">
-                            <video id="video" class="w-100" playsinline autoplay style="transform: scaleX(-1);"></video>
+                             style="max-width: 320px; height: 240px; background-color: #E3F2FD;">
+                            <video id="video" class="w-100 h-100" playsinline autoplay style="transform: scaleX(-1); object-fit: cover;"></video>
                             <canvas id="canvas" class="d-none"></canvas>
                         </div>
                     </div>
-                    <div class="alert alert-info">
-                        <i class="fas fa-info-circle me-2"></i>Please position your face in the camera for verification
+                    <div class="alert alert-info py-1 px-2 mb-2 small">
+                        <i class="fas fa-info-circle me-1"></i>Position your face for verification after entering your student number.
                     </div>
-                    <div id="verification-status" class="alert d-none" role="alert"></div>
+                    <div id="verification-status" class="alert d-none py-1 px-2 mb-2" role="alert"></div>
                     
                     <!-- Code Entry Option -->
-                    <div class="text-center mt-2 mb-3">
-                        <a href="#" id="showCodeEntry" style="color: #1976D2;">
+                    <div class="text-center mt-1 mb-2">
+                        <a href="#" id="showCodeEntry" class="small" style="color: #1976D2;">
                             <i class="fas fa-key me-1"></i>Face verification not working? Enter code
                         </a>
                     </div>
                     
-                    <div class="d-flex gap-2">
-                        <button id="verifyButton" class="btn btn-lg flex-grow-1" style="background-color: #1976D2; color: white;" disabled>
+                    <div class="d-flex gap-2 px-2">
+                        <button id="verifyButton" class="btn btn-md w-100" style="background-color: #1976D2; color: white;" disabled>
                             <span class="normal-state">
-                                <i class="fas fa-check-circle me-2"></i>Verify Face
+                                <i class="fas fa-check-circle me-1"></i>Verify Face
                             </span>
                             <span class="loading-state d-none">
-                                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
                                 Verifying...
                             </span>
                         </button>
@@ -50,17 +57,17 @@
                 </div>
                 
                 <!-- Code Entry Form -->
-                <div id="codeEntryForm" style="display: none;" class="mt-3">
-                    <div class="form-group mb-3">
-                        <label for="verificationCode" class="form-label" style="color: #1976D2;">Enter your verification code:</label>
-                        <input type="text" id="verificationCode" class="form-control form-control-lg text-center" maxlength="6" placeholder="Enter 6-digit code">
+                <div id="codeEntryForm" style="display: none;" class="mt-2">
+                    <div class="form-group mb-2">
+                        <label for="verificationCode" class="form-label small" style="color: #1976D2;">Enter your verification code:</label>
+                        <input type="text" id="verificationCode" class="form-control form-control-md text-center" maxlength="6" placeholder="Enter 6-digit code">
                     </div>
                     <div class="d-flex gap-2">
-                        <button id="backToWebcam" class="btn btn-lg flex-grow-1" style="background-color: #42A5F5; color: white;">
-                            <i class="fas fa-camera me-2"></i>Back to Webcam
+                        <button id="backToWebcam" class="btn btn-md flex-grow-1" style="background-color: #42A5F5; color: white;">
+                            <i class="fas fa-camera me-1"></i>Back to Webcam
                         </button>
-                        <button id="verifyCode" class="btn btn-lg flex-grow-1" style="background-color: #1976D2; color: white;">
-                            <i class="fas fa-check-circle me-2"></i>Verify Code
+                        <button id="verifyCode" class="btn btn-md flex-grow-1" style="background-color: #1976D2; color: white;">
+                            <i class="fas fa-check-circle me-1"></i>Verify Code
                         </button>
                     </div>
                 </div>
@@ -278,6 +285,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Always show face verification modal first
     const faceVerificationModal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
     faceVerificationModal.show();
+    
+    // Focus on student number input when modal is shown
+    document.getElementById('faceVerificationModal').addEventListener('shown.bs.modal', function () {
+        document.getElementById('studentNumberInput').focus();
+    });
     
     console.log('Face verification modal shown');
     

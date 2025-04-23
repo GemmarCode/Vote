@@ -231,24 +231,25 @@ def get_local_candidates(user_profile):
 
 @csrf_exempt
 def verify_face(request):
-    """Enhanced face verification function with multiple attempts and better logging"""
-    # Initialize variables that might be referenced in exception handlers
-    best_match = None
-    best_score = 0
-    best_method = None
-    best_verification_result = None
-    threshold = 0.6
-    
+    """Enhanced face verification function that only processes the specific student's photo"""
     try:
-        # Get the captured face image from the request
+        # Get data from request
         data = json.loads(request.body)
         face_data = data.get('face_data')
+        student_number = data.get('student_number')
 
         if not face_data:
             print("No face data in request")
             return JsonResponse({
                 'success': False,
                 'message': 'No face data provided'
+            }, status=400)
+
+        if not student_number:
+            print("No student number provided")
+            return JsonResponse({
+                'success': False,
+                'message': 'Student number is required'
             }, status=400)
 
         # Process the webcam image
@@ -260,125 +261,43 @@ def verify_face(request):
                 'message': 'Failed to process captured image'
             }, status=400)
         
-        # Get all face images from the face_data directory
+        # Get the specific student's face image path
         face_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
-        print(f"Checking faces in directory: {face_dir}")
+        stored_image_path = os.path.join(face_dir, f"{student_number}.jpg")
         
-        if not os.path.exists(face_dir):
-            print("Face data directory does not exist")
+        if not os.path.exists(stored_image_path):
+            print(f"No face data found for student: {student_number}")
             return JsonResponse({
                 'success': False,
-                'message': 'Face data directory not found'
+                'message': 'Face verification failed. Please try again.'
             }, status=400)
             
-        face_files = [f for f in os.listdir(face_dir) if f.endswith(('.jpg', '.jpeg', '.png'))]
-        print(f"Found {len(face_files)} face files")
+        # Load the stored face image
+        stored_image = cv2.imread(stored_image_path)
+        if stored_image is None:
+            print(f"Failed to load stored image for student: {student_number}")
+            return JsonResponse({
+                'success': False,
+                'message': 'Face verification failed. Please try again.'
+            }, status=400)
+
+        # Perform verification using our enhanced multi-method approach
+        verification_result = verify_voter_face(captured_face, stored_image)
+        print(f"Verification result for {student_number}: {verification_result}")
         
-        best_distance = float('inf')
-        verification_method = 'advanced'  # Use 'advanced' for new method or 'simple' for old method
-        verification_attempts = 1  # Perform only 1 verification attempt to reduce processing time
-        
-        # Collection of all valid candidates (those with ≥2 successful methods)
-        valid_candidates = []
-        
-        # Perform only a single verification attempt
-        print(f"Verification attempt 1/1")
-            
-        if verification_method == 'advanced':
-            # Using our enhanced multi-method approach
-            print("Using advanced face verification")
-            for filename in face_files:
-                try:
-                    student_number = os.path.splitext(filename)[0]
-                    print(f"Processing file: {filename} (Student Number: {student_number})")
-                    
-                    stored_image_path = os.path.join(face_dir, filename)
-                    stored_image = cv2.imread(stored_image_path)
-                    
-                    if stored_image is not None:
-                        # Use the advanced verification method
-                        verification_result = verify_voter_face(captured_face, stored_image)
-                        print(f"Verification result for {student_number}: {verification_result}")
-                        
-                        # Store the verification result for the best match
-                        if best_match is None or student_number == best_match:
-                            best_verification_result = verification_result
-                        
-                        # Get successful methods count
-                        successful_methods = verification_result.get('successful_methods', 0)
-                        score = 1.0 - verification_result.get('distance', 1.0)
-                        
-                        # IMPORTANT: First, prioritize candidates with at least 2 successful methods
-                        if successful_methods >= 2:
-                            valid_candidates.append({
-                                'student_number': student_number,
-                                'score': score,
-                                'method': verification_result.get('method', 'unknown'),
-                                'distance': verification_result.get('distance', 1.0),
-                                'successful_methods': successful_methods,
-                                'verification_result': verification_result
-                            })
-                            
-                        # Track best overall match regardless of methods
-                        if score > best_score:
-                            best_match = student_number
-                            best_score = score
-                            best_distance = verification_result.get('distance', 1.0)
-                            best_method = verification_result.get('method', 'unknown')
-                            best_verification_result = verification_result
-                            print(f"Found better match ({score}) for {student_number}")
-                    else:
-                        print(f"Failed to load image: {filename}")
-                except Exception as e:
-                    print(f"Error processing {filename}: {str(e)}")
-                    continue
-        
-        # Select the best match from candidates with at least 2 successful methods
-        if valid_candidates:
-            # Sort by score (highest first)
-            valid_candidates.sort(key=lambda x: x['score'], reverse=True)
-            best_candidate = valid_candidates[0]
-            
-            # Update best match info with the best valid candidate
-            best_match = best_candidate['student_number']
-            best_score = best_candidate['score']
-            best_method = best_candidate['method']
-            best_distance = best_candidate['distance']
-            best_verification_result = best_candidate['verification_result']
-            print(f"Selected best valid candidate: {best_match} (score: {best_score}, methods: {best_candidate['successful_methods']})")
-        
-        # Set threshold based on verification method
-        threshold = 0.6 if verification_method == 'advanced' else 0.6
-        print(f"Best match: {best_match}, Score: {best_score}, Method: {best_method}, Threshold: {threshold}")
-        
-        # Additional verification check - require minimum number of successful methods
-        min_required_success = 2  # Require at least 2 successful methods
-        successful_methods_count = 0
-        methods_details = []
-        
-        # If we have verification_details in the result, check how many methods succeeded
-        if hasattr(best_verification_result, 'get') and best_verification_result.get('verification_details'):
-            verification_details = best_verification_result.get('verification_details', [])
-            successful_methods_count = sum(1 for detail in verification_details if detail.get('verified', False))
-            methods_details = [
-                f"{detail.get('method')}: {detail.get('score', 0):.2f}/{detail.get('threshold', threshold)}"
-                for detail in verification_details
-            ]
-            print(f"Successful verification methods: {successful_methods_count}/{len(verification_details)}")
-            print(f"Method details: {', '.join(methods_details)}")
-        
-        # IMPORTANT: Verify BOTH conditions: score threshold AND minimum number of successful methods
-        verification_passed = (best_match and 
-                              best_score > threshold and 
-                              successful_methods_count >= min_required_success)
+        # Get verification details
+        successful_methods = verification_result.get('successful_methods', 0)
+        score = 1.0 - verification_result.get('distance', 1.0)
+        threshold = 0.6
+        min_required_success = 2
+
+        # Verify BOTH conditions: score threshold AND minimum number of successful methods
+        verification_passed = (score > threshold and successful_methods >= min_required_success)
         
         if verification_passed:
             try:
-                user_profile = UserProfile.objects.get(student_number=best_match)
-                print(f"Found matching user profile for student number: {best_match}")
-                
-                # Don't store in session - make verification temporary
-                # Just return the user profile data to the client
+                user_profile = UserProfile.objects.get(student_number=student_number)
+                print(f"Found matching user profile for student number: {student_number}")
                 
                 return JsonResponse({
                     'success': True,
@@ -388,62 +307,37 @@ def verify_face(request):
                     'college': user_profile.college,
                     'department': user_profile.course,
                     'year_level': user_profile.year_level,
-                    'score': best_score,
-                    'method': best_method,
-                    'successful_methods': successful_methods_count,
+                    'score': score,
+                    'successful_methods': successful_methods,
                     'required_methods': min_required_success,
-                    'method_details': methods_details,
-                    'verification_summary': f"Checked {len(face_files)} face images, best match: {best_match} (score: {best_score:.2f}, methods: {successful_methods_count}/{min_required_success})",
-                    'redirect_url': reverse('user:vote')  # Add URL for redirection
+                    'redirect_url': reverse('user:vote')
                 })
             except UserProfile.DoesNotExist:
-                print(f"No user profile found for student number: {best_match}")
+                print(f"No user profile found for student number: {student_number}")
                 return JsonResponse({
                     'success': False,
-                    'message': 'User profile not found'
-                }, status=404)
+                    'message': 'Face verification failed. Please try again.'
+                }, status=400)
         else:
             print("Face verification failed")
-            
-            # Generate detailed error message explaining why verification failed
-            failure_reason = "Verification failed"
-            if not best_match:
-                failure_reason = "No face match found in our records"
-            elif best_score <= threshold:
-                failure_reason = f"Confidence score too low ({best_score:.2f}, needed >{threshold})"
-            elif successful_methods_count < min_required_success:
-                failure_reason = f"Not enough verification methods succeeded ({successful_methods_count}/{min_required_success} required)"
-            
-            # Include details about which methods passed/failed
-            method_results = ""
-            if methods_details:
-                method_results = " - Methods: " + ", ".join(methods_details)
-            
             return JsonResponse({
                 'success': False,
-                'message': 'Face verification failed. Please try again with better lighting and positioning.',
-                'best_score': best_score,
-                'threshold': threshold,
-                'method': best_method,
-                'successful_methods': successful_methods_count,
-                'required_methods': min_required_success,
-                'reason': failure_reason,
-                'method_details': methods_details,
-                'verification_summary': f"Checked {len(face_files)} face images. Best match: {best_match or 'None'} with score {best_score:.2f}. {method_results}"
+                'message': 'Face verification failed. Please try again.',
+                'can_retry': True
             }, status=400)
             
     except json.JSONDecodeError as e:
         print(f"JSON decode error: {str(e)}")
         return JsonResponse({
             'success': False,
-            'message': 'Invalid JSON data'
+            'message': 'Invalid request format'
         }, status=400)
     except Exception as e:
         print(f"Unexpected error: {str(e)}")
         print(traceback.format_exc())
-    return JsonResponse({
+        return JsonResponse({
             'success': False,
-            'message': f'Error during verification: {str(e)}'
+            'message': 'Face verification failed. Please try again.'
         }, status=500)
 
 def cast_vote(request, candidate_id):

@@ -1,9 +1,14 @@
 {% extends 'admin_base.html' %}
+{% load custom_filters %}
+{% load admin_filters %}
 
 {% block admin_content %}
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="header-title">Manage Elections</h1>
+        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newSchoolYearModal">
+            <i class="fas fa-plus me-2"></i>Create New School Year
+        </button>
     </div>
 
     {% if messages %}
@@ -15,6 +20,102 @@
         {% endfor %}
     {% endif %}
 
+    <!-- School Year Selection -->
+    <div class="admin-card mb-4">
+        <div class="card-header py-3" style="background-color: #1976D2;">
+            <h5 class="card-title mb-0 text-white">School Years</h5>
+        </div>
+        <div class="card-body p-4">
+            {% if active_settings %}
+                <div class="alert alert-info">
+                    <h4 class="mb-3">Active School Year: {{ active_settings.school_year }}</h4>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <i class="fas fa-users"></i>
+                                <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_students' }}</h5>
+                                <p>Students</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <i class="fas fa-user-tie"></i>
+                                <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_candidates' }}</h5>
+                                <p>Candidates</p>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="stat-card">
+                                <i class="fas fa-vote-yea"></i>
+                                <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_votes' }}</h5>
+                                <p>Votes Cast</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    No active school year. Please create a new school year to begin.
+                </div>
+            {% endif %}
+
+            {% if all_settings %}
+                <div class="mt-4">
+                    <h6 class="mb-3">All School Years:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th>School Year</th>
+                                    <th>Students</th>
+                                    <th>Candidates</th>
+                                    <th>Votes</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for setting in all_settings %}
+                                    <tr>
+                                        <td>{{ setting.school_year }}</td>
+                                        <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_students' }}</td>
+                                        <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_candidates' }}</td>
+                                        <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_votes' }}</td>
+                                        <td>
+                                            {% if setting.is_active %}
+                                                <span class="badge bg-success">Active</span>
+                                            {% else %}
+                                                <span class="badge bg-secondary">Inactive</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if not setting.is_active %}
+                                                <form method="POST" class="d-inline">
+                                                    {% csrf_token %}
+                                                    <input type="hidden" name="action" value="activate_school_year">
+                                                    <input type="hidden" name="school_year_id" value="{{ setting.id }}">
+                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                        Activate
+                                                    </button>
+                                                </form>
+                                            {% endif %}
+                                            <a href="{% url 'admin_panel:generate_report' %}?school_year={{ setting.school_year }}" 
+                                               class="btn btn-sm btn-outline-info">
+                                                <i class="fas fa-file-alt"></i> View Report
+                                            </a>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if active_settings %}
+    <!-- Election Timeline Settings -->
     <div class="admin-card">
         <div class="card-header py-3" style="background-color: #1976D2;">
             <h5 class="card-title mb-0 text-white">Election Timeline Settings</h5>
@@ -22,6 +123,7 @@
         <div class="card-body p-4">
             <form method="POST" class="needs-validation" novalidate>
                 {% csrf_token %}
+                <input type="hidden" name="action" value="update_settings">
                 
                 <!-- Candidacy Filing Deadline -->
                 <div class="mb-4">
@@ -32,11 +134,11 @@
                            class="form-control shadow-sm" 
                            id="candidacy_deadline" 
                            name="candidacy_deadline"
-                           value="{{ settings.candidacy_deadline|date:'Y-m-d\TH:i:s' }}"
+                           value="{{ active_settings.candidacy_deadline|date:'Y-m-d\TH:i:s' }}"
                            required>
                     <div class="form-text mt-2 d-flex align-items-center">
                         <span class="me-2">Current status:</span> 
-                        {% if settings.is_candidacy_open %}
+                        {% if active_settings.is_candidacy_open %}
                             <span class="status-badge status-open">
                                 <i class="fas fa-check-circle me-1"></i>Open
                             </span>
@@ -58,7 +160,7 @@
                                class="form-control shadow-sm" 
                                id="voting_start" 
                                name="voting_start"
-                               value="{{ settings.voting_start|date:'Y-m-d\TH:i:s' }}"
+                               value="{{ active_settings.voting_start|date:'Y-m-d\TH:i:s' }}"
                                required>
                     </div>
                     <div class="col-md-6">
@@ -69,13 +171,13 @@
                                class="form-control shadow-sm" 
                                id="voting_end" 
                                name="voting_end"
-                               value="{{ settings.voting_end|date:'Y-m-d\TH:i:s' }}"
+                               value="{{ active_settings.voting_end|date:'Y-m-d\TH:i:s' }}"
                                required>
                     </div>
                     <div class="col-12 mt-3">
                         <div class="form-text d-flex align-items-center">
                             <span class="me-2">Voting status:</span> 
-                            {% if settings.is_voting_open %}
+                            {% if active_settings.is_voting_open %}
                                 <span class="status-badge status-open">
                                     <i class="fas fa-vote-yea me-1"></i>Open
                                 </span>
@@ -118,6 +220,49 @@
                     <i class="fas fa-save me-2"></i>Save Settings
                 </button>
             </form>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- New School Year Modal -->
+<div class="modal fade" id="newSchoolYearModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New School Year</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form method="POST" id="newSchoolYearForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="create_school_year">
+                    
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Creating a new school year will archive/delete all existing student data, candidates, and votes.
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="school_year" class="form-label">School Year</label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="school_year" 
+                               name="school_year" 
+                               placeholder="YYYY-YYYY"
+                               pattern="\d{4}-\d{4}"
+                               required>
+                        <div class="form-text">
+                            Format: YYYY-YYYY (e.g., 2023-2024)
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end">
+                        <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create School Year</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>
@@ -245,6 +390,54 @@
     color: #616161;
     white-space: nowrap;
 }
+
+.list-group-item {
+    transition: all 0.3s ease;
+}
+
+.list-group-item:hover {
+    background-color: rgba(25, 118, 210, 0.05);
+}
+
+.badge {
+    padding: 0.5em 1em;
+}
+
+.stat-card {
+    background: rgba(25, 118, 210, 0.05);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-5px);
+    background: rgba(25, 118, 210, 0.1);
+}
+
+.stat-card i {
+    font-size: 2rem;
+    color: #1976D2;
+    margin-bottom: 10px;
+}
+
+.stat-card h5 {
+    font-size: 1.5rem;
+    color: #1976D2;
+    margin-bottom: 5px;
+}
+
+.stat-card p {
+    color: #666;
+    margin: 0;
+}
+
+.table th {
+    background: rgba(25, 118, 210, 0.05);
+    color: #1976D2;
+    font-weight: 600;
+}
 </style>
 
 <script>
@@ -290,6 +483,37 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('candidacyDeadlineMarker').style.left = `${candidacyPosition}%`;
     document.getElementById('votingStartMarker').style.left = `${votingStartPosition}%`;
     document.getElementById('votingEndMarker').style.left = `${votingEndPosition}%`;
+});
+
+// School year input validation
+document.getElementById('school_year').addEventListener('input', function(e) {
+    const input = e.target;
+    const value = input.value;
+    
+    // Remove any non-numeric characters except hyphen
+    let cleaned = value.replace(/[^\d-]/g, '');
+    
+    // Ensure only one hyphen
+    cleaned = cleaned.replace(/-+/g, '-');
+    
+    // Limit to YYYY-YYYY format
+    if (cleaned.length > 9) {
+        cleaned = cleaned.slice(0, 9);
+    }
+    
+    // Auto-add hyphen after first 4 digits
+    if (cleaned.length === 4 && !cleaned.includes('-')) {
+        cleaned += '-';
+    }
+    
+    input.value = cleaned;
+});
+
+// Confirmation for creating new school year
+document.getElementById('newSchoolYearForm').addEventListener('submit', function(e) {
+    if (!confirm('Are you sure you want to create a new school year? This will archive/delete all existing data.')) {
+        e.preventDefault();
+    }
 });
 </script>
 {% endblock %} 

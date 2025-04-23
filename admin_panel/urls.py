@@ -19,4 +19,11 @@ urlpatterns = [
     path('verification-codes/', views.verification_codes_view, name='verification_codes'),
     path('generate-code/', views.generate_code, name='generate_code'),
     path('regenerate-code/<int:code_id>/', views.regenerate_code, name='regenerate_code'),
+    path('dashboard/', views.dashboard, name='dashboard'),
+    path('settings/', views.settings, name='settings'),
+    path('create-committee/', views.create_committee, name='create_committee'),
+    path('delete-committee/<int:user_id>/', views.delete_committee, name='delete_committee'),
+    path('change-password/', views.change_password, name='change_password'),
+    path('committee-settings/', views.committee_change_password, name='committee_change_password'),
+    path('user-activity-logs/<int:user_id>/', views.user_activity_logs, name='user_activity_logs'),
 ]

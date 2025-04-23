@@ -2,9 +2,11 @@
 <div class="sidebar" style="background: var(--primary); min-height: 100vh; width: 250px; position: fixed; left: 0; top: 0; padding-top: 20px;">
     <div class="d-flex justify-content-center align-items-center mb-4">
         <i class="fas fa-user-shield fa-2x text-white me-2"></i>
-        <h4 class="text-white mb-0">Admin Panel</h4>
+        <h4 class="text-white mb-0">{% if request.user.is_superuser %}Admin Panel{% else %}Committee Panel{% endif %}</h4>
     </div>
     
+    {% if request.user.is_superuser %}
+    <!-- Admin Navigation -->
     <ul class="nav flex-column">
         <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}" 
@@ -19,7 +21,7 @@
                href="{% url 'admin_panel:manage_users' %}"
                style="color: white; padding: 15px 25px;">
                 <i class="fas fa-users me-2"></i>
-                Manage Users
+                Manage Students
             </a>
         </li>
         <li class="nav-item">
@@ -35,7 +37,7 @@
                href="{% url 'admin_panel:manage_elections' %}"
                style="color: white; padding: 15px 25px;">
                 <i class="fas fa-vote-yea me-2"></i>
-                Manage Elections
+                Election Settings
             </a>
         </li>
         <li class="nav-item">
@@ -47,13 +49,25 @@
             </a>
         </li>
         <li class="nav-item">
-            <a class="nav-link {% if request.resolver_match.url_name == 'generate_report' %}active{% endif %}" 
-               href="{% url 'admin_panel:generate_report' %}"
+            <a class="nav-link {% if request.resolver_match.url_name == 'verification_codes' %}active{% endif %}" 
+               href="{% url 'admin_panel:verification_codes' %}"
                style="color: white; padding: 15px 25px;">
-                <i class="fas fa-file-alt me-2"></i>
-                Generate Report
+                <i class="fas fa-key me-2"></i>
+                Verification Codes
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'settings' %}active{% endif %}" 
+               href="{% url 'admin_panel:settings' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-cog me-2"></i>
+                Settings
+            </a>
+        </li>
+    </ul>
+    {% else %}
+    <!-- Committee Navigation -->
+    <ul class="nav flex-column">
         <li class="nav-item">
             <a class="nav-link {% if request.resolver_match.url_name == 'verification_codes' %}active{% endif %}" 
                href="{% url 'admin_panel:verification_codes' %}"
@@ -62,7 +76,16 @@
                 Verification Codes
             </a>
         </li>
+        <li class="nav-item">
+            <a class="nav-link {% if request.resolver_match.url_name == 'committee_change_password' %}active{% endif %}" 
+               href="{% url 'admin_panel:committee_change_password' %}"
+               style="color: white; padding: 15px 25px;">
+                <i class="fas fa-lock me-2"></i>
+                Change Password
+            </a>
+        </li>
     </ul>
+    {% endif %}
 
     <div class="mt-auto" style="position: absolute; bottom: 20px; width: 100%; padding: 0 25px;">
         <a href="{% url 'admin_panel:logout' %}" class="btn btn-light w-100">

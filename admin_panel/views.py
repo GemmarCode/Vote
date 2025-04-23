@@ -4,14 +4,14 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 from user.models import Candidate, Vote, UserProfile, VerificationCode
 from .decorators import superuser_required
 from django.contrib import messages
-from django.db.models import Count
+from django.db.models import Count, Q, F, ExpressionWrapper, FloatField
 from django.utils import timezone
 from .models import AdminActivity
-from django.contrib.auth import get_user_model, authenticate, login, logout
+from django.contrib.auth import get_user_model, authenticate, login, logout, update_session_auth_hash
 from django.db.models.functions import TruncHour
 from datetime import timedelta, datetime
 import json
-from .models import ElectionSettings
+from .models import ElectionSettings, CommitteeAccount
 import pandas as pd
 from django.db import transaction
 import os
@@ -26,9 +26,8 @@ import shutil
 from pathlib import Path
 from user.face_utils import FaceRecognition, preprocess_face_image
 from django.db.utils import IntegrityError
-from django.http import JsonResponse, HttpResponse
+from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.template.loader import render_to_string
-from django.db.models import Q
 from io import BytesIO
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
@@ -39,71 +38,246 @@ from reportlab.lib.units import inch
 from django.views.decorators.csrf import csrf_exempt
 import random
 import string
+from django.urls import reverse
 
 # Create your views here.
 
 def is_admin(user):
     return user.is_superuser
 
+def is_committee(user):
+    return CommitteeAccount.objects.filter(user=user).exists()
+
+def committee_required(function):
+    actual_decorator = user_passes_test(is_committee)
+    if function:
+        return actual_decorator(function)
+    return actual_decorator
+
 @login_required
 @user_passes_test(is_admin)
 def dashboard(request):
-    User = get_user_model()
-    total_users = User.objects.count()
+    # Get active election settings
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    
+    # Basic Statistics
+    total_users = UserProfile.objects.count()
     total_candidates = Candidate.objects.count()
     total_votes = Vote.objects.count()
-    voter_turnout = (total_votes / total_users * 100) if total_users > 0 else 0
+    voter_turnout = round((total_votes / total_users * 100) if total_users > 0 else 0, 1)
     
-    # Get national candidates and their vote trends
-    national_positions = [pos[0] for pos in Candidate.NATIONAL_POSITIONS]
-    national_candidates = Candidate.objects.filter(
-        position__in=national_positions
-    ).select_related('user_profile')
-    
-    # Get votes from the last 24 hours grouped by hour
-    time_threshold = timezone.now() - timedelta(hours=24)
+    # Vote Trends for National Candidates (last 24 hours)
     vote_trends = {}
+    if active_settings and active_settings.is_voting_open:
+        national_candidates = Candidate.objects.filter(position='National')
+        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
     
     for candidate in national_candidates:
-        # Get all votes for this candidate in the last 24 hours
         votes = Vote.objects.filter(
             candidate=candidate,
-            created_at__gte=time_threshold
+                created_at__gte=twenty_four_hours_ago
         ).annotate(
             hour=TruncHour('created_at')
         ).values('hour').annotate(
             count=Count('id')
         ).order_by('hour')
         
-        # Convert QuerySet to dictionary for easier lookup
-        vote_counts = {
-            v['hour'].replace(tzinfo=None): v['count'] 
-            for v in votes
+        vote_trends[candidate.user_profile.student_name] = [
+        {'timestamp': vote['hour'].isoformat(), 'count': vote['count']}
+        for vote in votes
+        ]
+    
+    # School Year Statistics
+    school_years = ElectionSettings.objects.all().order_by('-school_year')
+    school_year_stats = {}
+    
+    for year in school_years:
+        year_users = UserProfile.objects.filter(school_year=year.school_year).count()
+        year_candidates = Candidate.objects.filter(school_year=year.school_year).count()
+        year_votes = Vote.objects.filter(school_year=year.school_year).count()
+        year_turnout = round((year_votes / year_users * 100) if year_users > 0 else 0, 1)
+        
+        school_year_stats[year.school_year] = {
+            'total_students': year_users,
+            'total_candidates': year_candidates,
+            'total_votes': year_votes,
+            'voter_turnout': year_turnout
         }
+    
+    # Election Status
+    election_status = {
+        'current_phase': 'Voting Period' if active_settings and active_settings.is_voting_open else 'Candidacy Period',
+        'next_milestone': 'Voting Period Ends' if active_settings and active_settings.is_voting_open else 'Voting Period Starts',
+        'time_to_next': None,
+        'is_candidacy_open': active_settings.is_candidacy_open if active_settings else False,
+        'is_voting_open': active_settings.is_voting_open if active_settings else False
+    }
+    
+    # Calculate time to next milestone only if we have valid dates
+    if active_settings:
+        if active_settings.is_voting_open and active_settings.voting_end:
+            time_remaining = active_settings.voting_end - timezone.now()
+            if time_remaining.total_seconds() > 0:
+                election_status['time_to_next'] = {
+                    'total_seconds': int(time_remaining.total_seconds())
+                }
+        elif not active_settings.is_voting_open and active_settings.voting_start:
+            time_remaining = active_settings.voting_start - timezone.now()
+            if time_remaining.total_seconds() > 0:
+                election_status['time_to_next'] = {
+                    'total_seconds': int(time_remaining.total_seconds())
+                }
+    
+    # Predictive Analytics
+    if active_settings and active_settings.is_voting_open:
+        # Calculate average votes per hour
+        votes_per_hour = Vote.objects.filter(
+            created_at__gte=timezone.now() - timedelta(hours=24)
+        ).count() / 24
         
-        # Create hourly data points
-        trend_data = []
-        current_time = time_threshold
-        while current_time <= timezone.now():
-            hour_key = current_time.replace(minute=0, second=0, microsecond=0, tzinfo=None)
-            trend_data.append({
-                'timestamp': current_time.strftime('%Y-%m-%d %H:%M'),
-                'count': vote_counts.get(hour_key, 0)
+        # Predict additional votes until end
+        if active_settings.voting_end:
+            hours_remaining = (active_settings.voting_end - timezone.now()).total_seconds() / 3600
+            predicted_votes = int(votes_per_hour * hours_remaining)
+        else:
+            predicted_votes = 0
+        
+        # Predict final turnout
+        current_turnout = (total_votes / total_users * 100) if total_users > 0 else 0
+        predicted_turnout = min(100, round(current_turnout + (current_turnout * 0.2), 1))  # Assume 20% increase
+    else:
+        predicted_votes = 0
+        predicted_turnout = 0
+    
+    # Geographic Distribution (simulated data)
+    regions = ['North', 'South', 'East', 'West', 'Central']
+    voter_counts = [random.randint(100, 500) for _ in range(5)]
+    turnout_percentages = [random.randint(60, 95) for _ in range(5)]
+    
+    geographic_data = {
+        'regions': regions,
+        'voter_counts': voter_counts,
+        'turnout_percentages': turnout_percentages
+    }
+    
+    # Voting Activity by Hour
+    voting_by_hour = [0] * 24
+    if active_settings and active_settings.is_voting_open:
+        hourly_votes = Vote.objects.filter(
+            created_at__gte=timezone.now() - timedelta(days=1)
+        ).annotate(
+            hour=TruncHour('created_at')
+        ).values('hour').annotate(
+            count=Count('id')
+        ).order_by('hour')
+        
+        for vote in hourly_votes:
+            hour = vote['hour'].hour
+            voting_by_hour[hour] = vote['count']
+    
+    # System Health (simulated data)
+    system_health = {
+        'server_status': 'Healthy',
+        'database_status': 'Healthy',
+        'face_verification_success_rate': 95.5,
+        'error_rate': 0.5,
+        'average_response_time': 150
+    }
+    
+    # Candidate Performance
+    candidate_performance = []
+    if active_settings and active_settings.is_voting_open:
+        # Get candidates with vote counts
+        candidates = Candidate.objects.annotate(
+            vote_count=Count('vote')
+        ).order_by('-vote_count')[:5]
+        
+        # Calculate percentages manually
+        for candidate in candidates:
+            percentage = 0
+            if total_votes > 0:
+                percentage = (candidate.vote_count / total_votes) * 100
+                
+            candidate_performance.append({
+                'name': candidate.user_profile.student_name,
+                'position': candidate.position,
+                'votes': candidate.vote_count,
+                'percentage': round(percentage, 1)
             })
-            current_time += timedelta(hours=1)
+    
+    # Anomalies and Warnings
+    anomalies = []
+    if active_settings and active_settings.is_voting_open:
+        # Check for unusual voting patterns
+        recent_votes = Vote.objects.filter(
+            created_at__gte=timezone.now() - timedelta(hours=1)
+        ).count()
         
-        # Only add candidates who have votes
-        if any(point['count'] > 0 for point in trend_data):
-            candidate_name = f"{candidate.user_profile.student_name} ({candidate.position})"
-            vote_trends[candidate_name] = trend_data
+        if recent_votes > 100:  # Threshold for high activity
+            anomalies.append({
+                'type': 'High Voting Activity',
+                'description': f'Unusually high number of votes ({recent_votes}) in the last hour',
+                'severity': 'Medium'
+            })
+        
+        # Check for system performance
+        if system_health['error_rate'] > 1:
+            anomalies.append({
+                'type': 'System Performance',
+                'description': 'Error rate above normal threshold',
+                'severity': 'High'
+            })
+    
+    # Device Usage (simulated data)
+    device_usage = {
+        'mobile': 65,
+        'desktop': 30,
+        'tablet': 5
+    }
+    
+    # Accessibility Metrics (simulated data)
+    accessibility_metrics = {
+        'face_verification_success_rate': 95.5,
+        'average_verification_time': 2.5,
+        'failed_attempts': 45
+    }
+    
+    # Recent Activity
+    recent_activities = []
+    if active_settings:
+        recent_votes = Vote.objects.select_related(
+            'user_profile',
+            'candidate__user_profile'
+        ).order_by('-created_at')[:10]
+        
+        for vote in recent_votes:
+            recent_activities.append({
+                'created_at': vote.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'action': 'Vote Cast',
+                'details': f"{vote.user_profile.student_name} voted for {vote.candidate.user_profile.student_name}"
+            })
     
     context = {
         'total_users': total_users,
         'total_candidates': total_candidates,
         'total_votes': total_votes,
-        'voter_turnout': round(voter_turnout, 1),
-        'vote_trends': json.dumps(vote_trends)
+        'voter_turnout': voter_turnout,
+        'vote_trends': json.dumps(vote_trends),
+        'school_years': school_years,
+        'school_year_stats': school_year_stats,
+        'election_status': election_status,
+        'predicted_votes': predicted_votes,
+        'predicted_turnout': predicted_turnout,
+        'geographic_data': json.dumps(geographic_data),
+        'voting_by_hour': json.dumps(voting_by_hour),
+        'system_health': system_health,
+        'candidate_performance': candidate_performance,
+        'anomalies': anomalies,
+        'device_usage': device_usage,
+        'accessibility_metrics': accessibility_metrics,
+        'recent_activities': recent_activities
     }
+    
     return render(request, 'dashboard.html', context)
 
 @login_required
@@ -219,6 +393,16 @@ def process_photo_from_path(photo_path, student_number):
 def register_user(request):
     if request.method == 'POST':
         try:
+            # --- Get current active school year ---
+            try:
+                active_settings = ElectionSettings.objects.get(is_active=True)
+                current_school_year = active_settings.school_year
+            except ElectionSettings.DoesNotExist:
+                return JsonResponse({'error': "No active school year is set. Please activate a school year in Election Settings first."}, status=400)
+            except ElectionSettings.MultipleObjectsReturned:
+                return JsonResponse({'error': "Multiple active school years found. Please ensure only one school year is active."}, status=400)
+            # --------------------------------------
+
             # Get form data from POST
             student_number = request.POST.get('student_number')
             student_name = request.POST.get('student_name')
@@ -231,40 +415,26 @@ def register_user(request):
             if not all([student_number, student_name, sex, college, year_level, course]):
                 return JsonResponse({'error': 'All fields are required'}, status=400)
             
-            # Check if UserProfile already exists
+            # Check if UserProfile already exists for this student number
             if UserProfile.objects.filter(student_number=student_number).exists():
-                return JsonResponse({'error': 'Student number already exists'}, status=400)
+                return JsonResponse({'error': 'Student number already exists in User Profiles.'}, status=400)
             
             # Normalize year_level to string if it's an integer
             if isinstance(year_level, int):
                 year_level = str(year_level)
             
-            # Check if User already exists
-            existing_user = User.objects.filter(username=student_number).first()
-            
-            if existing_user:
-                # Use existing user
-                user = existing_user
-            else:
-                # Create User
-                user = User.objects.create_user(
-                    username=student_number,
-                    password=student_number,  # Default password is their student number
-                    first_name=student_name,
-                    is_active=True
-                )
-            
-            # Create UserProfile
+            # Create UserProfile ONLY, assigning the active school year
             UserProfile.objects.create(
                 student_number=student_number,
                 student_name=student_name,
                 sex=sex,
                 year_level=year_level,
                 course=course,
-                college=college
+                college=college,
+                school_year=current_school_year # Assign active school year
             )
             
-            return JsonResponse({'success': True})
+            return JsonResponse({'success': True, 'message': f'Student {student_name} added successfully for school year {current_school_year}.'})
             
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
@@ -386,45 +556,103 @@ def manage_candidates(request):
 @login_required
 @user_passes_test(is_admin)
 def manage_elections(request):
-    # Get or create election settings
-    settings, created = ElectionSettings.objects.get_or_create(id=1)
+    # Get all school years
+    all_settings = ElectionSettings.objects.all().order_by('-school_year')
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
     
     if request.method == 'POST':
+        action = request.POST.get('action')
         try:
-            # Parse datetime strings from the form
-            candidacy_deadline = request.POST.get('candidacy_deadline')
-            voting_start = request.POST.get('voting_start')
-            voting_end = request.POST.get('voting_end')
+            if action == 'create_school_year':
+                # Create new school year
+                school_year = request.POST.get('school_year')
+                if not school_year:
+                    raise ValueError("School year is required")
+                
+                # Validate school year format
+                try:
+                    start_year, end_year = map(int, school_year.split('-'))
+                    if end_year != start_year + 1:
+                        raise ValueError("End year must be start year + 1")
+                except ValueError:
+                    raise ValueError("School year must be in YYYY-YYYY format")
+                
+                # Check if school year already exists
+                if ElectionSettings.objects.filter(school_year=school_year).exists():
+                    raise ValueError("This school year already exists")
+                
+                # Create new settings for the school year
+                new_settings = ElectionSettings.objects.create(
+                    school_year=school_year,
+                    is_active=True  # This will automatically deactivate other years
+                )
+                
+                messages.success(request, f'New school year {school_year} created successfully.')
+                return redirect('admin_panel:manage_elections')
             
-            # Update settings with parsed datetime objects
-            if candidacy_deadline:
-                try:
-                    settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M:%S'))
-                except ValueError:
-                    # Fallback to format without seconds
-                    settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M'))
-            if voting_start:
-                try:
-                    settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M:%S'))
-                except ValueError:
-                    # Fallback to format without seconds
-                    settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M'))
-            if voting_end:
-                try:
-                    settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M:%S'))
-                except ValueError:
-                    # Fallback to format without seconds
-                    settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M'))
+            elif action == 'update_settings':
+                # Get the active settings
+                settings = ElectionSettings.objects.get(is_active=True)
+                
+                # Parse datetime strings from the form
+                candidacy_deadline = request.POST.get('candidacy_deadline')
+                voting_start = request.POST.get('voting_start')
+                voting_end = request.POST.get('voting_end')
+                
+                # Update settings with parsed datetime objects
+                if candidacy_deadline:
+                    try:
+                        settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M:%S'))
+                    except ValueError:
+                        # Fallback to format without seconds
+                        settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M'))
+                if voting_start:
+                    try:
+                        settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M:%S'))
+                    except ValueError:
+                        # Fallback to format without seconds
+                        settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M'))
+                if voting_end:
+                    try:
+                        settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M:%S'))
+                    except ValueError:
+                        # Fallback to format without seconds
+                        settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M'))
+                
+                settings.save()
+                messages.success(request, 'Election settings updated successfully.')
+                return redirect('admin_panel:manage_elections')
             
-            settings.save()
-            messages.success(request, 'Election settings updated successfully.')
+            elif action == 'activate_school_year':
+                school_year_id = request.POST.get('school_year_id')
+                if not school_year_id:
+                    raise ValueError("School year ID is required")
+                
+                settings = ElectionSettings.objects.get(id=school_year_id)
+                settings.is_active = True
+                settings.save()  # This will automatically deactivate other years
+                
+                messages.success(request, f'School year {settings.school_year} activated successfully.')
+                return redirect('admin_panel:manage_elections')
             
         except Exception as e:
             messages.error(request, f'Error updating settings: {str(e)}')
+            return redirect('admin_panel:manage_elections')
+    
+    # Get statistics for each school year
+    school_year_stats = {}
+    for setting in all_settings:
+        stats = {
+            'total_students': UserProfile.objects.filter(school_year=setting.school_year).count(),
+            'total_candidates': Candidate.objects.filter(school_year=setting.school_year).count(),
+            'total_votes': Vote.objects.filter(school_year=setting.school_year).count(),
+        }
+        school_year_stats[setting.school_year] = stats
     
     context = {
-        'settings': settings,
-        'current_time': timezone.now()
+        'all_settings': all_settings,
+        'active_settings': active_settings,
+        'school_year_stats': school_year_stats,
     }
     return render(request, 'manage_elections.html', context)
 
@@ -485,6 +713,18 @@ def import_users(request):
             else:
                 df = pd.read_csv(file)
 
+            # --- Get current active school year ---
+            try:
+                active_settings = ElectionSettings.objects.get(is_active=True)
+                current_school_year = active_settings.school_year
+            except ElectionSettings.DoesNotExist:
+                messages.error(request, "No active school year is set. Please activate a school year in Election Settings before importing users.")
+                return redirect('admin_panel:manage_users')
+            except ElectionSettings.MultipleObjectsReturned:
+                messages.error(request, "Multiple active school years found. Please ensure only one school year is active in Election Settings.")
+                return redirect('admin_panel:manage_users')
+            # --------------------------------------
+
             # Clean column names (remove whitespace, lowercase, etc)
             df.columns = df.columns.str.strip().str.lower().str.replace(' ', '_')
 
@@ -508,7 +748,7 @@ def import_users(request):
                 else:
                     messages.error(request, f"Could not find a column matching '{required_col}'. "
                                          f"Possible names are: {', '.join(possible_names)}")
-                    return redirect('admin_panel:register_user')
+                    return redirect('admin_panel:manage_users')
             
             # Process each row with matched columns
             success_count = 0
@@ -531,7 +771,7 @@ def import_users(request):
                         error_count += 1
                         continue
                     
-                    # Check for existing student number
+                    # Check for existing student number in UserProfile
                     if UserProfile.objects.filter(student_number=student_number).exists():
                         error_logs.append(f"Row {index + 2}: Student number {student_number} already exists in UserProfile")
                         error_count += 1
@@ -580,29 +820,15 @@ def import_users(request):
                         error_count += 1
                         continue
 
-                    # Check if a User with this username already exists
-                    existing_user = User.objects.filter(username=student_number).first()
-                    
-                    if existing_user:
-                        # Use existing user
-                        user = existing_user
-                    else:
-                        # Create new User if one doesn't exist
-                        user = User.objects.create_user(
-                            username=student_number,
-                            password=student_number,  # Default password is student number
-                            first_name=student_name,
-                            is_active=True
-                        )
-
-                    # Create new UserProfile
+                    # Create new UserProfile ONLY, assigning the active school year
                     UserProfile.objects.create(
                         student_number=student_number,
                         student_name=student_name,
                         sex=sex_normalized,
                         year_level=year_level,
                         course=course,
-                        college=college_normalized
+                        college=college_normalized,
+                        school_year=current_school_year  # Assign active school year
                     )
                     success_count += 1
 
@@ -613,7 +839,7 @@ def import_users(request):
 
             # Show import results
             if success_count > 0:
-                messages.success(request, f"Successfully imported {success_count} student records.")
+                messages.success(request, f"Successfully imported {success_count} student records for school year {current_school_year}.")
             if error_count > 0:
                 messages.warning(request, f"Failed to import {error_count} records. Check the error log below:")
                 for error in error_logs:
@@ -622,10 +848,10 @@ def import_users(request):
         except Exception as e:
             messages.error(request, f"Error processing file: {str(e)}")
         
-        return redirect('admin_panel:register_user')
+        return redirect('admin_panel:manage_users')
     
     messages.error(request, "No file was uploaded.")
-    return redirect('admin_panel:register_user')
+    return redirect('admin_panel:manage_users')
 
 @login_required
 @user_passes_test(is_admin)
@@ -638,85 +864,114 @@ def import_photos(request):
         face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
         os.makedirs(face_data_dir, exist_ok=True)
         
-        import zipfile
-        from io import BytesIO
-        import traceback
-        
-        success_count = 0
-        error_count = 0
-        errors = []
+        def generate_progress():
+            success_count = 0
+            error_count = 0
+            errors = []
             
-        try:
-            with zipfile.ZipFile(BytesIO(zip_file.read())) as z:
-                for filename in z.namelist():
-                    # Skip directories and non-image files
-                    if filename.endswith('/') or not filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                        continue
+            try:
+                with zipfile.ZipFile(BytesIO(zip_file.read())) as z:
+                    # Get total number of image files
+                    total_files = len([f for f in z.namelist() if not f.endswith('/') and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+                    processed_files = 0
                     
-                    # Extract student number from filename (remove extension)
-                    base_filename = os.path.basename(filename)
-                    student_number = os.path.splitext(base_filename)[0]
-                    
-                    try:
-                        # Extract file from ZIP
-                        image_data = z.read(filename)
-                        img_array = np.frombuffer(image_data, np.uint8)
-                        img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                    for filename in z.namelist():
+                        # Check if the request was cancelled
+                        if getattr(request, '_cancel_import', False):
+                            yield json.dumps({
+                                'status': 'cancelled',
+                                'message': 'Import cancelled by user',
+                                'progress': 0
+                            }) + '\n'
+                            return
                         
-                        if img is None:
-                            errors.append(f"Error processing photo '{base_filename}': Could not decode image")
+                        # Skip directories and non-image files
+                        if filename.endswith('/') or not filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                            continue
+                        
+                        processed_files += 1
+                        progress = (processed_files / total_files) * 100 if total_files > 0 else 0
+                        
+                        # Extract student number from filename (remove extension)
+                        base_filename = os.path.basename(filename)
+                        student_number = os.path.splitext(base_filename)[0]
+                        
+                        try:
+                            # Extract file from ZIP
+                            image_data = z.read(filename)
+                            img_array = np.frombuffer(image_data, np.uint8)
+                            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                            
+                            if img is None:
+                                errors.append(f"Error processing photo '{base_filename}': Could not decode image")
+                                error_count += 1
+                                continue
+                            
+                            # Preprocess the image
+                            preprocessed_img = preprocess_face_image(img)
+                            
+                            if preprocessed_img is None:
+                                errors.append(f"Error processing photo '{base_filename}': Preprocessing failed")
+                                error_count += 1
+                                continue
+                            
+                            # Convert back to BGR (color) for saving
+                            if len(preprocessed_img.shape) == 2:  # If grayscale
+                                preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
+                            else:
+                                preprocessed_color = preprocessed_img
+                            
+                            # Save processed image to face_data directory
+                            output_path = os.path.join(face_data_dir, f"{student_number}.jpg")
+                            cv2.imwrite(output_path, preprocessed_color)
+                            success_count += 1
+                            
+                            # Send progress update
+                            yield json.dumps({
+                                'status': 'processing',
+                                'progress': progress,
+                                'current_file': base_filename,
+                                'success_count': success_count,
+                                'error_count': error_count
+                            }) + '\n'
+                            
+                        except Exception as e:
+                            error_message = f"Error processing photo '{base_filename}': {str(e)}"
+                            print(error_message)
+                            print(traceback.format_exc())
+                            errors.append(error_message)
                             error_count += 1
                             continue
-                            
-                        # Preprocess the image using the same standardized function used for webcam images
-                        preprocessed_img = preprocess_face_image(img)
-                        
-                        if preprocessed_img is None:
-                            errors.append(f"Error processing photo '{base_filename}': Preprocessing failed")
-                            error_count += 1
-                            continue
-                            
-                        # Convert back to BGR (color) for saving
-                        if len(preprocessed_img.shape) == 2:  # If grayscale
-                            preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
-                        else:
-                            preprocessed_color = preprocessed_img
-                        
-                        # Save processed image to face_data directory
-                        output_path = os.path.join(face_data_dir, f"{student_number}.jpg")
-                        cv2.imwrite(output_path, preprocessed_color)
-                        success_count += 1
-                        
-                        # Log success
-                        print(f"Successfully processed and saved photo for student: {student_number}")
                     
-                    except Exception as e:
-                        error_message = f"Error processing photo '{base_filename}': {str(e)}"
-                        print(error_message)
-                        print(traceback.format_exc())
-                        errors.append(error_message)
-                        error_count += 1
+                    # Send final status
+                    yield json.dumps({
+                        'status': 'completed',
+                        'success_count': success_count,
+                        'error_count': error_count,
+                        'errors': errors[:5] if len(errors) > 5 else errors,
+                        'additional_errors': len(errors) - 5 if len(errors) > 5 else 0
+                    }) + '\n'
+                    
+            except zipfile.BadZipFile:
+                yield json.dumps({
+                    'status': 'error',
+                    'message': 'Invalid ZIP file. Please upload a valid ZIP file.'
+                }) + '\n'
+                
+            except Exception as e:
+                yield json.dumps({
+                    'status': 'error',
+                    'message': str(e)
+                }) + '\n'
         
-        except zipfile.BadZipFile:
-            messages.error(request, "Invalid ZIP file. Please upload a valid ZIP file.")
-            return redirect('admin_panel:register_user')
-        
-        # Show summary message
-        if success_count > 0:
-            messages.success(request, f"Successfully imported {success_count} photos.")
-        
-        if error_count > 0:
-            error_message = f"Failed to import {error_count} photos. "
-            if len(errors) <= 5:
-                error_message += "Errors: " + "; ".join(errors)
-            else:
-                error_message += "Errors: " + "; ".join(errors[:5]) + f"; and {len(errors)-5} more errors."
-            messages.warning(request, error_message)
-        
-        return redirect('admin_panel:register_user')
+        response = StreamingHttpResponse(generate_progress(), content_type='text/event-stream')
+        response['Cache-Control'] = 'no-cache'
+        return response
     
-    messages.error(request, "No file uploaded or invalid request method.")
-    return redirect('admin_panel:register_user')
+    return JsonResponse({
+        'status': 'error',
+        'message': 'No file uploaded or invalid request method.'
+    }, status=400)
 
 def admin_panel_login(request):
     # Always logout any existing session when accessing admin login
@@ -728,12 +983,20 @@ def admin_panel_login(request):
         
         user = authenticate(request, username=username, password=password)
         
-        if user is not None and user.is_staff:
-            login(request, user)
-            messages.success(request, 'Welcome to Admin Panel!')
-            return redirect('admin_panel:dashboard')
+        if user is not None:
+            if user.is_superuser:
+                login(request, user)
+                messages.success(request, 'Welcome to Admin Panel!')
+                return redirect('admin_panel:dashboard')
+            elif CommitteeAccount.objects.filter(user=user).exists():
+                login(request, user)
+                messages.success(request, 'Welcome to Committee Panel!')
+                return redirect('admin_panel:verification_codes')
+            else:
+                messages.error(request, 'You do not have permission to access this panel.')
+                return redirect('admin_panel:admin_panel_login')
         else:
-            messages.error(request, 'Invalid admin credentials.')
+            messages.error(request, 'Invalid credentials.')
             return redirect('admin_panel:admin_panel_login')
             
     return render(request, 'admin_panel_login.html')
@@ -1029,16 +1292,28 @@ def admin_results(request):
     
     return render(request, 'admin_panel/results.html', context)
 
+@login_required
 def verification_codes_view(request):
-    """View for managing verification codes"""
+    """View for managing verification codes - accessible by both admin and committee members"""
+    if not (request.user.is_superuser or CommitteeAccount.objects.filter(user=request.user).exists()):
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('admin_panel:admin_panel_login')
+        
     verification_codes = VerificationCode.objects.all().order_by('-created_at')
     return render(request, 'admin_panel/verification_codes.html', {
-        'verification_codes': verification_codes
+        'verification_codes': verification_codes,
+        'is_committee': CommitteeAccount.objects.filter(user=request.user).exists()
     })
 
-@csrf_exempt
+@login_required
 def generate_code(request):
-    """Generate a new verification code for a student"""
+    """Generate a new verification code for a student - accessible by both admin and committee members"""
+    if not (request.user.is_superuser or CommitteeAccount.objects.filter(user=request.user).exists()):
+        return JsonResponse({
+            'success': False,
+            'message': 'You do not have permission to perform this action'
+        }, status=403)
+        
     try:
         data = json.loads(request.body)
         student_number = data.get('student_number')
@@ -1087,16 +1362,23 @@ def generate_code(request):
             'message': str(e)
         }, status=500)
 
-@csrf_exempt
+@login_required
 def regenerate_code(request, code_id):
+    """Regenerate a verification code - accessible by both admin and committee members"""
+    if not (request.user.is_superuser or CommitteeAccount.objects.filter(user=request.user).exists()):
+        return JsonResponse({
+            'success': False,
+            'message': 'You do not have permission to perform this action'
+        }, status=403)
+        
     if request.method == 'POST':
         try:
             code = VerificationCode.objects.get(id=code_id)
             # Generate a new code
-            new_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            new_code = ''.join(random.choices(string.digits, k=6))
             code.code = new_code
             code.created_at = timezone.now()
-            code.expires_at = timezone.now() + timedelta(hours=24)
+            code.expires_at = timezone.now() + timedelta(hours=1)
             code.is_used = False
             code.save()
             
@@ -1111,3 +1393,251 @@ def regenerate_code(request, code_id):
         except Exception as e:
             return JsonResponse({'success': False, 'message': str(e)}, status=500)
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
+
+@login_required
+def settings(request):
+    # Get all users who are not already committee members
+    committee_usernames = CommitteeAccount.objects.values_list('user__username', flat=True)
+    available_users = UserProfile.objects.exclude(student_number__in=committee_usernames)
+    
+    # Create JSON representation of available users
+    users_json = json.dumps([{
+        'id': user.id,
+        'student_number': user.student_number,
+        'name': user.student_name
+    } for user in available_users])
+    
+    # Get existing committee accounts
+    committee_accounts = CommitteeAccount.objects.all().select_related('user')
+    
+    # Get all admin and committee users for activity logs
+    admin_users = User.objects.filter(is_superuser=True)
+    committee_users = User.objects.filter(committee_profile__isnull=False)
+    users = admin_users | committee_users
+    
+    context = {
+        'users_json': users_json,
+        'committee_accounts': committee_accounts,
+        'users': users
+    }
+    return render(request, 'settings.html', context)
+
+@login_required
+def create_committee(request):
+    if request.method == 'POST':
+        user_profile_id = request.POST.get('user_profile_id')
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        
+        try:
+            # Check if username already exists
+            if User.objects.filter(username=username).exists():
+                messages.error(request, 'Username already exists.')
+                return redirect('admin_panel:settings')
+            
+            # Get the user profile
+            user_profile = UserProfile.objects.get(id=user_profile_id)
+            
+            # Check if user is already a committee member
+            if CommitteeAccount.objects.filter(user__username=user_profile.student_number).exists():
+                messages.error(request, 'This student is already a committee member.')
+                return redirect('admin_panel:settings')
+            
+            # Create new user
+            user = User.objects.create_user(
+                username=username,
+                password=password,
+                first_name=user_profile.student_name
+            )
+            
+            # Create committee account
+            CommitteeAccount.objects.create(user=user)
+            
+            # Redirect with success parameters
+            return redirect(f"{reverse('admin_panel:settings')}?success=true&student_name={user_profile.student_name}")
+            
+        except UserProfile.DoesNotExist:
+            messages.error(request, 'Selected student not found.')
+        except Exception as e:
+            messages.error(request, f'Error creating committee account: {str(e)}')
+        
+        return redirect('admin_panel:settings')
+    
+    return redirect('admin_panel:settings')
+
+@login_required
+def delete_committee(request, committee_id):
+    if request.method == 'POST':
+        try:
+            committee = CommitteeAccount.objects.get(id=committee_id)
+            user = committee.user
+            committee.delete()
+            user.delete()
+            messages.success(request, 'Committee account deleted successfully.')
+        except CommitteeAccount.DoesNotExist:
+            messages.error(request, 'Committee account not found.')
+        except Exception as e:
+            messages.error(request, f'Error deleting committee account: {str(e)}')
+    
+    return redirect('admin_panel:settings')
+
+@login_required
+@user_passes_test(is_admin)
+def change_password(request):
+    """Change the admin's password"""
+    if request.method == 'POST':
+        try:
+            current_password = request.POST.get('current_password')
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            # Check if current password is correct
+            if not request.user.check_password(current_password):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Current password is incorrect.'
+                })
+            
+            # Check if new passwords match
+            if new_password != confirm_password:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'New passwords do not match.'
+                })
+            
+            # Check password strength
+            if len(new_password) < 8:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Password must be at least 8 characters long.'
+                })
+            
+            # Change the password
+            request.user.set_password(new_password)
+            request.user.save()
+            
+            # Log the activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='CHANGE_PASSWORD',
+                details='Admin password was changed',
+                ip_address=request.META.get('REMOTE_ADDR')
+            )
+            
+            # Update the session to prevent logout
+            update_session_auth_hash(request, request.user)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Password changed successfully.'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({
+        'success': False,
+        'error': 'Invalid request method.'
+    })
+
+@login_required
+def committee_change_password(request):
+    """Change the committee member's password"""
+    if not CommitteeAccount.objects.filter(user=request.user).exists():
+        return JsonResponse({
+            'success': False,
+            'error': 'You do not have permission to perform this action'
+        }, status=403)
+        
+    if request.method == 'POST':
+        try:
+            current_password = request.POST.get('current_password')
+            new_password = request.POST.get('new_password')
+            confirm_password = request.POST.get('confirm_password')
+            
+            # Check if current password is correct
+            if not request.user.check_password(current_password):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Current password is incorrect.'
+                })
+            
+            # Check if new passwords match
+            if new_password != confirm_password:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'New passwords do not match.'
+                })
+            
+            # Check password strength
+            if len(new_password) < 8:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Password must be at least 8 characters long.'
+                })
+            
+            # Change the password
+            request.user.set_password(new_password)
+            request.user.save()
+            
+            # Update the session to prevent logout
+            update_session_auth_hash(request, request.user)
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Password changed successfully.'
+            })
+            
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return render(request, 'admin_panel/committee_settings.html')
+
+@login_required
+@user_passes_test(is_admin)
+def activity_logs(request):
+    """View for displaying activity logs"""
+    # Get all admin and committee users
+    admin_users = User.objects.filter(is_superuser=True)
+    committee_users = User.objects.filter(committee_profile__isnull=False)
+    all_users = admin_users | committee_users
+
+    # Get search query if any
+    search_query = request.GET.get('search', '')
+    if search_query:
+        all_users = all_users.filter(
+            Q(username__icontains=search_query) |
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query)
+        )
+
+    context = {
+        'users': all_users,
+        'search_query': search_query
+    }
+    return render(request, 'admin_panel/activity_logs.html', context)
+
+@login_required
+@user_passes_test(is_admin)
+def user_activity_logs(request, user_id):
+    user = get_object_or_404(User, id=user_id)
+    activities = AdminActivity.objects.filter(admin_user=user).order_by('-created_at')
+    
+    # Handle search
+    search_query = request.GET.get('search', '')
+    if search_query:
+        activities = activities.filter(
+            Q(action__icontains=search_query) |
+            Q(details__icontains=search_query)
+        )
+    
+    return render(request, 'admin_panel/user_activity_logs.html', {
+        'activities': activities,
+        'user': user
+    })
