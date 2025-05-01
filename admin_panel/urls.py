@@ -14,7 +14,6 @@ urlpatterns = [
     path('users/import-photos/', views.import_photos, name='import_photos'),
     path('candidates/', views.manage_candidates, name='manage_candidates'),
     path('elections/', views.manage_elections, name='manage_elections'),
-    path('results/', views.admin_results, name='admin_results'),
     path('reports/', views.generate_report, name='generate_report'),
     path('verification-codes/', views.verification_codes_view, name='verification_codes'),
     path('generate-code/', views.generate_code, name='generate_code'),

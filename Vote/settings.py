@@ -20,4 +20,4 @@ MEDIA_URL = '/media/'
 
 # Time zone configuration
 TIME_ZONE = 'Asia/Manila'
-USE_TZ = True 
+USE_TZ = True   

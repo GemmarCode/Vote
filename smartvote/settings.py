@@ -105,7 +105,7 @@ WSGI_APPLICATION = 'smartvote.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE':'django.db.backends.mysql',
-        'NAME': 'test00',
+        'NAME': 'testest',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',
@@ -165,6 +165,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field

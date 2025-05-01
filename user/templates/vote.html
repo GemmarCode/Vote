@@ -4,6 +4,24 @@
 {% block content %}
 {% csrf_token %}
 
+<!-- Add this at the top of the body or main content -->
+<div id="welcomeBanner" style="
+    display: none;
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 2000;
+    background: #1976D2;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+">
+    <!-- Welcome message will be set here -->
+</div>
+
 <!-- Face Verification Modal -->
 <div class="modal fade" id="faceVerificationModal" data-bs-backdrop="static" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -17,22 +35,16 @@
             <div class="modal-body p-2">
                 <!-- Webcam Section -->
                 <div id="webcamSection">
-                    <!-- Add Student Number Input Here -->
-                    <div class="form-group mb-2 px-2">
-                        <label for="studentNumberInput" class="form-label fw-bold mb-1" style="color: #1976D2;">Enter Your Student Number:</label>
-                        <input type="text" id="studentNumberInput" class="form-control form-control-md text-center" placeholder="" required autofocus>
-                        <div class="invalid-feedback">Please enter your student number.</div>
-                    </div>
-                    
+                    <!-- Removed Student Number Input Here -->
                     <div class="mb-2">
                         <div id="camera-container" class="rounded overflow-hidden mx-auto position-relative" 
                              style="max-width: 320px; height: 240px; background-color: #E3F2FD;">
-                            <video id="video" class="w-100 h-100" playsinline autoplay style="transform: scaleX(-1); object-fit: cover;"></video>
+                            <video id="video" class="w-100 h-100" playsinline autoplay muted style="transform: scaleX(-1); object-fit: cover;"></video>
                             <canvas id="canvas" class="d-none"></canvas>
                         </div>
                     </div>
                     <div class="alert alert-info py-1 px-2 mb-2 small">
-                        <i class="fas fa-info-circle me-1"></i>Position your face for verification after entering your student number.
+                        <i class="fas fa-info-circle me-1"></i>Position your face for verification and click verify.
                     </div>
                     <div id="verification-status" class="alert d-none py-1 px-2 mb-2" role="alert"></div>
                     
@@ -286,11 +298,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const faceVerificationModal = new bootstrap.Modal(document.getElementById('faceVerificationModal'));
     faceVerificationModal.show();
     
-    // Focus on student number input when modal is shown
-    document.getElementById('faceVerificationModal').addEventListener('shown.bs.modal', function () {
-        document.getElementById('studentNumberInput').focus();
-    });
-    
     console.log('Face verification modal shown');
     
     // Initialize the face verification module
@@ -502,6 +509,13 @@ function handleSuccessfulVerification(data) {
         // If there's an error, default to showing the voting not available modal
         showVotingNotAvailableModal('Error checking voting status. Please try again later.');
     });
+    
+    // Show welcome banner
+    if (data && data.message) {
+        const banner = document.getElementById('welcomeBanner');
+        banner.textContent = data.message;
+        banner.style.display = 'block';
+    }
 }
 
 // Helper function to show the voting not available modal with a custom message
@@ -550,32 +564,31 @@ function startVotingProcess() {
     console.log('User profile:', userProfile);
     
     // Add national positions (all users can vote)
-    {% for position, candidates in national_candidates.items %}
-    console.log('Adding national position: {{ position }} with candidates:', {{ candidates|safe }});
-    positions.push({
-        title: '{{ position }}',
-        candidates: {{ candidates|safe }},
-        type: 'national'
+    const nationalCandidates = JSON.parse('{{ national_candidates|safe|escapejs }}');
+    Object.entries(nationalCandidates).forEach(([position, candidates]) => {
+        console.log('Adding national position:', position, 'with candidates:', candidates);
+        positions.push({
+            title: position,
+            candidates: candidates,
+            type: 'national'
+        });
     });
-    {% endfor %}
     
-    // College positions need to be properly handled
-    // These should be filtered within the function rather than relying on Django template conditionals
-    {% for position, candidates in local_candidates.items %}
-    console.log('Adding local position: {{ position }} with candidates:', {{ candidates|safe }});
-    
-    // For department positions
-    positions.push({
-        title: '{{ position }}',
-        candidates: {{ candidates|safe }},
-        type: 'department',
-        eligibility: { 
-            college: userProfile.college, 
-            department: userProfile.department, 
-            yearLevel: userProfile.yearLevel 
-        }
+    // Add local positions
+    const localCandidates = JSON.parse('{{ local_candidates|safe|escapejs }}');
+    Object.entries(localCandidates).forEach(([position, candidates]) => {
+        console.log('Adding local position:', position, 'with candidates:', candidates);
+        positions.push({
+            title: position,
+            candidates: candidates,
+            type: 'department',
+            eligibility: { 
+                college: userProfile.college, 
+                department: userProfile.department, 
+                yearLevel: userProfile.yearLevel 
+            }
+        });
     });
-    {% endfor %}
     
     if (positions.length === 0) {
         console.error('No positions/candidates loaded');
@@ -616,7 +629,7 @@ function startVotingProcess() {
                     console.log('Showing next position after delay');
                     showNextPosition();
                 }, 500);
-    } catch (err) {
+            } catch (err) {
                 console.error('Alternative approach failed:', err);
                 alert('Error displaying voting interface. Please try again.');
             }

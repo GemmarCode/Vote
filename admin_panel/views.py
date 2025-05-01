@@ -24,7 +24,6 @@ import zipfile
 import tempfile
 import shutil
 from pathlib import Path
-from user.face_utils import FaceRecognition, preprocess_face_image
 from django.db.utils import IntegrityError
 from django.http import JsonResponse, HttpResponse, StreamingHttpResponse
 from django.template.loader import render_to_string
@@ -39,6 +38,24 @@ from django.views.decorators.csrf import csrf_exempt
 import random
 import string
 from django.urls import reverse
+from facenet_pytorch import InceptionResnetV1
+from PIL import Image
+import torch
+from torchvision import transforms
+
+model = InceptionResnetV1(pretrained='vggface2').eval()
+
+def preprocess_face_image(img):
+    # Resize to 160x160 as required by facenet-pytorch
+    return cv2.resize(img, (160, 160))
+
+def get_face_embedding(image_path):
+    img = Image.open(image_path).convert('RGB')
+    img = transforms.Resize((160,160))(img)
+    img_tensor = transforms.ToTensor()(img).unsqueeze(0)
+    with torch.no_grad():
+        embedding = model(img_tensor).numpy()[0]
+    return embedding.tolist()
 
 # Create your views here.
 
@@ -65,24 +82,35 @@ def dashboard(request):
     # Get active election settings
     active_settings = ElectionSettings.objects.filter(is_active=True).first()
     
-    # Basic Statistics
-    total_users = UserProfile.objects.count()
-    total_candidates = Candidate.objects.count()
-    total_votes = Vote.objects.count()
+    if not active_settings:
+        context = {
+            'no_active_year': True,
+            'current_school_year': None
+        }
+        return render(request, 'dashboard.html', context)
+    
+    # Basic Statistics - Filter by active school year
+    total_users = UserProfile.objects.filter(school_year=active_settings.school_year).count()
+    total_candidates = Candidate.objects.filter(school_year=active_settings.school_year).count()
+    total_votes = Vote.objects.filter(school_year=active_settings.school_year).count()
     voter_turnout = round((total_votes / total_users * 100) if total_users > 0 else 0, 1)
     
     # Initialize vote trends and national candidates
     vote_trends = {}
-    national_candidates = Candidate.objects.filter(position='National')
+    national_candidates = Candidate.objects.filter(
+        position='National',
+        school_year=active_settings.school_year
+    )
 
     # Vote Trends for National Candidates (last 24 hours)
-    if active_settings and active_settings.is_voting_open:
+    if active_settings.is_voting_open:
         twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
 
         for candidate in national_candidates:
             votes = Vote.objects.filter(
                 candidate=candidate,
-                created_at__gte=twenty_four_hours_ago
+                created_at__gte=twenty_four_hours_ago,
+                school_year=active_settings.school_year
             ).annotate(
                 hour=TruncHour('created_at')
             ).values('hour').annotate(
@@ -302,14 +330,20 @@ def dashboard(request):
 @login_required
 @user_passes_test(is_admin)
 def manage_users(request):
-    # Get all users ordered by id (newer users will have higher IDs)
-    all_users = UserProfile.objects.all().order_by('-id')
-    print("DEBUG - Total users:", UserProfile.objects.count())
-    print("DEBUG - User student numbers:", [u.student_number for u in all_users])
-    
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    if not active_settings:
+        context = {
+            'all_users': [],
+            'current_school_year': None,
+            'no_active_year': True,
+            'no_active_year_message': 'No active school year yet.'
+        }
+        return render(request, 'manage_users.html', context)
+    current_school_year = active_settings.school_year
+    all_users = UserProfile.objects.filter(school_year=current_school_year).order_by('-id')
     context = {
         'all_users': all_users,
-        'current_school_year': get_current_school_year()
+        'current_school_year': current_school_year
     }
     return render(request, 'manage_users.html', context)
 
@@ -472,9 +506,21 @@ def register_user(request):
 @login_required
 @user_passes_test(is_admin)
 def manage_candidates(request):
-    # Get all candidates
-    candidates = Candidate.objects.all().select_related('user_profile')
-    
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    if not active_settings:
+        context = {
+            'candidates': [],
+            'national_positions': Candidate.NATIONAL_POSITIONS,
+            'college_positions': Candidate.COLLEGE_POSITIONS,
+            'local_positions': Candidate.LOCAL_POSITIONS,
+            'users_json': '[]',
+            'current_school_year': None,
+            'no_active_year': True,
+            'no_active_year_message': 'No active school year yet.'
+        }
+        return render(request, 'manage_candidates.html', context)
+    current_school_year = active_settings.school_year
+    candidates = Candidate.objects.filter(school_year=current_school_year).select_related('user_profile')
     if request.method == 'POST':
         action = request.POST.get('action')
         
@@ -555,13 +601,12 @@ def manage_candidates(request):
                         user_profile=user_profile,
                         position=position,
                         platform=platform,
-                        achievements=achievements
+                        achievements=achievements,
+                        school_year=current_school_year  # Automatically set active school year
                     )
-                    
                     # Save photo if provided
                     if photo:
                         candidate.photo = photo
-                    
                     candidate.save()
                     # Log activity
                     AdminActivity.objects.create(
@@ -596,9 +641,9 @@ def manage_candidates(request):
     college_positions = Candidate.COLLEGE_POSITIONS
     local_positions = Candidate.LOCAL_POSITIONS
     
-    # Get all users who are not already candidates
-    existing_candidate_users = Candidate.objects.values_list('user_profile_id', flat=True)
-    available_users = UserProfile.objects.exclude(id__in=existing_candidate_users)
+    # Get all users who are not already candidates for the active school year
+    existing_candidate_users = Candidate.objects.filter(school_year=current_school_year).values_list('user_profile_id', flat=True)
+    available_users = UserProfile.objects.filter(school_year=current_school_year).exclude(id__in=existing_candidate_users)
     users_json = json.dumps([{
         'id': user.id,
         'student_number': user.student_number,
@@ -611,7 +656,7 @@ def manage_candidates(request):
         'college_positions': college_positions,
         'local_positions': local_positions,
         'users_json': users_json,
-        'current_school_year': get_current_school_year()
+        'current_school_year': current_school_year
     }
     
     return render(request, 'manage_candidates.html', context)
@@ -649,6 +694,8 @@ def manage_elections(request):
                     school_year=school_year,
                     is_active=True  # This will automatically deactivate other years
                 )
+                # Inactivate all committee accounts for the new school year
+                CommitteeAccount.objects.all().update(is_active=False)
                 # Log activity
                 AdminActivity.objects.create(
                     admin_user=request.user,
@@ -730,11 +777,27 @@ def manage_elections(request):
 @login_required
 @user_passes_test(is_admin)
 def results(request):
-    # Get election results data
-    candidates = Candidate.objects.all().select_related('user_profile')
+    # Get active election settings
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    
+    if not active_settings:
+        context = {
+            'no_active_year': True,
+            'current_school_year': None
+        }
+        return render(request, 'results.html', context)
+    
+    # Get election results data - Filter by active school year
+    candidates = Candidate.objects.filter(
+        school_year=active_settings.school_year
+    ).select_related('user_profile')
+    
     results_data = []
     for candidate in candidates:
-        votes_count = Vote.objects.filter(candidate=candidate).count()
+        votes_count = Vote.objects.filter(
+            candidate=candidate,
+            school_year=active_settings.school_year
+        ).count()
         results_data.append({
             'candidate': candidate,
             'votes': votes_count
@@ -742,7 +805,7 @@ def results(request):
     
     context = {
         'results_data': results_data,
-        'current_school_year': get_current_school_year()
+        'current_school_year': active_settings.school_year
     }
     return render(request, 'results.html', context)
 
@@ -998,10 +1061,10 @@ def import_photos(request):
                                         # Try to update the student profile if it exists
                                         try:
                                             user_profile = UserProfile.objects.get(student_number=student_number)
-                                            # Store the image in binary format for the face_data field
-                                            _, buffer = cv2.imencode('.jpg', preprocessed_color)
-                                            face_bytes = buffer.tobytes()
-                                            user_profile.face_data = face_bytes
+                                            # Extract embedding using facenet-pytorch
+                                            embedding = get_face_embedding(os.path.join(django_settings.MEDIA_ROOT, face_path))
+                                            # Store embedding as JSON string in face_image field
+                                            user_profile.face_image = json.dumps(embedding)
                                             user_profile.save()
                                         except UserProfile.DoesNotExist:
                                             # Just continue - we've already saved the file
@@ -1084,28 +1147,39 @@ def admin_panel_login(request):
 
 @login_required
 def generate_report(request):
-    # Get all candidates and their votes
-    candidates = Candidate.objects.all().select_related('user_profile')
-    votes = Vote.objects.all()
-    
-    # Get all users who haven't voted
-    non_voters = UserProfile.objects.filter(
-        ~Q(id__in=Vote.objects.values('user_profile'))
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    if not active_settings:
+        context = {
+            'total_voters': 0,
+            'total_votes_cast': 0,
+            'voter_turnout': 0,
+            'total_candidates': 0,
+            'votes_by_position': {},
+            'non_voters_by_college': {},
+            'current_school_year': None,
+            'no_active_year': True,
+            'no_active_year_message': 'No active school year yet.'
+        }
+        return render(request, 'admin_panel/reports.html', context)
+    current_school_year = active_settings.school_year
+    # Get all candidates and their votes for the active school year
+    candidates = Candidate.objects.filter(school_year=current_school_year).select_related('user_profile')
+    votes = Vote.objects.filter(school_year=current_school_year)
+    # Get all users who haven't voted for the active school year
+    non_voters = UserProfile.objects.filter(school_year=current_school_year).exclude(
+        id__in=votes.values('user_profile')
     ).order_by('college', 'student_name')
-    
     # Calculate statistics
-    total_voters = UserProfile.objects.count()
+    total_voters = UserProfile.objects.filter(school_year=current_school_year).count()
     total_votes_cast = votes.count()
     total_candidates = candidates.count()
     voter_turnout = (total_votes_cast / total_voters * 100) if total_voters > 0 else 0
-    
     # Group non-voters by college
     non_voters_by_college = {}
     for voter in non_voters:
         if voter.college not in non_voters_by_college:
             non_voters_by_college[voter.college] = []
         non_voters_by_college[voter.college].append(voter)
-    
     # Group votes by position
     votes_by_position = {}
     for candidate in candidates:
@@ -1120,7 +1194,6 @@ def generate_report(request):
         })
         # Sort by vote count
         votes_by_position[position].sort(key=lambda x: x['votes'], reverse=True)
-    
     context = {
         'total_voters': total_voters,
         'total_votes_cast': total_votes_cast,
@@ -1128,9 +1201,8 @@ def generate_report(request):
         'total_candidates': total_candidates,
         'votes_by_position': votes_by_position,
         'non_voters_by_college': non_voters_by_college,
-        'current_school_year': get_current_school_year()
+        'current_school_year': current_school_year
     }
-    
     if request.GET.get('format') == 'pdf':
         # Create PDF
         buffer = BytesIO()
@@ -1246,38 +1318,47 @@ def admin_results(request):
     This is separate from the user-side results page and provides more detailed analytics.
     Only shows results after voting has ended.
     """
+    # Get active election settings
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    
+    if not active_settings:
+        context = {
+            'no_active_year': True,
+            'current_school_year': None
+        }
+        return render(request, 'admin_panel/results.html', context)
+    
     # Check if voting has ended
-    try:
-        election_settings = ElectionSettings.objects.get(id=1)
-        current_time = timezone.now()
-        voting_ended = not election_settings.is_voting_open() and election_settings.voting_time_end and current_time > timezone.make_aware(timezone.datetime.combine(election_settings.voting_date, election_settings.voting_time_end))
-        voting_status = "Active" if election_settings.is_voting_open() else "Not Started" if election_settings.voting_time_start and current_time < timezone.make_aware(timezone.datetime.combine(election_settings.voting_date, election_settings.voting_time_start)) else "Ended"
-    except ElectionSettings.DoesNotExist:
-        voting_ended = False
-        voting_status = "Not Configured"
+    current_time = timezone.now()
+    voting_ended = not active_settings.is_voting_open and active_settings.voting_time_end and current_time > timezone.make_aware(timezone.datetime.combine(active_settings.voting_date, active_settings.voting_time_end))
+    voting_status = "Active" if active_settings.is_voting_open else "Not Started" if active_settings.voting_time_start and current_time < timezone.make_aware(timezone.datetime.combine(active_settings.voting_date, active_settings.voting_time_start)) else "Ended"
     
     # If voting hasn't ended, just show the waiting message
     if not voting_ended:
         context = {
             'voting_ended': False,
             'voting_status': voting_status,
-            'current_school_year': get_current_school_year()
+            'current_school_year': active_settings.school_year
         }
         return render(request, 'admin_panel/results.html', context)
     
-    # Get all candidates and their votes
-    candidates = Candidate.objects.all().select_related('user_profile')
-    votes = Vote.objects.all()
+    # Get all candidates and their votes - Filter by active school year
+    candidates = Candidate.objects.filter(
+        school_year=active_settings.school_year
+    ).select_related('user_profile')
+    votes = Vote.objects.filter(school_year=active_settings.school_year)
     
-    # Calculate statistics
-    total_voters = UserProfile.objects.count()
+    # Calculate statistics - Filter by active school year
+    total_voters = UserProfile.objects.filter(school_year=active_settings.school_year).count()
     total_votes_cast = votes.count()
     total_candidates = candidates.count()
     voter_turnout = (total_votes_cast / total_voters * 100) if total_voters > 0 else 0
     
-    # Get all users who haven't voted
+    # Get all users who haven't voted - Filter by active school year
     non_voters = UserProfile.objects.filter(
-        ~Q(id__in=Vote.objects.values('user_profile'))
+        school_year=active_settings.school_year
+    ).exclude(
+        id__in=Vote.objects.filter(school_year=active_settings.school_year).values('user_profile')
     ).order_by('college', 'student_name')
     
     total_non_voters = non_voters.count()
@@ -1337,18 +1418,24 @@ def admin_results(request):
         if position_code in votes_by_position:
             ordered_votes_by_position[position_display] = votes_by_position[position_code]
     
-    # Calculate voter turnout by college
+    # Calculate voter turnout by college - Filter by active school year
     college_turnout = {}
-    colleges = UserProfile.objects.values_list('college', flat=True).distinct()
+    colleges = UserProfile.objects.filter(
+        school_year=active_settings.school_year
+    ).values_list('college', flat=True).distinct()
     
     for college in colleges:
         # Count total voters in this college
-        total_college_voters = UserProfile.objects.filter(college=college).count()
+        total_college_voters = UserProfile.objects.filter(
+            college=college,
+            school_year=active_settings.school_year
+        ).count()
         
         # Count voters who have voted
         college_voters = UserProfile.objects.filter(
             college=college,
-            id__in=Vote.objects.values('user_profile')
+            school_year=active_settings.school_year,
+            id__in=Vote.objects.filter(school_year=active_settings.school_year).values('user_profile')
         ).count()
         
         # Calculate percentage
@@ -1371,7 +1458,7 @@ def admin_results(request):
         'college_turnout': college_turnout,
         'total_non_voters': total_non_voters,
         'non_voter_percentage': non_voter_percentage,
-        'current_school_year': get_current_school_year()
+        'current_school_year': active_settings.school_year
     }
     
     return render(request, 'admin_panel/results.html', context)
@@ -1418,8 +1505,13 @@ def generate_code(request):
                 'message': 'Student not found'
             }, status=404)
 
-        # Generate a random 6-digit code
-        code = ''.join(random.choices(string.digits, k=6))
+        # Generate a unique 6-digit code
+        from user.models import VerificationCode
+        import random
+        while True:
+            code = ''.join(random.choices(string.digits, k=6))
+            if not VerificationCode.objects.filter(code=code).exists():
+                break
         expires_at = timezone.now() + timedelta(hours=1)
 
         # Create new verification code

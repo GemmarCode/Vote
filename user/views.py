@@ -6,7 +6,6 @@ from django.http import JsonResponse
 from .models import UserProfile, Candidate, Vote, VotingPhase, FaceData, VerificationCode
 from admin_panel.models import ElectionSettings
 from django.core.exceptions import ValidationError
-from .face_utils import process_webcam_image, verify_voter_face, preprocess_face_image
 import cv2
 import numpy as np
 from django.db import transaction
@@ -28,7 +27,6 @@ from django.views.decorators.http import require_http_methods
 import insightface
 from insightface.app import FaceAnalysis
 from django.views.decorators.csrf import csrf_exempt
-from .face_utils import FaceRecognition
 import time
 
 LOGIN_URL = 'login'  # or whatever your login URL name is
@@ -228,117 +226,6 @@ def get_local_candidates(user_profile):
         'college': {c.position: c for c in college_candidates},
         'department': {c.position: c for c in department_candidates}
     }
-
-@csrf_exempt
-def verify_face(request):
-    """Enhanced face verification function that only processes the specific student's photo"""
-    try:
-        # Get data from request
-        data = json.loads(request.body)
-        face_data = data.get('face_data')
-        student_number = data.get('student_number')
-
-        if not face_data:
-            print("No face data in request")
-            return JsonResponse({
-                'success': False,
-                'message': 'No face data provided'
-            }, status=400)
-
-        if not student_number:
-            print("No student number provided")
-            return JsonResponse({
-                'success': False,
-                'message': 'Student number is required'
-            }, status=400)
-
-        # Process the webcam image
-        captured_face = process_webcam_image(face_data)
-        if captured_face is None:
-            print("Failed to process captured image")
-            return JsonResponse({
-                'success': False,
-                'message': 'Failed to process captured image'
-            }, status=400)
-        
-        # Get the specific student's face image path
-        face_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
-        stored_image_path = os.path.join(face_dir, f"{student_number}.jpg")
-        
-        if not os.path.exists(stored_image_path):
-            print(f"No face data found for student: {student_number}")
-            return JsonResponse({
-                'success': False,
-                'message': 'Face verification failed. Please try again.'
-            }, status=400)
-            
-        # Load the stored face image
-        stored_image = cv2.imread(stored_image_path)
-        if stored_image is None:
-            print(f"Failed to load stored image for student: {student_number}")
-            return JsonResponse({
-                'success': False,
-                'message': 'Face verification failed. Please try again.'
-            }, status=400)
-
-        # Perform verification using our enhanced multi-method approach
-        verification_result = verify_voter_face(captured_face, stored_image)
-        print(f"Verification result for {student_number}: {verification_result}")
-        
-        # Get verification details
-        successful_methods = verification_result.get('successful_methods', 0)
-        score = 1.0 - verification_result.get('distance', 1.0)
-        threshold = 0.6
-        min_required_success = 2
-
-        # Verify BOTH conditions: score threshold AND minimum number of successful methods
-        verification_passed = (score > threshold and successful_methods >= min_required_success)
-        
-        if verification_passed:
-            try:
-                user_profile = UserProfile.objects.get(student_number=student_number)
-                print(f"Found matching user profile for student number: {student_number}")
-                
-                return JsonResponse({
-                    'success': True,
-                    'message': 'Face verification successful',
-                    'user_profile_id': user_profile.id,
-                    'student_number': user_profile.student_number,
-                    'college': user_profile.college,
-                    'department': user_profile.course,
-                    'year_level': user_profile.year_level,
-                    'score': score,
-                    'successful_methods': successful_methods,
-                    'required_methods': min_required_success,
-                    'redirect_url': reverse('user:vote')
-                })
-            except UserProfile.DoesNotExist:
-                print(f"No user profile found for student number: {student_number}")
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Face verification failed. Please try again.'
-                }, status=400)
-        else:
-            print("Face verification failed")
-            return JsonResponse({
-                'success': False,
-                'message': 'Face verification failed. Please try again.',
-                'can_retry': True
-            }, status=400)
-            
-    except json.JSONDecodeError as e:
-        print(f"JSON decode error: {str(e)}")
-        return JsonResponse({
-            'success': False,
-            'message': 'Invalid request format'
-        }, status=400)
-    except Exception as e:
-        print(f"Unexpected error: {str(e)}")
-        print(traceback.format_exc())
-        return JsonResponse({
-            'success': False,
-            'message': 'Face verification failed. Please try again.'
-        }, status=500)
 
 def cast_vote(request, candidate_id):
     if request.method == 'POST':

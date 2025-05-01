@@ -1,0 +1,29 @@
+[
+    {
+        "student_number": "2023-0001",
+        "student_name": "John Doe",
+        "sex": "M",
+        "year_level": "1",
+        "course": "Computer Science",
+        "college": "CAS",
+        "school_year": "2023-2024"
+    },
+    {
+        "student_number": "2023-0002",
+        "student_name": "Jane Smith",
+        "sex": "F",
+        "year_level": "2",
+        "course": "Information Technology",
+        "college": "CIT",
+        "school_year": "2023-2024"
+    },
+    {
+        "student_number": "2023-0003",
+        "student_name": "Mike Johnson",
+        "sex": "M",
+        "year_level": "3",
+        "course": "Criminal Justice",
+        "college": "CCJE",
+        "school_year": "2023-2024"
+    }
+] 

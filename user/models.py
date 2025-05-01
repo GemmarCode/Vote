@@ -3,11 +3,16 @@ from django.contrib.auth.models import User
 import cv2
 import numpy as np
 import pickle
+import json
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.utils import timezone
 import insightface
 from insightface.app import FaceAnalysis
 import os
+from facenet_pytorch import InceptionResnetV1
+from PIL import Image
+import torch
+from torchvision import transforms
 
 # Create your models here.
 
@@ -41,6 +46,7 @@ class UserProfile(models.Model):
     course = models.CharField(max_length=100)
     college = models.CharField(max_length=10, choices=COLLEGES)
     school_year = models.CharField(max_length=9, help_text="Format: YYYY-YYYY")  # e.g., "2023-2024"
+    face_image = models.TextField(null=True, blank=True)  # Store face embedding as JSON string
 
     class Meta:
         db_table = 'user_profile'
@@ -53,6 +59,39 @@ class UserProfile(models.Model):
 
     def get_college_display(self):
         return dict(self.COLLEGES).get(self.college, self.college)
+
+    def extract_and_save_face_embedding(self, image_path):
+        """Extract face embedding using facenet-pytorch and save to database"""
+        try:
+            # Initialize the model
+            model = InceptionResnetV1(pretrained='vggface2').eval()
+            
+            # Load and preprocess the image
+            img = Image.open(image_path).convert('RGB')
+            img = transforms.Resize((160, 160))(img)
+            img_tensor = transforms.ToTensor()(img).unsqueeze(0)
+            
+            # Extract embedding
+            with torch.no_grad():
+                embedding = model(img_tensor).numpy()[0]
+            
+            # Convert to list and save as JSON
+            self.face_image = json.dumps(embedding.tolist())
+            self.save()
+            return True
+            
+        except Exception as e:
+            print(f"Error extracting face embedding: {str(e)}")
+            return False
+
+    def get_face_embedding(self):
+        """Retrieve face embedding from database"""
+        if not self.face_image:
+            return None
+        try:
+            return np.array(json.loads(self.face_image))
+        except:
+            return None
 
 class Candidate(models.Model):
     # Position Constants
