@@ -30,9 +30,6 @@
             <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
                 <i class="fas fa-key me-2"></i>Change Admin Password
             </button>
-            <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#activityLogsModal">
-                <i class="fas fa-history me-2"></i>Activity Logs
-            </button>
         </div>
     </div>
 
@@ -47,11 +44,11 @@
                         {% csrf_token %}
                         <div class="mb-3">
                             <label for="user_profile" class="form-label" style="color: #1976D2; font-weight: 600;">Select Student</label>
-                            <div class="input-group">
+                            <div class="input-group position-relative">
                                 <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
                                     <i class="fas fa-user"></i>
                                 </span>
-                                <select class="form-select select2" id="user_profile" name="user_profile_id" required>
+                                <select class="form-select" id="user_profile" name="user_profile_id" required>
                                     <option value="">Search for a student...</option>
                                 </select>
                             </div>
@@ -95,22 +92,29 @@
                             <thead class="table-header">
                                 <tr>
                                     <th>Username</th>
-                                    <th>Name</th>
+                                    <th>Full Name</th>
+                                    <th>Last Activity</th>
+                                    <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {% for account in committee_accounts %}
+                                {% for committee in committee_accounts %}
                                 <tr>
-                                    <td>{{ account.user.username }}</td>
-                                    <td>{{ account.user.first_name }}</td>
+                                    <td>{{ committee.user.username }}</td>
+                                    <td>{{ committee.user.get_full_name }}</td>
+                                    <td>{{ committee.user.last_login|date:"Y-m-d H:i" }}</td>
                                     <td>
-                                        <form method="post" action="{% url 'admin_panel:delete_committee' account.id %}" class="d-inline">
-                                            {% csrf_token %}
-                                            <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Are you sure you want to delete this committee account?')">
-                                                <i class="fas fa-trash-alt me-1"></i>Delete
-                                            </button>
-                                        </form>
+                                        <span class="badge {% if committee.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                            {% if committee.is_active %}Active{% else %}Inactive{% endif %}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-info toggle-status" 
+                                                data-committee-id="{{ committee.id }}"
+                                                data-status="{{ committee.is_active|lower }}">
+                                            {% if committee.is_active %}Deactivate{% else %}Activate{% endif %}
+                                        </button>
                                     </td>
                                 </tr>
                                 {% endfor %}
@@ -212,87 +216,6 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-danger" data-bs-dismiss="modal">Close</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Activity Logs Modal -->
-<div class="modal fade" id="activityLogsModal" tabindex="-1" aria-labelledby="activityLogsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header" style="background-color: #1976D2;">
-                <h5 class="modal-title text-white" id="activityLogsModalLabel">Activity Logs</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <div class="input-group">
-                        <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                            <i class="fas fa-search"></i>
-                        </span>
-                        <input type="text" class="form-control" id="accountSearch" placeholder="Search by username, name, or role...">
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <th>Name</th>
-                                <th>Role</th>
-                                <th>Last Activity</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="accountsTableBody">
-                            {% for user in users %}
-                            <tr class="user-row" data-username="{{ user.username }}" data-name="{{ user.get_full_name }}" data-role="{% if user.is_superuser %}Admin{% else %}Committee{% endif %}">
-                                <td>{{ user.username }}</td>
-                                <td>{{ user.get_full_name }}</td>
-                                <td>
-                                    {% if user.is_superuser %}
-                                        <span class="badge bg-danger">Admin</span>
-                                    {% else %}
-                                        <span class="badge bg-info">Committee</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    {% with last_activity=user.adminactivity_set.first %}
-                                        {% if last_activity %}
-                                            {{ last_activity.created_at|date:"M d, Y H:i" }}
-                                        {% else %}
-                                            No activity
-                                        {% endif %}
-                                    {% endwith %}
-                                </td>
-                                <td>
-                                    <button type="button" class="btn btn-primary btn-sm view-logs-btn" data-user-id="{{ user.id }}">
-                                        <i class="fas fa-eye me-1"></i>View Logs
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- User Activity Logs Modal -->
-<div class="modal fade" id="userLogsModal" tabindex="-1" aria-labelledby="userLogsModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <div class="modal-content">
-            <div class="modal-header" style="background-color: #1976D2;">
-                <h5 class="modal-title text-white" id="userLogsModalLabel">User Activity Logs</h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="userLogsContent">
-                    <!-- Content will be loaded here via AJAX -->
-                </div>
             </div>
         </div>
     </div>
@@ -408,49 +331,25 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <!-- Add SweetAlert2 library -->
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script id="usersJson" type="application/json">{{ users_json|safe }}</script>
 <script>
-    // Parse the users data from the context
-    const users = {{ users_json|safe }};
-    
-    // Initialize Select2
+    // Only declare users once, right after usersJson script
+    const users = JSON.parse(document.getElementById('usersJson').textContent);
+    console.log('Loaded users:', users); // Debug: print users array
     $(document).ready(function() {
+        // Populate the Select2 dropdown with students
         const userSelect = $('#user_profile');
-        
-        // Populate the student dropdown
         users.forEach(user => {
             const option = new Option(`${user.student_number} - ${user.name}`, user.id);
             userSelect.append(option);
         });
-        
-        // Initialize Select2 with search configuration
         userSelect.select2({
             theme: 'bootstrap-5',
             placeholder: 'Search for a student...',
             allowClear: true,
             width: '100%',
-            minimumInputLength: 1,
-            matcher: function(params, data) {
-                // If there are no search terms, return all of the data
-                if ($.trim(params.term) === '') {
-                    return data;
-                }
-
-                // Do not display the item if there is no 'text' property
-                if (typeof data.text === 'undefined') {
-                    return null;
-                }
-
-                // `params.term` should be the term that is used for searching
-                // `data.text` is the text that is displayed for the data object
-                if (data.text.toLowerCase().indexOf(params.term.toLowerCase()) > -1) {
-                    return data;
-                }
-
-                // Return `null` if the term should not be displayed
-                return null;
-            }
         });
-        
+
         // Auto-fill username when student is selected
         userSelect.on('change', function() {
             const selectedUser = users.find(user => user.id === parseInt(this.value));
@@ -458,6 +357,20 @@
                 $('#username').val(selectedUser.student_number);
             } else {
                 $('#username').val('');
+            }
+        });
+
+        // Reset the form after success
+        $(document).ready(function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const success = urlParams.get('success');
+            const studentName = urlParams.get('student_name');
+            if (success === 'true' && studentName) {
+                $('#successMessage').text(`Committee account has been created successfully for ${studentName}`);
+                $('#successModal').modal('show');
+                $('#user_profile').val('').trigger('change');
+                $('#username').val('');
+                $('#password').val('');
             }
         });
 
@@ -523,94 +436,39 @@
             });
         });
         
-        // Check for success message in URL parameters
-        $(document).ready(function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const success = urlParams.get('success');
-            const studentName = urlParams.get('student_name');
+        // Handle committee status toggle
+        $('.toggle-status').click(function() {
+            const button = $(this);
+            const committeeId = button.data('committee-id');
+            const currentStatus = button.data('status');
+            const newStatus = currentStatus === 'true' ? 'false' : 'true';
             
-            if (success === 'true' && studentName) {
-                // Show success modal
-                $('#successMessage').text(`Committee account has been created successfully for ${studentName}`);
-                $('#successModal').modal('show');
-                
-                // Reset the form
-                $('#user_profile').val('').trigger('change');
-                $('#username').val('');
-                $('#password').val('');
-            }
-        });
-
-        // Function to show user activity logs
-        function showUserLogs(userId) {
-            const $modal = $('#userLogsModal');
-            const $content = $('#userLogsContent');
-            
-            // Show loading state
-            $content.html(`
-                <div class="text-center py-4">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2">Loading activity logs...</p>
-                </div>
-            `);
-            
-            // Load the content first
-            $.get(`/admin-panel/user-activity-logs/${userId}/`, function(data) {
-                $content.html(data);
-                // Show the modal after content is loaded
-                $modal.modal('show');
-            }).fail(function() {
-                $content.html(`
-                    <div class="alert alert-danger">
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        Failed to load activity logs. Please try again.
-                    </div>
-                `);
-                $modal.modal('show');
-            });
-        }
-
-        // Initialize the modal with proper options
-        const userLogsModal = new bootstrap.Modal(document.getElementById('userLogsModal'), {
-            backdrop: 'static',
-            keyboard: false
-        });
-
-        // Attach click handler to view logs buttons
-        $(document).on('click', '.view-logs-btn', function() {
-            const userId = $(this).data('user-id');
-            showUserLogs(userId);
-        });
-
-        // Reset modal content when it's hidden
-        $('#userLogsModal').on('hidden.bs.modal', function () {
-            $('#userLogsContent').empty();
-        });
-
-        // Account search functionality
-        $('#accountSearch').on('keyup', function() {
-            const searchText = $(this).val().toLowerCase();
-            const $rows = $('.user-row');
-            
-            if (searchText.length === 0) {
-                $rows.show();
-                return;
-            }
-            
-            $rows.each(function() {
-                const $row = $(this);
-                const username = $row.data('username').toLowerCase();
-                const name = $row.data('name').toLowerCase();
-                const role = $row.data('role').toLowerCase();
-                
-                if (username.includes(searchText) || 
-                    name.includes(searchText) || 
-                    role.includes(searchText)) {
-                    $row.show();
-                } else {
-                    $row.hide();
+            $.ajax({
+                url: `/admin-panel/toggle-committee-status/${committeeId}/`,
+                method: 'POST',
+                data: {
+                    csrfmiddlewaretoken: '{{ csrf_token }}'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // Update button text and data attributes
+                        button.text(currentStatus === 'true' ? 'Activate' : 'Deactivate');
+                        button.data('status', newStatus);
+                        
+                        // Update status badge
+                        const statusBadge = button.closest('tr').find('.badge');
+                        statusBadge.removeClass('bg-success bg-danger')
+                                  .addClass(newStatus === 'true' ? 'bg-success' : 'bg-danger')
+                                  .text(newStatus === 'true' ? 'Active' : 'Inactive');
+                                  
+                        // Show success message
+                        alert('Committee account status updated successfully');
+                    } else {
+                        alert('Error updating committee account status');
+                    }
+                },
+                error: function() {
+                    alert('Error updating committee account status');
                 }
             });
         });

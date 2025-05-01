@@ -10,70 +10,61 @@ from django.dispatch import receiver
 class AdminActivity(models.Model):
     admin_user = models.ForeignKey(User, on_delete=models.CASCADE)
     action = models.CharField(max_length=255)
-    details = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    ip_address = models.GenericIPAddressField(null=True, blank=True)
-
-    class Meta:
-        ordering = ['-created_at']
-        verbose_name_plural = 'Admin Activities'
+    timestamp = models.DateTimeField(auto_now_add=True)
+    details = models.TextField(blank=True, null=True)
 
     def __str__(self):
-        return f"{self.admin_user.username} - {self.action} - {self.created_at}"
+        return f"{self.admin_user.username} - {self.action} at {self.timestamp}"
 
 class ElectionSettings(models.Model):
-    school_year = models.CharField(max_length=9, help_text="Format: YYYY-YYYY")  # e.g., "2023-2024"
-    is_active = models.BooleanField(default=True)
-    candidacy_deadline = models.DateTimeField(null=True, blank=True)
-    voting_start = models.DateTimeField(null=True, blank=True)
-    voting_end = models.DateTimeField(null=True, blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
-    class Meta:
-        verbose_name = 'Election Settings'
-        verbose_name_plural = 'Election Settings'
+    school_year = models.CharField(max_length=9, unique=True, help_text="Format: YYYY-YYYY")
+    voting_date = models.DateField(null=True, blank=True)
+    voting_time_start = models.TimeField(null=True, blank=True)
+    voting_time_end = models.TimeField(null=True, blank=True)
+    is_active = models.BooleanField(default=False)
 
-    def is_candidacy_open(self):
-        if not self.candidacy_deadline or not self.is_active:
-            return False
-        return timezone.now() <= self.candidacy_deadline
-
-    def is_voting_open(self):
-        if not self.voting_start or not self.voting_end or not self.is_active:
-            return False
-        now = timezone.now()
-        return self.voting_start <= now <= self.voting_end
+    def __str__(self):
+        return f"Settings for {self.school_year} (Active: {self.is_active})"
 
     def clean(self):
-        # Validate school year format
+        # Ensure voting end time is after voting start time on the same date
+        if self.voting_time_start and self.voting_time_end and self.voting_time_end <= self.voting_time_start:
+            raise ValidationError("Voting end time must be after voting start time.")
+        # Check school year format
         if self.school_year:
             try:
                 start_year, end_year = map(int, self.school_year.split('-'))
                 if end_year != start_year + 1:
-                    raise ValidationError({'school_year': 'End year must be start year + 1'})
-                if len(str(start_year)) != 4 or len(str(end_year)) != 4:
-                    raise ValidationError({'school_year': 'Years must be in YYYY format'})
-            except ValueError:
-                raise ValidationError({'school_year': 'School year must be in YYYY-YYYY format'})
+                    raise ValidationError("School year format must be YYYY-YYYY with consecutive years.")
+            except (ValueError, IndexError):
+                raise ValidationError("Invalid school year format. Use YYYY-YYYY.")
 
     def save(self, *args, **kwargs):
+        # If this is being set to active, deactivate all others
         if self.is_active:
-            # Deactivate all other school years
-            ElectionSettings.objects.exclude(id=self.id).update(is_active=False)
+            ElectionSettings.objects.filter(is_active=True).exclude(pk=self.pk).update(is_active=False)
+        # Ensure at least one setting is active if this one is being deactivated
+        elif not self.is_active and ElectionSettings.objects.filter(is_active=True).count() == 1 and ElectionSettings.objects.get(is_active=True).pk == self.pk:
+            pass # Or raise ValidationError("At least one school year must be active.")
         super().save(*args, **kwargs)
+
+    @property
+    def is_voting_open(self):
+        now = timezone.localtime(timezone.now())  # Convert to local time
+        if not (self.voting_date and self.voting_time_start and self.voting_time_end):
+            return False
+        voting_start = timezone.make_aware(timezone.datetime.combine(self.voting_date, self.voting_time_start))
+        voting_end = timezone.make_aware(timezone.datetime.combine(self.voting_date, self.voting_time_end))
+        voting_start = timezone.localtime(voting_start)
+        voting_end = timezone.localtime(voting_end)
+        return voting_start <= now < voting_end
 
 class CommitteeAccount(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='committee_profile')
     is_active = models.BooleanField(default=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
-        return f"{self.user.get_full_name()} ({self.user.username})"
-    
-    class Meta:
-        verbose_name = "Committee Account"
-        verbose_name_plural = "Committee Accounts"
+        return f"Committee Account for {self.user.username}"
 
 @receiver(post_save, sender=CommitteeAccount)
 def set_committee_permissions(sender, instance, created, **kwargs):

@@ -18,82 +18,72 @@
                         <button onclick="window.print()" class="btn btn-light btn-sm me-2">
                             <i class="fas fa-print"></i> Print Preview
                         </button>
+                        <button onclick="showAbstentionReport()" class="btn btn-light btn-sm me-2" id="abstentionReportBtn">
+                            <i class="fas fa-user-slash"></i> Abstention Report
+                        </button>
                         <a href="?format=pdf" class="btn btn-light btn-sm">
                             <i class="fas fa-download"></i> Download PDF
                         </a>
                     </div>
                 </div>
                 <div class="card-body">
-                    <!-- Report Header -->
-                    <div class="text-center mb-4 d-print-block">
-                        <h2 class="header-title mb-3">Election Results Report</h2>
-                        <p class="text-muted">Generated on: {% now "F j, Y - H:i" %}</p>
-                        <hr class="divider">
-                    </div>
+                    <!-- MAIN REPORT SECTION -->
+                    <div id="mainReportSection">
+                        <!-- Report Header -->
+                        <div class="text-center mb-4 d-print-block">
+                            <h2 class="header-title mb-3">Election Results Report</h2>
+                            <p class="text-muted">Generated on: {% now "F j, Y - H:i" %}</p>
+                            <hr class="divider">
+                        </div>
 
-                    <!-- Summary Statistics -->
-                    <div class="row mb-4">
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card h-100">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-4 text-center">
-                                            <div class="stats-icon">
-                                                <i class="fas fa-users"></i>
-                                            </div>
+                        <!-- Summary Statistics -->
+                        <div class="row mb-4 stats-row">
+                            <div class="col-md-3 mb-3 stats-col">
+                                <div class="stats-card h-100">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="stats-icon me-3 no-print-icon">
+                                            <i class="fas fa-users"></i>
                                         </div>
-                                        <div class="col-8">
+                                        <div>
                                             <h6 class="stats-label">Total Voters</h6>
                                             <h3 class="stats-value">{{ total_voters }}</h3>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card h-100">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-4 text-center">
-                                            <div class="stats-icon" style="background-color: rgba(76, 175, 80, 0.1); color: #4CAF50;">
-                                                <i class="fas fa-vote-yea"></i>
-                                            </div>
+                            <div class="col-md-3 mb-3 stats-col">
+                                <div class="stats-card h-100">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="stats-icon me-3 no-print-icon" style="background-color: rgba(76, 175, 80, 0.1); color: #4CAF50;">
+                                            <i class="fas fa-vote-yea"></i>
                                         </div>
-                                        <div class="col-8">
+                                        <div>
                                             <h6 class="stats-label">Total Votes Cast</h6>
                                             <h3 class="stats-value">{{ total_votes_cast }}</h3>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card h-100">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-4 text-center">
-                                            <div class="stats-icon" style="background-color: rgba(33, 150, 243, 0.1); color: #2196F3;">
-                                                <i class="fas fa-percentage"></i>
-                                            </div>
+                            <div class="col-md-3 mb-3 stats-col">
+                                <div class="stats-card h-100">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="stats-icon me-3 no-print-icon" style="background-color: rgba(33, 150, 243, 0.1); color: #2196F3;">
+                                            <i class="fas fa-percentage"></i>
                                         </div>
-                                        <div class="col-8">
+                                        <div>
                                             <h6 class="stats-label">Voter Turnout</h6>
                                             <h3 class="stats-value">{{ voter_turnout|floatformat:1 }}%</h3>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card h-100">
-                                <div class="card-body">
-                                    <div class="row align-items-center">
-                                        <div class="col-4 text-center">
-                                            <div class="stats-icon" style="background-color: rgba(255, 152, 0, 0.1); color: #FF9800;">
-                                                <i class="fas fa-user-tie"></i>
-                                            </div>
+                            <div class="col-md-3 mb-3 stats-col">
+                                <div class="stats-card h-100">
+                                    <div class="card-body d-flex align-items-center">
+                                        <div class="stats-icon me-3 no-print-icon" style="background-color: rgba(255, 152, 0, 0.1); color: #FF9800;">
+                                            <i class="fas fa-user-tie"></i>
                                         </div>
-                                        <div class="col-8">
+                                        <div>
                                             <h6 class="stats-label">Total Candidates</h6>
                                             <h3 class="stats-value">{{ total_candidates }}</h3>
                                         </div>
@@ -101,137 +91,125 @@
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- Results by Position -->
-                    <div class="admin-card mb-4">
-                        <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
-                            <h6 class="m-0 font-weight-bold header-title">Results by Position</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3 d-flex justify-content-end no-print">
-                                <button class="btn btn-sm btn-outline-primary me-2" onclick="toggleAllTables()">
-                                    <i class="fas fa-expand-alt"></i> Expand/Collapse All
-                                </button>
-                                <div class="btn-group">
-                                    <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
-                                        <i class="fas fa-filter"></i> Filter
-                                    </button>
-                                    <ul class="dropdown-menu">
-                                        <li><a class="dropdown-item" href="#" onclick="filterPositions('all')">All Positions</a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="filterPositions('national')">National Only</a></li>
-                                        <li><a class="dropdown-item" href="#" onclick="filterPositions('college')">College Only</a></li>
-                                    </ul>
-                                </div>
+                        <!-- Results by Position -->
+                        <div class="admin-card mb-4">
+                            <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
+                                <h6 class="m-0 font-weight-bold header-title">Results by Position</h6>
                             </div>
-                            
-                            {% for position, candidates in votes_by_position.items %}
-                            <div class="position-results mb-4" data-position-type="{% if 'College' in position or 'Governor' in position %}college{% else %}national{% endif %}">
-                                <div class="position-header d-flex align-items-center cursor-pointer" onclick="toggleTable(this)">
-                                    <i class="fas fa-chevron-down me-2 toggle-icon"></i>
-                                    <h5 class="font-weight-bold mb-0">{{ position }}</h5>
-                                    {% if candidates.0.is_winner %}
-                                        <span class="winner-badge ms-3">
-                                            <i class="fas fa-crown me-1"></i>Winner: {{ candidates.0.candidate.user_profile.student_name }}
-                                        </span>
-                                    {% endif %}
+                            <div class="card-body">
+                                <div class="mb-3 d-flex justify-content-end no-print">
+                                    <button class="btn btn-sm btn-outline-primary me-2" onclick="toggleAllSections()">
+                                        <i class="fas fa-expand-alt"></i> Expand/Collapse All
+                                    </button>
+                                    <div class="btn-group">
+                                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                            <i class="fas fa-filter"></i> Filter
+                                        </button>
+                                        <ul class="dropdown-menu">
+                                            <li><a class="dropdown-item" href="#" onclick="filterPositions('all')">All Positions</a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="filterPositions('national')">National Only</a></li>
+                                            <li><a class="dropdown-item" href="#" onclick="filterPositions('college')">College Only</a></li>
+                                        </ul>
+                                    </div>
                                 </div>
-                                <div class="table-responsive mt-3 position-table">
-                                    <table class="table table-bordered">
-                                        <thead class="table-header">
-                                            <tr>
-                                                <th>Candidate</th>
-                                                <th>Student Number</th>
-                                                <th>College</th>
-                                                <th>Votes</th>
-                                                <th>Percentage</th>
-                                                <th>Result</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
+                                
+                                {% for position, candidates in votes_by_position.items %}
+                                <div class="position-section mb-4" data-position-type="{% if 'College' in position or 'Governor' in position %}college{% else %}national{% endif %}">
+                                    <div class="position-header d-flex align-items-center cursor-pointer" onclick="toggleSection(this)">
+                                        <i class="fas fa-chevron-down me-2 toggle-icon"></i>
+                                        <h5 class="font-weight-bold mb-0">{{ position }}</h5>
+                                        {% if candidates.0.is_winner %}
+                                            <span class="winner-badge ms-3">
+                                                <i class="fas fa-crown me-1"></i>Winner: {{ candidates.0.candidate.user_profile.student_name }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                    <div class="position-content mt-3">
+                                        <div class="candidates-row d-flex flex-row flex-wrap gap-2">
                                             {% for candidate in candidates %}
-                                            <tr class="{% if candidate.is_winner %}winner-row{% endif %}">
-                                                <td>{{ candidate.candidate.user_profile.student_name }}</td>
-                                                <td>{{ candidate.candidate.user_profile.student_number }}</td>
-                                                <td>{{ candidate.candidate.user_profile.college }}</td>
-                                                <td>{{ candidate.votes }}</td>
-                                                <td>
-                                                    <div class="d-flex align-items-center">
-                                                        <div class="progress flex-grow-1 me-2" style="height: 8px;">
+                                            <div class="candidate-card-sm {% if candidate.is_winner %}winner-card{% endif %}">
+                                                <div class="card-body p-2">
+                                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                                        <div>
+                                                            <div class="card-title mb-1" style="font-size: 1rem; font-weight: 600;">{{ candidate.candidate.user_profile.student_name }}</div>
+                                                            <div class="text-muted mb-1" style="font-size: 0.85rem;">{{ candidate.candidate.user_profile.student_number }}</div>
+                                                            <div class="text-muted mb-0" style="font-size: 0.85rem;">{{ candidate.candidate.user_profile.college }}</div>
+                                                        </div>
+                                                        {% if candidate.is_winner %}
+                                                        <span class="badge" style="background-color: #1976D2; font-size: 0.8rem;">Winner</span>
+                                                        {% else %}
+                                                        <span class="badge" style="background-color: #E3F2FD; color: #1976D2; font-size: 0.8rem;">Runner-up</span>
+                                                        {% endif %}
+                                                    </div>
+                                                    <div class="votes-info p-1" style="font-size: 0.85rem;">
+                                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                                            <span class="votes-count">{{ candidate.votes }} votes</span>
+                                                            <span class="votes-percentage">{{ candidate.percentage|floatformat:1 }}%</span>
+                                                        </div>
+                                                        <div class="progress" style="height: 6px;">
                                                             <div class="progress-bar" style="width: {{ candidate.percentage }}%; background-color: {% if candidate.is_winner %}#1976D2{% else %}#42A5F5{% endif %}"></div>
                                                         </div>
-                                                        <span>{{ candidate.percentage|floatformat:1 }}%</span>
                                                     </div>
-                                                </td>
-                                                <td>
-                                                    {% if candidate.is_winner %}
-                                                    <span class="badge" style="background-color: #1976D2;">Winner</span>
-                                                    {% else %}
-                                                    <span class="badge" style="background-color: #E3F2FD; color: #1976D2;">Runner-up</span>
-                                                    {% endif %}
-                                                </td>
-                                            </tr>
-                                            {% endfor %}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-
-                    <!-- Non-Voters by College -->
-                    <div class="admin-card mb-4">
-                        <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
-                            <h6 class="m-0 font-weight-bold header-title">Non-Voters by College</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3 d-flex justify-content-end no-print">
-                                <div class="input-group" style="max-width: 300px;">
-                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                                        <i class="fas fa-search"></i>
-                                    </span>
-                                    <input type="text" class="form-control" id="nonVoterSearch" placeholder="Search by name or student #" oninput="searchNonVoters(this.value)">
-                                </div>
-                            </div>
-                            
-                            <div class="accordion" id="nonVotersAccordion">
-                                {% for college, voters in non_voters_by_college.items %}
-                                <div class="accordion-item mb-3 college-item">
-                                    <h2 class="accordion-header" id="heading{{ forloop.counter }}">
-                                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}">
-                                            <span class="fw-bold">{{ college }}</span>
-                                            <span class="badge rounded-pill ms-2" style="background-color: #E3F2FD; color: #1976D2;">{{ voters|length }} students</span>
-                                        </button>
-                                    </h2>
-                                    <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse" data-bs-parent="#nonVotersAccordion">
-                                        <div class="accordion-body p-0">
-                                            <div class="table-responsive">
-                                                <table class="table table-hover non-voters-table mb-0">
-                                                    <thead class="table-header">
-                                                        <tr>
-                                                            <th>Student Number</th>
-                                                            <th>Name</th>
-                                                            <th>Course</th>
-                                                            <th>Year Level</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {% for voter in voters %}
-                                                        <tr class="non-voter-row" data-student-number="{{ voter.student_number }}" data-name="{{ voter.student_name|lower }}">
-                                                            <td>{{ voter.student_number }}</td>
-                                                            <td>{{ voter.student_name }}</td>
-                                                            <td>{{ voter.course }}</td>
-                                                            <td>{{ voter.year_level }}</td>
-                                                        </tr>
-                                                        {% endfor %}
-                                                    </tbody>
-                                                </table>
+                                                </div>
                                             </div>
+                                            {% endfor %}
                                         </div>
                                     </div>
                                 </div>
                                 {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    <!-- ABSTENTION REPORT SECTION -->
+                    <div id="abstentionReportSection" style="display:none;">
+                        <div class="text-center mb-4 d-print-block">
+                            <h2 class="header-title mb-3">Abstention Report</h2>
+                            <p class="text-muted">Generated on: {% now "F j, Y - H:i" %}</p>
+                            <hr class="divider">
+                        </div>
+                        <div class="admin-card mb-4">
+                            <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
+                                <h6 class="m-0 font-weight-bold header-title">Abstention by College</h6>
+                            </div>
+                            <div class="card-body">
+                                <div class="mb-3 d-flex justify-content-end no-print">
+                                    <div class="input-group" style="max-width: 300px;">
+                                        <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                            <i class="fas fa-search"></i>
+                                        </span>
+                                        <input type="text" class="form-control" id="abstentionSearch" placeholder="Search by name or student #" oninput="searchAbstention(this.value)">
+                                    </div>
+                                </div>
+                                <div class="accordion" id="abstentionAccordion">
+                                    {% for college, voters in non_voters_by_college.items %}
+                                    <div class="accordion-item mb-3 college-item">
+                                        <h2 class="accordion-header" id="headingA{{ forloop.counter }}">
+                                            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseA{{ forloop.counter }}">
+                                                <span class="fw-bold">{{ college }}</span>
+                                                <span class="badge rounded-pill ms-2" style="background-color: #E3F2FD; color: #1976D2;">{{ voters|length }} students</span>
+                                            </button>
+                                        </h2>
+                                        <div id="collapseA{{ forloop.counter }}" class="accordion-collapse collapse" data-bs-parent="#abstentionAccordion">
+                                            <div class="accordion-body p-0">
+                                                <div class="row">
+                                                    {% for voter in voters %}
+                                                    <div class="col-md-6 col-lg-4 mb-3 abstention-card" data-student-number="{{ voter.student_number }}" data-name="{{ voter.student_name|lower }}">
+                                                        <div class="student-card">
+                                                            <div class="card-body">
+                                                                <h6 class="card-title mb-1">{{ voter.student_name }}</h6>
+                                                                <p class="text-muted mb-1">{{ voter.student_number }}</p>
+                                                                <p class="text-muted mb-0">{{ voter.course }} - Year {{ voter.year_level }}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {% endfor %}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -308,19 +286,6 @@
         margin: 0;
     }
     
-    .table-header {
-        background-color: rgba(25, 118, 210, 0.1);
-    }
-    
-    .table-header th {
-        color: #1976D2;
-        font-weight: 600;
-    }
-    
-    .winner-row {
-        background-color: rgba(25, 118, 210, 0.05);
-    }
-    
     .position-header {
         padding: 10px 15px;
         background-color: rgba(25, 118, 210, 0.05);
@@ -342,8 +307,55 @@
         font-weight: 500;
     }
     
-    .cursor-pointer {
-        cursor: pointer;
+    .candidate-card-sm {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 6px rgba(25, 118, 210, 0.08);
+        border: 1px solid rgba(25, 118, 210, 0.08);
+        transition: all 0.2s ease;
+        min-width: 220px;
+        max-width: 240px;
+        flex: 0 1 220px;
+        margin-bottom: 0;
+        font-size: 0.95rem;
+    }
+    
+    .candidate-card-sm:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(25, 118, 210, 0.15);
+    }
+    
+    .winner-card {
+        border-left: 4px solid #1976D2;
+    }
+    
+    .student-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(25, 118, 210, 0.1);
+        border: 1px solid rgba(25, 118, 210, 0.08);
+        transition: all 0.3s ease;
+    }
+    
+    .student-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 15px rgba(25, 118, 210, 0.2);
+    }
+    
+    .votes-info {
+        background-color: rgba(25, 118, 210, 0.03);
+        padding: 6px 8px;
+        border-radius: 6px;
+    }
+    
+    .votes-count {
+        color: #1976D2;
+        font-weight: 600;
+    }
+    
+    .votes-percentage {
+        color: #1976D2;
+        font-weight: 600;
     }
     
     .progress {
@@ -351,21 +363,27 @@
         border-radius: 10px;
     }
     
-    .accordion-button:not(.collapsed) {
-        background-color: rgba(25, 118, 210, 0.05);
-        color: #1976D2;
-    }
-    
-    .accordion-button:focus {
-        box-shadow: 0 0 0 0.25rem rgba(25, 118, 210, 0.25);
-    }
-    
     .no-print {
         display: block;
     }
     
+    .candidates-row {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+    }
+    
     @media print {
-        .no-print, .btn, .card-header .btn, .position-header .toggle-icon {
+        /* Only print the visible report section */
+        #mainReportSection, #abstentionReportSection {
+            display: none !important;
+        }
+        #mainReportSection.print-visible, #abstentionReportSection.print-visible {
+            display: block !important;
+        }
+        /* Hide print/download/abstention buttons in print */
+        .btn, .no-print, #abstentionReportBtn {
             display: none !important;
         }
         
@@ -388,7 +406,7 @@
             padding: 0 !important;
         }
         
-        .position-table {
+        .position-content {
             display: block !important;
         }
         
@@ -408,10 +426,6 @@
             padding: 0.5rem !important;
         }
         
-        .table {
-            font-size: 0.8rem !important;
-        }
-        
         .mb-4 {
             margin-bottom: 1rem !important;
         }
@@ -427,38 +441,84 @@
         .accordion-collapse {
             display: block !important;
         }
+        
+        .no-print-icon {
+            display: none !important;
+        }
+        
+        .stats-row {
+            display: flex !important;
+            flex-direction: row !important;
+            justify-content: center !important;
+            align-items: stretch !important;
+            gap: 1.5rem !important;
+        }
+        
+        .stats-col {
+            flex: 1 1 0 !important;
+            max-width: 100% !important;
+            margin-bottom: 0 !important;
+        }
+        
+        .stats-card {
+            margin-bottom: 0 !important;
+        }
+        
+        .card-body {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+        }
+        
+        /* Abstention report: 3 cards per row when printing */
+        #abstentionReportSection .row {
+            display: flex !important;
+            flex-wrap: wrap !important;
+            gap: 0 !important;
+        }
+        #abstentionReportSection .abstention-card {
+            flex: 0 0 33.3333% !important;
+            max-width: 33.3333% !important;
+            box-sizing: border-box !important;
+            margin-bottom: 0 !important;
+            page-break-inside: avoid !important;
+        }
+        #abstentionReportSection .student-card {
+            margin: 6px !important;
+            min-width: unset !important;
+            max-width: 100% !important;
+        }
     }
 </style>
 
 <script>
-    // Toggle table visibility
-    function toggleTable(header) {
-        const table = header.nextElementSibling;
+    // Toggle section visibility
+    function toggleSection(header) {
+        const content = header.nextElementSibling;
         const icon = header.querySelector('.toggle-icon');
         
-        if (table.style.display === 'none') {
-            table.style.display = 'block';
+        if (content.style.display === 'none') {
+            content.style.display = 'block';
             icon.classList.remove('fa-chevron-right');
             icon.classList.add('fa-chevron-down');
         } else {
-            table.style.display = 'none';
+            content.style.display = 'none';
             icon.classList.remove('fa-chevron-down');
             icon.classList.add('fa-chevron-right');
         }
     }
     
-    // Toggle all tables
-    function toggleAllTables() {
-        const tables = document.querySelectorAll('.position-table');
+    // Toggle all sections
+    function toggleAllSections() {
+        const contents = document.querySelectorAll('.position-content');
         const icons = document.querySelectorAll('.toggle-icon');
-        const firstTableVisible = tables[0].style.display !== 'none';
+        const firstContentVisible = contents[0].style.display !== 'none';
         
-        tables.forEach(table => {
-            table.style.display = firstTableVisible ? 'none' : 'block';
+        contents.forEach(content => {
+            content.style.display = firstContentVisible ? 'none' : 'block';
         });
         
         icons.forEach(icon => {
-            if (firstTableVisible) {
+            if (firstContentVisible) {
                 icon.classList.remove('fa-chevron-down');
                 icon.classList.add('fa-chevron-right');
             } else {
@@ -470,7 +530,7 @@
     
     // Filter positions
     function filterPositions(type) {
-        const positions = document.querySelectorAll('.position-results');
+        const positions = document.querySelectorAll('.position-section');
         
         positions.forEach(position => {
             if (type === 'all' || position.dataset.positionType === type) {
@@ -484,31 +544,31 @@
     // Search non-voters
     function searchNonVoters(query) {
         query = query.toLowerCase();
-        const rows = document.querySelectorAll('.non-voter-row');
+        const cards = document.querySelectorAll('.non-voter-card');
         const collegeItems = document.querySelectorAll('.college-item');
         
-        rows.forEach(row => {
-            const studentNumber = row.dataset.studentNumber.toLowerCase();
-            const name = row.dataset.name.toLowerCase();
+        cards.forEach(card => {
+            const studentNumber = card.dataset.studentNumber.toLowerCase();
+            const name = card.dataset.name.toLowerCase();
             
             if (studentNumber.includes(query) || name.includes(query)) {
-                row.style.display = '';
+                card.style.display = '';
                 
                 // Expand the parent accordion if it's collapsed
-                const accordion = row.closest('.accordion-collapse');
+                const accordion = card.closest('.accordion-collapse');
                 if (accordion && !accordion.classList.contains('show')) {
                     const accordionButton = accordion.previousElementSibling.querySelector('.accordion-button');
                     accordionButton.click();
                 }
             } else {
-                row.style.display = 'none';
+                card.style.display = 'none';
             }
         });
         
         // Hide college items with no matching students
         collegeItems.forEach(item => {
-            const visibleRows = item.querySelectorAll('.non-voter-row[style=""]').length;
-            if (visibleRows === 0 && query !== '') {
+            const visibleCards = item.querySelectorAll('.non-voter-card[style=""]').length;
+            if (visibleCards === 0 && query !== '') {
                 item.style.display = 'none';
             } else {
                 item.style.display = '';
@@ -516,9 +576,54 @@
         });
     }
     
-    // Initialize all position tables as expanded
+    // Initialize all position sections as expanded
     document.addEventListener('DOMContentLoaded', function() {
-        // All tables start expanded by default
+        // All sections start expanded by default
     });
+
+    function showAbstentionReport() {
+        document.getElementById('mainReportSection').style.display = 'none';
+        document.getElementById('abstentionReportSection').style.display = 'block';
+        // For print: mark only abstention section as printable
+        document.getElementById('mainReportSection').classList.remove('print-visible');
+        document.getElementById('abstentionReportSection').classList.add('print-visible');
+    }
+    function showMainReport() {
+        document.getElementById('mainReportSection').style.display = 'block';
+        document.getElementById('abstentionReportSection').style.display = 'none';
+        // For print: mark only main section as printable
+        document.getElementById('mainReportSection').classList.add('print-visible');
+        document.getElementById('abstentionReportSection').classList.remove('print-visible');
+    }
+    // On page load, ensure main report is visible and printable
+    showMainReport();
+    // Add search for abstention
+    function searchAbstention(query) {
+        query = query.toLowerCase();
+        const cards = document.querySelectorAll('.abstention-card');
+        const collegeItems = document.querySelectorAll('#abstentionAccordion .college-item');
+        cards.forEach(card => {
+            const studentNumber = card.dataset.studentNumber.toLowerCase();
+            const name = card.dataset.name.toLowerCase();
+            if (studentNumber.includes(query) || name.includes(query)) {
+                card.style.display = '';
+                const accordion = card.closest('.accordion-collapse');
+                if (accordion && !accordion.classList.contains('show')) {
+                    const accordionButton = accordion.previousElementSibling.querySelector('.accordion-button');
+                    accordionButton.click();
+                }
+            } else {
+                card.style.display = 'none';
+            }
+        });
+        collegeItems.forEach(item => {
+            const visibleCards = item.querySelectorAll('.abstention-card[style=""]').length;
+            if (visibleCards === 0 && query !== '') {
+                item.style.display = 'none';
+            } else {
+                item.style.display = '';
+            }
+        });
+    }
 </script>
 {% endblock %} 

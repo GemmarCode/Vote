@@ -353,9 +353,9 @@ def cast_vote(request, candidate_id):
                     'message': 'User profile ID required. Please verify your face first.'
                 }, status=400) 
             
-            # Check if voting phase is active
-            voting_phase = VotingPhase.objects.first()
-            if not voting_phase or not voting_phase.is_active():
+            # Check if voting is active using ElectionSettings
+            active_settings = ElectionSettings.objects.filter(is_active=True).first()
+            if not active_settings or not active_settings.is_voting_open:
                 return JsonResponse({'success': False, 'message': 'Voting is not currently active'})
             
             # Get candidate
@@ -529,67 +529,65 @@ def logout_view(request):
     messages.success(request, 'Successfully logged out!')
     return redirect('user:mainpage')
 
-# Add this new API endpoint that will check if voting is currently available
 @require_http_methods(["GET"])
 def check_voting_status(request):
-    """
-    API endpoint to check if voting is currently available
-    """
+    """API endpoint to check if voting is currently open."""
     try:
-        # Get election settings
-        settings = ElectionSettings.objects.first()
+        active_settings = ElectionSettings.objects.filter(is_active=True).first()
+        if not active_settings:
+            return JsonResponse({'is_voting_open': False, 'message': 'No active election found.'})
+
+        now = timezone.localtime(timezone.now())
         
-        if not settings:
-            return JsonResponse({
-                'is_voting_open': False,
-                'message': 'Voting schedule has not been set up yet.'
-            })
+        # Check if all required fields are set
+        if not (active_settings.voting_date and active_settings.voting_time_start and active_settings.voting_time_end):
+            return JsonResponse({'is_voting_open': False, 'message': 'Voting schedule has not been set up yet.'})
         
-        now = timezone.now()
+        # Create datetime objects for start and end times
+        voting_start = timezone.make_aware(timezone.datetime.combine(active_settings.voting_date, active_settings.voting_time_start))
+        voting_end = timezone.make_aware(timezone.datetime.combine(active_settings.voting_date, active_settings.voting_time_end))
         
-        # Check if voting is active based on the start and end dates
-        if not settings.voting_start or not settings.voting_end:
-            return JsonResponse({
-                'is_voting_open': False,
-                'message': 'Voting schedule has not been set up yet.'
-            })
+        # Convert to local time for comparison
+        voting_start = timezone.localtime(voting_start)
+        voting_end = timezone.localtime(voting_end)
         
         # If voting hasn't started yet
-        if now < settings.voting_start:
-            hours_remaining = int((settings.voting_start - now).total_seconds() / 3600)
-            if hours_remaining > 24:
-                days = int(hours_remaining / 24)
+        if now < voting_start:
+            time_to_start = voting_start - now
+            hours = time_to_start.total_seconds() / 3600
+            if hours > 24:
+                days = int(hours / 24)
                 return JsonResponse({
                     'is_voting_open': False,
                     'message': f'Voting will start in {days} day{"s" if days > 1 else ""}.'
                 })
             else:
+                hours = int(hours)
                 return JsonResponse({
                     'is_voting_open': False,
-                    'message': f'Voting will start in {hours_remaining} hour{"s" if hours_remaining > 1 else ""}.'
+                    'message': f'Voting will start in {hours} hour{"s" if hours > 1 else ""}.'
                 })
-                
+        
         # If voting has ended
-        if now > settings.voting_end:
+        if now >= voting_end:
             return JsonResponse({
                 'is_voting_open': False,
                 'message': 'Voting period has ended.'
             })
         
         # If we get here, voting is active
-        hours_left = int((settings.voting_end - now).total_seconds() / 3600)
+        time_remaining = voting_end - now
+        hours_left = int(time_remaining.total_seconds() / 3600)
+        
         return JsonResponse({
             'is_voting_open': True,
             'message': f'Voting is currently open! {hours_left} hour{"s" if hours_left > 1 else ""} remaining.',
-            'voting_end': settings.voting_end.isoformat()
+            'voting_end': voting_end.isoformat()
         })
-    
+            
     except Exception as e:
-        print(f"Error checking voting status: {str(e)}")
-        return JsonResponse({
-            'is_voting_open': False,
-            'message': 'Error checking voting status.'
-        }, status=500)
+        print(f"Error in check_voting_status: {e}") 
+        return JsonResponse({'is_voting_open': False, 'message': 'An error occurred while checking the voting status.'}, status=500)
 
 @csrf_exempt
 def verify_code(request):
@@ -632,8 +630,8 @@ def verify_code(request):
             # Store student number before deleting the code
             student_number = verification_code.student_number
             
-            # Delete the code instead of marking it as used
-            verification_code.delete()
+            # Do NOT delete or mark the code as used here
+            # verification_code.delete()
             
             # Check if voting is available
             voting_phase = VotingPhase.objects.first()
@@ -682,157 +680,164 @@ def submit_all_votes(request):
     API endpoint to submit all votes at once.
     Receives a list of votes, validates each one, then saves them all in a single transaction.
     """
-    if request.method != 'POST':
-        return JsonResponse({
-            'success': False,
-            'message': 'Invalid request method'
-        }, status=405)
-    
-    try:
-        # Parse the request data
-        data = json.loads(request.body.decode('utf-8'))
-        user_profile_id = data.get('user_profile_id')
-        votes = data.get('votes', [])
-        
-        print(f"[VOTE DEBUG] Processing {len(votes)} votes for user profile ID: {user_profile_id}")
-        print(f"[VOTE DEBUG] Votes data: {votes}")
-        
-        # Validation checks
-        if not user_profile_id:
-            print("[VOTE ERROR] No user profile ID provided")
-            return JsonResponse({
-                'success': False,
-                'message': 'User profile ID required. Please verify your identity first.'
-            }, status=400)
-        
-        if not votes or not isinstance(votes, list) or len(votes) == 0:
-            print("[VOTE ERROR] No votes provided")
-            return JsonResponse({
-                'success': False,
-                'message': 'No votes provided.'
-            }, status=400)
-        
-        # Check if voting phase is active
-        settings = ElectionSettings.objects.first()
-        if not settings or not settings.is_voting_open():
-            print("[VOTE ERROR] Voting is not currently active")
-            return JsonResponse({
-                'success': False, 
-                'message': 'Voting is not currently active'
-            }, status=403)
-        
-        # Get the user profile
+    if request.method == 'POST':
         try:
-            user_profile = UserProfile.objects.get(id=user_profile_id)
-            print(f"[VOTE DEBUG] Found user profile: {user_profile.student_number} ({user_profile.student_name})")
-        except UserProfile.DoesNotExist:
-            print(f"[VOTE ERROR] User profile not found for ID: {user_profile_id}")
-            return JsonResponse({
-                'success': False, 
-                'message': 'User profile not found in database'
-            }, status=404)
-        
-        # Prepare storage for vote objects and errors
-        vote_objects = []
-        positions_voted = set()
-        errors = []
-        
-        # Validate each vote
-        for i, vote_data in enumerate(votes):
-            candidate_id = vote_data.get('candidateId')
-            position = vote_data.get('position')
+            data = json.loads(request.body.decode('utf-8'))
+            user_profile_id = data.get('user_profile_id')
+            votes = data.get('votes', [])
             
-            print(f"[VOTE DEBUG] Processing vote {i+1}: candidate ID {candidate_id}, position {position}")
+            print(f"[VOTE DEBUG] User profile ID: {user_profile_id}")
+            print(f"[VOTE DEBUG] Votes data: {votes}")
             
-            # Skip if already validated a vote for this position
-            if position in positions_voted:
-                print(f"[VOTE WARNING] Multiple votes for position {position}")
-                errors.append(f"Multiple votes for position {position} - only the first will be counted")
-                continue
-                
+            # Validation checks
+            if not user_profile_id:
+                print("[VOTE ERROR] No user profile ID provided")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'User profile ID required. Please verify your identity first.'
+                }, status=400)
+            
+            if not votes or not isinstance(votes, list) or len(votes) == 0:
+                print("[VOTE ERROR] No votes provided")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No votes provided.'
+                }, status=400)
+            
+            # Check if voting is active using ElectionSettings
+            active_settings = ElectionSettings.objects.filter(is_active=True).first()
+            if not active_settings or not active_settings.is_voting_open:
+                print("[VOTE ERROR] Voting is not currently active")
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'Voting is not currently active'
+                }, status=403)
+            
+            # Get the user profile
             try:
-                # Get candidate
-                candidate = Candidate.objects.get(id=candidate_id)
-                print(f"[VOTE DEBUG] Found candidate: {candidate.user_profile.student_name} for position {candidate.position}")
+                user_profile = UserProfile.objects.get(id=user_profile_id)
+                print(f"[VOTE DEBUG] Found user profile: {user_profile.student_number} ({user_profile.student_name})")
+            except UserProfile.DoesNotExist:
+                print(f"[VOTE ERROR] User profile not found for ID: {user_profile_id}")
+                return JsonResponse({
+                    'success': False, 
+                    'message': 'User profile not found in database'
+                }, status=404)
+            
+            # Prepare storage for vote objects and errors
+            vote_objects = []
+            positions_voted = set()
+            errors = []
+            
+            # Validate each vote
+            for i, vote_data in enumerate(votes):
+                candidate_id = vote_data.get('candidateId')
+                position = vote_data.get('position')
                 
-                # Verify position matches
-                if candidate.position != position:
-                    print(f"[VOTE ERROR] Position mismatch: expected {position}, got {candidate.position}")
-                    errors.append(f"Position mismatch for candidate {candidate_id}")
+                print(f"[VOTE DEBUG] Processing vote {i+1}: candidate ID {candidate_id}, position {position}")
+                
+                # Skip if already validated a vote for this position
+                if position in positions_voted:
+                    print(f"[VOTE WARNING] Multiple votes for position {position}")
+                    errors.append(f"Multiple votes for position {position} - only the first will be counted")
                     continue
-                
-                # Verify eligibility based on position type and user profile
-                if not is_eligible_to_vote(user_profile, candidate):
-                    print(f"[VOTE ERROR] User {user_profile.student_number} not eligible to vote for {candidate.position}")
-                    errors.append(f"Not eligible to vote for {candidate.position}")
+                    
+                try:
+                    # Get candidate
+                    candidate = Candidate.objects.get(id=candidate_id)
+                    print(f"[VOTE DEBUG] Found candidate: {candidate.user_profile.student_name} for position {candidate.position}")
+                    
+                    # Verify position matches
+                    if candidate.position != position:
+                        print(f"[VOTE ERROR] Position mismatch: expected {position}, got {candidate.position}")
+                        errors.append(f"Position mismatch for candidate {candidate_id}")
+                        continue
+                    
+                    # Verify eligibility based on position type and user profile
+                    if not is_eligible_to_vote(user_profile, candidate):
+                        print(f"[VOTE ERROR] User {user_profile.student_number} not eligible to vote for {candidate.position}")
+                        errors.append(f"Not eligible to vote for {candidate.position}")
+                        continue
+                    
+                    # Create vote object (don't save yet)
+                    vote_objects.append(Vote(user_profile=user_profile, candidate=candidate))
+                    positions_voted.add(position)
+                    print(f"[VOTE DEBUG] Vote validated for {candidate.position}")
+                    
+                except Candidate.DoesNotExist:
+                    print(f"[VOTE ERROR] Candidate {candidate_id} not found")
+                    errors.append(f"Candidate {candidate_id} not found")
                     continue
-                
-                # Create vote object (don't save yet)
-                vote_objects.append(Vote(user_profile=user_profile, candidate=candidate))
-                positions_voted.add(position)
-                print(f"[VOTE DEBUG] Vote validated for {candidate.position}")
-                
-            except Candidate.DoesNotExist:
-                print(f"[VOTE ERROR] Candidate {candidate_id} not found")
-                errors.append(f"Candidate {candidate_id} not found")
-                continue
+                except Exception as e:
+                    print(f"[VOTE ERROR] Unexpected error processing vote for candidate {candidate_id}: {str(e)}")
+                    errors.append(f"Error processing vote: {str(e)}")
+                    continue
+            
+            # If no valid votes, return error
+            if not vote_objects:
+                print("[VOTE ERROR] No valid votes to submit")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'No valid votes to submit.',
+                    'errors': errors
+                }, status=400)
+            
+            # Check if user has already voted for any positions
+            existing_votes = Vote.objects.filter(user_profile=user_profile)
+            existing_positions = existing_votes.values_list('candidate__position', flat=True)
+            
+            if existing_positions:
+                print(f"[VOTE ERROR] User already voted for positions: {list(existing_positions)}")
+                return JsonResponse({
+                    'success': False,
+                    'message': 'You have already voted for some positions.',
+                    'positions': list(existing_positions)
+                }, status=400)
+            
+            # Save all votes in a single transaction
+            try:
+                with transaction.atomic():
+                    for vote in vote_objects:
+                        vote.save()
+                        print(f"[VOTE SUCCESS] Vote recorded - User: {user_profile.student_number}, Candidate: {vote.candidate.user_profile.student_number}, Position: {vote.candidate.position}")
+                    # After all votes are saved, mark the verification code as used
+                    if code:
+                        try:
+                            verification_code = VerificationCode.objects.get(code=code)
+                            verification_code.is_used = True
+                            verification_code.save()
+                        except VerificationCode.DoesNotExist:
+                            print(f"[VOTE WARNING] Verification code {code} not found to mark as used.")
             except Exception as e:
-                print(f"[VOTE ERROR] Unexpected error processing vote for candidate {candidate_id}: {str(e)}")
-                errors.append(f"Error processing vote: {str(e)}")
-                continue
-        
-        # If no valid votes, return error
-        if not vote_objects:
-            print("[VOTE ERROR] No valid votes to submit")
+                print(f"[VOTE ERROR] Failed to save votes: {str(e)}")
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Error saving votes to database: {str(e)}'
+                }, status=500)
+            
+            print(f"[VOTE SUCCESS] Successfully submitted {len(vote_objects)} votes for user {user_profile.student_number}")
+            return JsonResponse({
+                'success': True,
+                'message': f'Successfully submitted {len(vote_objects)} votes.',
+                'positions_voted': list(positions_voted),
+                'warnings': errors if errors else None
+            })
+            
+        except json.JSONDecodeError:
+            print("[VOTE ERROR] Invalid JSON data")
             return JsonResponse({
                 'success': False,
-                'message': 'No valid votes to submit.',
-                'errors': errors
+                'message': 'Invalid JSON data'
             }, status=400)
-        
-        # Check if user has already voted for any positions
-        existing_votes = Vote.objects.filter(user_profile=user_profile)
-        existing_positions = existing_votes.values_list('candidate__position', flat=True)
-        
-        if existing_positions:
-            print(f"[VOTE ERROR] User already voted for positions: {list(existing_positions)}")
-            return JsonResponse({
-                'success': False,
-                'message': 'You have already voted for some positions.',
-                'positions': list(existing_positions)
-            }, status=400)
-        
-        # Save all votes in a single transaction
-        try:
-            with transaction.atomic():
-                for vote in vote_objects:
-                    vote.save()
-                    print(f"[VOTE SUCCESS] Vote recorded - User: {user_profile.student_number}, Candidate: {vote.candidate.user_profile.student_number}, Position: {vote.candidate.position}")
         except Exception as e:
-            print(f"[VOTE ERROR] Failed to save votes: {str(e)}")
+            print(f"[VOTE ERROR] Unexpected error: {str(e)}")
+            print(traceback.format_exc())
             return JsonResponse({
                 'success': False,
-                'message': f'Error saving votes to database: {str(e)}'
+                'message': f'Error submitting votes: {str(e)}'
             }, status=500)
-        
-        print(f"[VOTE SUCCESS] Successfully submitted {len(vote_objects)} votes for user {user_profile.student_number}")
-        return JsonResponse({
-            'success': True,
-            'message': f'Successfully submitted {len(vote_objects)} votes.',
-            'positions_voted': list(positions_voted),
-            'warnings': errors if errors else None
-        })
-        
-    except json.JSONDecodeError:
-        print("[VOTE ERROR] Invalid JSON data")
-        return JsonResponse({
-            'success': False,
-            'message': 'Invalid JSON data'
-        }, status=400)
-    except Exception as e:
-        print(f"[VOTE ERROR] Unexpected error: {str(e)}")
-        print(traceback.format_exc())
-        return JsonResponse({
-            'success': False,
-            'message': f'Error submitting votes: {str(e)}'
-        }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method'
+    }, status=405)

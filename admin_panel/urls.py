@@ -26,4 +26,6 @@ urlpatterns = [
     path('change-password/', views.change_password, name='change_password'),
     path('committee-settings/', views.committee_change_password, name='committee_change_password'),
     path('user-activity-logs/<int:user_id>/', views.user_activity_logs, name='user_activity_logs'),
+    path('toggle-committee-status/<int:committee_id>/', views.toggle_committee_status, name='toggle_committee_status'),
+    path('activity-logs/', views.activity_logs, name='activity_logs'),
 ]

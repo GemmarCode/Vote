@@ -1,0 +1,251 @@
+{% extends 'admin_base.html' %}
+{% block title %}Activity Logs{% endblock %}
+{% block admin_content %}
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="header-title" style="color: #1976D2;">Activity Logs</h1>
+        <div class="search-wrapper">
+            <i class="fas fa-search search-icon"></i>
+            <input type="text" class="form-control search-input" id="userSearch" placeholder="Search users...">
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-4">
+            <div class="admin-card">
+                <div class="card-header py-3" style="background-color: #1976D2;">
+                    <h5 class="card-title mb-0 text-white">Users</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="list-group list-group-flush">
+                        {% for user in users %}
+                        <div class="list-group-item list-group-item-action user-item" data-user-id="{{ user.id }}" data-username="{{ user.username }}">
+                            <div class="d-flex align-items-center">
+                                <div class="user-avatar me-3">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <h6 class="mb-1">{{ user.username }}</h6>
+                                    <small class="text-muted">{{ user.get_full_name }}</small>
+                                </div>
+                                <div class="ms-2">
+                                    <span class="badge {% if user.is_superuser %}bg-primary{% else %}bg-info{% endif %}">
+                                        {% if user.is_superuser %}Admin{% else %}Committee{% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="admin-card">
+                <div class="card-header py-3" style="background-color: #1976D2;">
+                    <h5 class="card-title mb-0 text-white">Activity Logs</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0" id="logsTable">
+                            <thead class="table-header">
+                                <tr>
+                                    <th>Action</th>
+                                    <th>Details</th>
+                                    <th>Timestamp</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in logs %}
+                                <tr>
+                                    <td>
+                                        <span class="badge {% if log.action == 'IMPORT_STUDENTS' %}bg-success
+                                                         {% elif log.action == 'IMPORT_PHOTOS' %}bg-info
+                                                         {% elif log.action == 'REGISTER_USER' %}bg-primary
+                                                         {% elif log.action == 'EDIT_CANDIDATE' %}bg-warning
+                                                         {% elif log.action == 'ADD_CANDIDATE' %}bg-success
+                                                         {% elif log.action == 'CHANGE_PASSWORD' %}bg-danger
+                                                         {% else %}bg-secondary{% endif %}">
+                                            {{ log.action }}
+                                        </span>
+                                    </td>
+                                    <td>{{ log.details }}</td>
+                                    <td>{{ log.timestamp|date:"Y-m-d H:i" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="3" class="text-center text-muted">No activity logs found</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.header-title {
+    font-weight: 600;
+    margin: 0;
+}
+
+.admin-card {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(25, 118, 210, 0.1);
+    margin-bottom: 20px;
+}
+
+.card-header {
+    border-top-left-radius: 15px;
+    border-top-right-radius: 15px;
+}
+
+.table-header th {
+    background-color: rgba(25, 118, 210, 0.1);
+    color: #1976D2;
+    font-weight: 600;
+    padding: 1rem;
+}
+
+.table td {
+    padding: 1rem;
+    vertical-align: middle;
+}
+
+.user-avatar {
+    width: 40px;
+    height: 40px;
+    background: rgba(25, 118, 210, 0.1);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1976D2;
+}
+
+.user-item {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 1rem;
+}
+
+.user-item:hover {
+    background-color: rgba(25, 118, 210, 0.05);
+}
+
+.user-item.active {
+    background-color: rgba(25, 118, 210, 0.1);
+}
+
+.search-wrapper {
+    position: relative;
+    width: 300px;
+}
+
+.search-icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #1976D2;
+}
+
+.search-input {
+    padding-left: 35px;
+    border-radius: 8px;
+    border: 1px solid rgba(25, 118, 210, 0.2);
+}
+
+.search-input:focus {
+    border-color: #1976D2;
+    box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
+}
+
+.badge {
+    padding: 0.5em 0.75em;
+    font-weight: 500;
+}
+
+.table-hover tbody tr:hover {
+    background-color: rgba(25, 118, 210, 0.05);
+}
+</style>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const userSearch = document.getElementById('userSearch');
+    const userItems = document.querySelectorAll('.user-item');
+    const logsTable = document.getElementById('logsTable');
+    const logs = [{% for log in logs %}{
+        user_id: {{ log.admin_user.id }},
+        username: "{{ log.admin_user.username|escapejs }}",
+        action: "{{ log.action|escapejs }}",
+        details: "{{ log.details|default_if_none:''|escapejs }}",
+        timestamp: "{{ log.timestamp|date:'Y-m-d H:i' }}"
+    }{% if not forloop.last %},{% endif %}{% endfor %}];
+
+    // User search functionality
+    userSearch.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase();
+        userItems.forEach(item => {
+            const username = item.getAttribute('data-username').toLowerCase();
+            const fullName = item.querySelector('small').textContent.toLowerCase();
+            if (username.includes(searchTerm) || fullName.includes(searchTerm)) {
+                item.style.display = '';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    });
+
+    // User selection and log filtering
+    userItems.forEach(item => {
+        item.addEventListener('click', function() {
+            // Remove active class from all items
+            userItems.forEach(i => i.classList.remove('active'));
+            // Add active class to clicked item
+            this.classList.add('active');
+            
+            const userId = parseInt(this.getAttribute('data-user-id'));
+            const userLogs = logs.filter(log => log.user_id === userId);
+            
+            // Update logs table
+            const tbody = logsTable.querySelector('tbody');
+            tbody.innerHTML = userLogs.length ? userLogs.map(log => `
+                <tr>
+                    <td>
+                        <span class="badge ${getBadgeClass(log.action)}">
+                            ${log.action}
+                        </span>
+                    </td>
+                    <td>${log.details}</td>
+                    <td>${log.timestamp}</td>
+                </tr>
+            `).join('') : '<tr><td colspan="3" class="text-center text-muted">No activity logs found for this user</td></tr>';
+        });
+    });
+
+    // Helper function to get badge class based on action
+    function getBadgeClass(action) {
+        switch(action) {
+            case 'IMPORT_STUDENTS': return 'bg-success';
+            case 'IMPORT_PHOTOS': return 'bg-info';
+            case 'REGISTER_USER': return 'bg-primary';
+            case 'EDIT_CANDIDATE': return 'bg-warning';
+            case 'ADD_CANDIDATE': return 'bg-success';
+            case 'CHANGE_PASSWORD': return 'bg-danger';
+            default: return 'bg-secondary';
+        }
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}
+<｜tool▁call▁end｜><｜tool▁calls▁end｜>

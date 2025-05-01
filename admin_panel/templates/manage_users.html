@@ -4,9 +4,17 @@
 <div class="container-fluid">
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 style="color: #34729C;">Manage Users</h1>
-        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerUserModal">
-            <i class="fas fa-user-plus me-2"></i>Register New User
-        </button>
+        <div>
+            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
+                <i class="fas fa-file-excel me-2"></i>Import Excel Data
+            </button>
+            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#importPhotosModal">
+                <i class="fas fa-images me-2"></i>Import Photos
+            </button>
+            <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#registerUserModal">
+                <i class="fas fa-user-plus me-2"></i>Register Single User
+            </button>
+        </div>
     </div>
 
     <!-- Search Bar -->
@@ -88,146 +96,140 @@
     </div>
 </div>
 
-<!-- Register User Modal -->
-<div class="modal fade" id="registerUserModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+<!-- Import Excel Modal -->
+<div class="modal fade" id="importExcelModal" tabindex="-1">
+    <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Register New User</h5>
+                <h5 class="modal-title">Import Student Data from Excel</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <!-- Excel Import Card -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h3 class="card-title">Import Student Data from Excel</h3>
+                <form id="excelImportForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-group mb-3">
+                        <label for="excel_file">Excel File</label>
+                        <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx, .xls" required>
+                        <small class="form-text text-muted">
+                            Excel file should have columns: student_number, student_name, sex, year_level, course, college
+                        </small>
                     </div>
-                    <div class="card-body">
-                        {% if messages %}
-                            {% for message in messages %}
-                                <div class="alert alert-{{ message.tags }}">
-                                    {{ message }}
-                                </div>
-                            {% endfor %}
-                        {% endif %}
-                        
-                        <form id="excelImportForm" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            <div class="form-group mb-3">
-                                <label for="excel_file">Excel File</label>
-                                <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx, .xls" required>
-                                <small class="form-text text-muted">
-                                    Excel file should have columns: student_number, student_name, sex, year_level, course, college
-                                </small>
-                            </div>
-                            <button type="submit" class="btn btn-success" id="importExcelBtn">
-                                <i class="fas fa-file-excel me-2"></i>Import Student Data
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                    <button type="submit" class="btn btn-success" id="importExcelBtn">
+                        <i class="fas fa-file-excel me-2"></i>Import Student Data
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-                <!-- Photo Import Card -->
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h3 class="card-title">Import Student Photos</h3>
+<!-- Import Photos Modal -->
+<div class="modal fade" id="importPhotosModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Student Photos</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="photoImportForm" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="form-group mb-3">
+                        <label for="photos_zip">Student Photos (ZIP file)</label>
+                        <input type="file" class="form-control" id="photos_zip" name="photos_zip" accept=".zip" required>
+                        <small class="form-text text-muted">
+                            Upload a ZIP file containing photos named as student_id.jpg/png (e.g., 2020-0001.jpg)
+                        </small>
                     </div>
-                    <div class="card-body">
-                        <form id="photoImportForm" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            <div class="form-group mb-3">
-                                <label for="photos_zip">Student Photos (ZIP file)</label>
-                                <input type="file" class="form-control" id="photos_zip" name="photos_zip" accept=".zip" required>
-                                <small class="form-text text-muted">
-                                    Upload a ZIP file containing photos named as student_id.jpg/png (e.g., 2020-0001.jpg)
-                                </small>
-                            </div>
-                            <button type="submit" class="btn btn-primary" id="importPhotosBtn">
-                                <i class="fas fa-images me-2"></i>Import Student Photos
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                    <button type="submit" class="btn btn-primary" id="importPhotosBtn">
+                        <i class="fas fa-images me-2"></i>Import Student Photos
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
 
-                <!-- Manual Registration Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Register Single User</h3>
+<!-- Register Single User Modal -->
+<div class="modal fade" id="registerUserModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Register Single User</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="registerUserForm" class="needs-validation" novalidate>
+                    <div class="form-group mb-3">
+                        <label for="student_number">Student Number</label>
+                        <input type="text" class="form-control" id="student_number" name="student_number" required>
+                        <div class="invalid-feedback">
+                            Please provide a student number.
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <form id="registerUserForm" class="needs-validation" novalidate>
-                            <div class="form-group mb-3">
-                                <label for="student_number">Student Number</label>
-                                <input type="text" class="form-control" id="student_number" name="student_number" required>
-                                <div class="invalid-feedback">
-                                    Please provide a student number.
-                                </div>
-                            </div>
-                            
-                            <div class="form-group mb-3">
-                                <label for="student_name">Student Name</label>
-                                <input type="text" class="form-control" id="student_name" name="student_name" required>
-                                <div class="invalid-feedback">
-                                    Please provide the student's name.
-                                </div>
-                            </div>
-                            
-                            <div class="form-group mb-3">
-                                <label for="sex">Sex</label>
-                                <select class="form-select" id="sex" name="sex" required>
-                                    <option value="">Select Sex</option>
-                                    <option value="M">Male</option>
-                                    <option value="F">Female</option>
-                                </select>
-                                <div class="invalid-feedback">
-                                    Please select sex.
-                                </div>
-                            </div>
-                            
-                            <div class="form-group mb-3">
-                                <label for="year_level">Year Level</label>
-                                <select class="form-select" id="year_level" name="year_level" required>
-                                    <option value="">Select Year Level</option>
-                                    <option value="1">First Year</option>
-                                    <option value="2">Second Year</option>
-                                    <option value="3">Third Year</option>
-                                    <option value="4">Fourth Year</option>
-                                    <option value="5">Fifth Year</option>
-                                </select>
-                                <div class="invalid-feedback">
-                                    Please select year level.
-                                </div>
-                            </div>
-                            
-                            <div class="form-group mb-3">
-                                <label for="course">Course</label>
-                                <input type="text" class="form-control" id="course" name="course" required>
-                                <div class="invalid-feedback">
-                                    Please provide the course.
-                                </div>
-                            </div>
-
-                            <div class="form-group mb-3">
-                                <label for="college">College</label>
-                                <select class="form-select" id="college" name="college" required>
-                                    <option value="">Select College</option>
-                                    <option value="CAS">College of Arts and Sciences</option>
-                                    <option value="CAF">College of Agriculture and Forestry</option>
-                                    <option value="CCJE">College of Criminal Justice Education</option>
-                                    <option value="CBA">College of Business Administration</option>
-                                    <option value="CTED">College of Teacher Education</option>
-                                    <option value="CIT">College of Industrial Technology</option>
-                                </select>
-                                <div class="invalid-feedback">
-                                    Please select a college.
-                                </div>
-                            </div>
-
-                            <button type="button" class="btn btn-primary" onclick="submitRegistration()">Register User</button>
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        </form>
+                    
+                    <div class="form-group mb-3">
+                        <label for="student_name">Student Name</label>
+                        <input type="text" class="form-control" id="student_name" name="student_name" required>
+                        <div class="invalid-feedback">
+                            Please provide the student's name.
+                        </div>
                     </div>
-                </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="sex">Sex</label>
+                        <select class="form-select" id="sex" name="sex" required>
+                            <option value="">Select Sex</option>
+                            <option value="M">Male</option>
+                            <option value="F">Female</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            Please select sex.
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="year_level">Year Level</label>
+                        <select class="form-select" id="year_level" name="year_level" required>
+                            <option value="">Select Year Level</option>
+                            <option value="1">First Year</option>
+                            <option value="2">Second Year</option>
+                            <option value="3">Third Year</option>
+                            <option value="4">Fourth Year</option>
+                            <option value="5">Fifth Year</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            Please select year level.
+                        </div>
+                    </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="course">Course</label>
+                        <input type="text" class="form-control" id="course" name="course" required>
+                        <div class="invalid-feedback">
+                            Please provide the course.
+                        </div>
+                    </div>
+
+                    <div class="form-group mb-3">
+                        <label for="college">College</label>
+                        <select class="form-select" id="college" name="college" required>
+                            <option value="">Select College</option>
+                            <option value="CAS">College of Arts and Sciences</option>
+                            <option value="CAF">College of Agriculture and Forestry</option>
+                            <option value="CCJE">College of Criminal Justice Education</option>
+                            <option value="CBA">College of Business Administration</option>
+                            <option value="CTED">College of Teacher Education</option>
+                            <option value="CIT">College of Industrial Technology</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            Please select a college.
+                        </div>
+                    </div>
+
+                    <button type="button" class="btn btn-info" onclick="submitRegistration()">Register User</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </form>
             </div>
         </div>
     </div>

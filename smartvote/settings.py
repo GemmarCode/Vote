@@ -105,7 +105,7 @@ WSGI_APPLICATION = 'smartvote.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE':'django.db.backends.mysql',
-        'NAME': 'vote7',
+        'NAME': 'test00',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',
@@ -154,7 +154,7 @@ if not os.path.exists(FACE_DATA_DIR):
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Manila'
 
 USE_I18N = True
 

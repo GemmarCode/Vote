@@ -19,7 +19,7 @@ import cv2
 import numpy as np
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from django.conf import settings
+from django.conf import settings as django_settings
 import zipfile
 import tempfile
 import shutil
@@ -54,6 +54,11 @@ def committee_required(function):
         return actual_decorator(function)
     return actual_decorator
 
+def get_current_school_year():
+    from .models import ElectionSettings
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+    return active_settings.school_year if active_settings else None
+
 @login_required
 @user_passes_test(is_admin)
 def dashboard(request):
@@ -66,26 +71,28 @@ def dashboard(request):
     total_votes = Vote.objects.count()
     voter_turnout = round((total_votes / total_users * 100) if total_users > 0 else 0, 1)
     
-    # Vote Trends for National Candidates (last 24 hours)
+    # Initialize vote trends and national candidates
     vote_trends = {}
+    national_candidates = Candidate.objects.filter(position='National')
+
+    # Vote Trends for National Candidates (last 24 hours)
     if active_settings and active_settings.is_voting_open:
-        national_candidates = Candidate.objects.filter(position='National')
         twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
-    
-    for candidate in national_candidates:
-        votes = Vote.objects.filter(
-            candidate=candidate,
+
+        for candidate in national_candidates:
+            votes = Vote.objects.filter(
+                candidate=candidate,
                 created_at__gte=twenty_four_hours_ago
-        ).annotate(
-            hour=TruncHour('created_at')
-        ).values('hour').annotate(
-            count=Count('id')
-        ).order_by('hour')
-        
-        vote_trends[candidate.user_profile.student_name] = [
-        {'timestamp': vote['hour'].isoformat(), 'count': vote['count']}
-        for vote in votes
-        ]
+            ).annotate(
+                hour=TruncHour('created_at')
+            ).values('hour').annotate(
+                count=Count('id')
+            ).order_by('hour')
+            
+            vote_trends[candidate.user_profile.student_name] = [
+                {'timestamp': vote['hour'].isoformat(), 'count': vote['count']}
+                for vote in votes
+            ]
     
     # School Year Statistics
     school_years = ElectionSettings.objects.all().order_by('-school_year')
@@ -106,23 +113,30 @@ def dashboard(request):
     
     # Election Status
     election_status = {
-        'current_phase': 'Voting Period' if active_settings and active_settings.is_voting_open else 'Candidacy Period',
+        'current_phase': 'Voting Period' if active_settings and active_settings.is_voting_open else 'Setup Period',
         'next_milestone': 'Voting Period Ends' if active_settings and active_settings.is_voting_open else 'Voting Period Starts',
         'time_to_next': None,
-        'is_candidacy_open': active_settings.is_candidacy_open if active_settings else False,
         'is_voting_open': active_settings.is_voting_open if active_settings else False
     }
     
     # Calculate time to next milestone only if we have valid dates
     if active_settings:
-        if active_settings.is_voting_open and active_settings.voting_end:
-            time_remaining = active_settings.voting_end - timezone.now()
+        if active_settings.is_voting_open and active_settings.voting_time_end:
+            voting_end = timezone.make_aware(timezone.datetime.combine(
+                active_settings.voting_date,
+                active_settings.voting_time_end
+            ))
+            time_remaining = voting_end - timezone.now()
             if time_remaining.total_seconds() > 0:
                 election_status['time_to_next'] = {
                     'total_seconds': int(time_remaining.total_seconds())
                 }
-        elif not active_settings.is_voting_open and active_settings.voting_start:
-            time_remaining = active_settings.voting_start - timezone.now()
+        elif not active_settings.is_voting_open and active_settings.voting_time_start:
+            voting_start = timezone.make_aware(timezone.datetime.combine(
+                active_settings.voting_date,
+                active_settings.voting_time_start
+            ))
+            time_remaining = voting_start - timezone.now()
             if time_remaining.total_seconds() > 0:
                 election_status['time_to_next'] = {
                     'total_seconds': int(time_remaining.total_seconds())
@@ -136,8 +150,12 @@ def dashboard(request):
         ).count() / 24
         
         # Predict additional votes until end
-        if active_settings.voting_end:
-            hours_remaining = (active_settings.voting_end - timezone.now()).total_seconds() / 3600
+        if active_settings.voting_time_end:
+            voting_end = timezone.make_aware(timezone.datetime.combine(
+                active_settings.voting_date,
+                active_settings.voting_time_end
+            ))
+            hours_remaining = (voting_end - timezone.now()).total_seconds() / 3600
             predicted_votes = int(votes_per_hour * hours_remaining)
         else:
             predicted_votes = 0
@@ -275,7 +293,8 @@ def dashboard(request):
         'anomalies': anomalies,
         'device_usage': device_usage,
         'accessibility_metrics': accessibility_metrics,
-        'recent_activities': recent_activities
+        'recent_activities': recent_activities,
+        'current_school_year': get_current_school_year()
     }
     
     return render(request, 'dashboard.html', context)
@@ -289,7 +308,8 @@ def manage_users(request):
     print("DEBUG - User student numbers:", [u.student_number for u in all_users])
     
     context = {
-        'all_users': all_users
+        'all_users': all_users,
+        'current_school_year': get_current_school_year()
     }
     return render(request, 'manage_users.html', context)
 
@@ -298,7 +318,7 @@ def process_face_photo(photo_file, student_number):
     try:
         # Save the uploaded file temporarily
         temp_path = default_storage.save(f'temp/{photo_file.name}', ContentFile(photo_file.read()))
-        temp_file = os.path.join(settings.MEDIA_ROOT, temp_path)
+        temp_file = os.path.join(django_settings.MEDIA_ROOT, temp_path)
         
         # Read the image with high quality
         img = cv2.imread(temp_file, cv2.IMREAD_UNCHANGED)
@@ -306,7 +326,7 @@ def process_face_photo(photo_file, student_number):
             raise ValueError("Could not read image file")
         
         # Create face_data directory if it doesn't exist
-        face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        face_data_dir = os.path.join(django_settings.MEDIA_ROOT, 'face_data')
         os.makedirs(face_data_dir, exist_ok=True)
         
         # Use the standardized preprocessing function
@@ -322,7 +342,7 @@ def process_face_photo(photo_file, student_number):
         
         # Save processed image to face_data directory
         face_path = os.path.join('face_data', f'{student_number}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        cv2.imwrite(os.path.join(django_settings.MEDIA_ROOT, face_path), preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
         # Store the image in binary format for the face_data field
         _, buffer = cv2.imencode('.jpg', preprocessed_color)
@@ -333,7 +353,7 @@ def process_face_photo(photo_file, student_number):
         
         # Save a debug copy to help with troubleshooting
         try:
-            debug_dir = os.path.join(settings.MEDIA_ROOT, 'debug')
+            debug_dir = os.path.join(django_settings.MEDIA_ROOT, 'debug')
             os.makedirs(debug_dir, exist_ok=True)
             cv2.imwrite(os.path.join(debug_dir, f'register_{student_number}.jpg'), 
                         preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -353,7 +373,7 @@ def process_photo_from_path(photo_path, student_number):
             raise ValueError("Could not read image file")
         
         # Create face_data directory if it doesn't exist
-        face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        face_data_dir = os.path.join(django_settings.MEDIA_ROOT, 'face_data')
         os.makedirs(face_data_dir, exist_ok=True)
         
         # Use the standardized preprocessing function
@@ -369,7 +389,7 @@ def process_photo_from_path(photo_path, student_number):
         
         # Save processed image to face_data directory
         face_path = os.path.join('face_data', f'{student_number}.jpg')
-        cv2.imwrite(os.path.join(settings.MEDIA_ROOT, face_path), preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        cv2.imwrite(os.path.join(django_settings.MEDIA_ROOT, face_path), preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
         
         # Store the image in binary format for the face_data field
         _, buffer = cv2.imencode('.jpg', preprocessed_color)
@@ -377,7 +397,7 @@ def process_photo_from_path(photo_path, student_number):
         
         # Save a debug copy to help with troubleshooting
         try:
-            debug_dir = os.path.join(settings.MEDIA_ROOT, 'debug')
+            debug_dir = os.path.join(django_settings.MEDIA_ROOT, 'debug')
             os.makedirs(debug_dir, exist_ok=True)
             cv2.imwrite(os.path.join(debug_dir, f'import_{student_number}.jpg'), 
                         preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
@@ -434,6 +454,13 @@ def register_user(request):
                 school_year=current_school_year # Assign active school year
             )
             
+            # Log activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='REGISTER_USER',
+                details=f"Registered new student: {student_name} ({student_number})"
+            )
+            
             return JsonResponse({'success': True, 'message': f'Student {student_name} added successfully for school year {current_school_year}.'})
             
         except Exception as e:
@@ -458,6 +485,35 @@ def manage_candidates(request):
                 candidate = Candidate.objects.get(id=candidate_id)
                 candidate.delete()
                 messages.success(request, 'Candidate deleted successfully.')
+            except Candidate.DoesNotExist:
+                messages.error(request, 'Candidate not found.')
+            return redirect('admin_panel:manage_candidates')
+        
+        # Handle editing a candidate
+        elif action == 'edit':
+            candidate_id = request.POST.get('candidate_id')
+            try:
+                candidate = Candidate.objects.get(id=candidate_id)
+                position = request.POST.get('position')
+                platform = request.POST.get('platform', '')
+                achievements = request.POST.get('achievements', '')
+                photo = request.FILES.get('photo')
+
+                if position:
+                    candidate.position = position
+                candidate.platform = platform
+                candidate.achievements = achievements
+                if photo:
+                    candidate.photo = photo
+                candidate.save()
+                # Log activity
+                AdminActivity.objects.create(
+                    admin_user=request.user,
+                    action='EDIT_CANDIDATE',
+                    details=f"Edited candidate: {candidate.user_profile.student_name} ({candidate.user_profile.student_number}) for position {position}",
+                )
+                messages.success(request, f'Candidate with student number {candidate.user_profile.student_number} has been updated successfully.')
+                return redirect('admin_panel:manage_candidates')
             except Candidate.DoesNotExist:
                 messages.error(request, 'Candidate not found.')
             return redirect('admin_panel:manage_candidates')
@@ -507,6 +563,12 @@ def manage_candidates(request):
                         candidate.photo = photo
                     
                     candidate.save()
+                    # Log activity
+                    AdminActivity.objects.create(
+                        admin_user=request.user,
+                        action='ADD_CANDIDATE',
+                        details=f"Added candidate: {user_profile.student_name} ({user_profile.student_number}) for position {position}"
+                    )
                     messages.success(request, f'Candidate with student number {user_profile.student_number} has been added successfully.')
                     return redirect('admin_panel:manage_candidates')
                     
@@ -549,6 +611,7 @@ def manage_candidates(request):
         'college_positions': college_positions,
         'local_positions': local_positions,
         'users_json': users_json,
+        'current_school_year': get_current_school_year()
     }
     
     return render(request, 'manage_candidates.html', context)
@@ -586,6 +649,12 @@ def manage_elections(request):
                     school_year=school_year,
                     is_active=True  # This will automatically deactivate other years
                 )
+                # Log activity
+                AdminActivity.objects.create(
+                    admin_user=request.user,
+                    action='CREATE_SCHOOL_YEAR',
+                    details=f'Created new school year: {school_year}'
+                )
                 
                 messages.success(request, f'New school year {school_year} created successfully.')
                 return redirect('admin_panel:manage_elections')
@@ -595,31 +664,32 @@ def manage_elections(request):
                 settings = ElectionSettings.objects.get(is_active=True)
                 
                 # Parse datetime strings from the form
-                candidacy_deadline = request.POST.get('candidacy_deadline')
-                voting_start = request.POST.get('voting_start')
-                voting_end = request.POST.get('voting_end')
+                voting_date = request.POST.get('voting_date')
+                voting_time_start = request.POST.get('voting_time_start')
+                voting_time_end = request.POST.get('voting_time_end')
+                
+                # Helper to parse time string
+                def parse_time_string(time_str):
+                    try:
+                        return datetime.strptime(time_str, '%H:%M').time()
+                    except ValueError:
+                        return datetime.strptime(time_str, '%H:%M:%S').time()
                 
                 # Update settings with parsed datetime objects
-                if candidacy_deadline:
-                    try:
-                        settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M:%S'))
-                    except ValueError:
-                        # Fallback to format without seconds
-                        settings.candidacy_deadline = timezone.make_aware(datetime.strptime(candidacy_deadline, '%Y-%m-%dT%H:%M'))
-                if voting_start:
-                    try:
-                        settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M:%S'))
-                    except ValueError:
-                        # Fallback to format without seconds
-                        settings.voting_start = timezone.make_aware(datetime.strptime(voting_start, '%Y-%m-%dT%H:%M'))
-                if voting_end:
-                    try:
-                        settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M:%S'))
-                    except ValueError:
-                        # Fallback to format without seconds
-                        settings.voting_end = timezone.make_aware(datetime.strptime(voting_end, '%Y-%m-%dT%H:%M'))
+                if voting_date:
+                    settings.voting_date = timezone.make_aware(datetime.strptime(voting_date, '%Y-%m-%d')).date()
+                if voting_time_start:
+                    settings.voting_time_start = parse_time_string(voting_time_start)
+                if voting_time_end:
+                    settings.voting_time_end = parse_time_string(voting_time_end)
                 
                 settings.save()
+                # Log activity
+                AdminActivity.objects.create(
+                    admin_user=request.user,
+                    action='UPDATE_ELECTION_TIMELINE',
+                    details=f'Updated election timeline for school year {settings.school_year}: Date={settings.voting_date}, Start={settings.voting_time_start}, End={settings.voting_time_end}'
+                )
                 messages.success(request, 'Election settings updated successfully.')
                 return redirect('admin_panel:manage_elections')
             
@@ -653,6 +723,7 @@ def manage_elections(request):
         'all_settings': all_settings,
         'active_settings': active_settings,
         'school_year_stats': school_year_stats,
+        'current_school_year': get_current_school_year()
     }
     return render(request, 'manage_elections.html', context)
 
@@ -670,7 +741,8 @@ def results(request):
         })
     
     context = {
-        'results_data': results_data
+        'results_data': results_data,
+        'current_school_year': get_current_school_year()
     }
     return render(request, 'results.html', context)
 
@@ -837,6 +909,13 @@ def import_users(request):
                     error_count += 1
                     continue
 
+            # Log activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='IMPORT_STUDENTS',
+                details=f"Imported {success_count} student records from Excel file. {error_count} records failed to import."
+            )
+
             # Show import results
             if success_count > 0:
                 messages.success(request, f"Successfully imported {success_count} student records for school year {current_school_year}.")
@@ -861,7 +940,7 @@ def import_photos(request):
         zip_file = request.FILES['photos_zip']
         
         # Create directory if it doesn't exist
-        face_data_dir = os.path.join(settings.MEDIA_ROOT, 'face_data')
+        face_data_dir = os.path.join(django_settings.MEDIA_ROOT, 'face_data')
         os.makedirs(face_data_dir, exist_ok=True)
         
         def generate_progress():
@@ -870,108 +949,110 @@ def import_photos(request):
             errors = []
             
             try:
-                with zipfile.ZipFile(BytesIO(zip_file.read())) as z:
-                    # Get total number of image files
-                    total_files = len([f for f in z.namelist() if not f.endswith('/') and f.lower().endswith(('.jpg', '.jpeg', '.png'))])
+                with zipfile.ZipFile(zip_file, 'r') as zip_ref:
+                    total_files = len(zip_ref.namelist())
                     processed_files = 0
                     
-                    for filename in z.namelist():
-                        # Check if the request was cancelled
-                        if getattr(request, '_cancel_import', False):
-                            yield json.dumps({
-                                'status': 'cancelled',
-                                'message': 'Import cancelled by user',
-                                'progress': 0
-                            }) + '\n'
-                            return
-                        
-                        # Skip directories and non-image files
-                        if filename.endswith('/') or not filename.lower().endswith(('.jpg', '.jpeg', '.png')):
-                            continue
-                        
-                        processed_files += 1
-                        progress = (processed_files / total_files) * 100 if total_files > 0 else 0
-                        
-                        # Extract student number from filename (remove extension)
-                        base_filename = os.path.basename(filename)
-                        student_number = os.path.splitext(base_filename)[0]
-                        
-                        try:
-                            # Extract file from ZIP
-                            image_data = z.read(filename)
-                            img_array = np.frombuffer(image_data, np.uint8)
-                            img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
-                            
-                            if img is None:
-                                errors.append(f"Error processing photo '{base_filename}': Could not decode image")
+                    for filename in zip_ref.namelist():
+                        if filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+                            try:
+                                # Extract student number from filename
+                                student_number = os.path.splitext(os.path.basename(filename))[0]
+                                
+                                # Extract and process the image
+                                with zip_ref.open(filename) as file:
+                                    img_data = file.read()
+                                    img_array = np.frombuffer(img_data, np.uint8)
+                                    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+                                    
+                                    if img is None:
+                                        errors.append(f"Could not read image for {filename}")
+                                        error_count += 1
+                                        continue
+                                        
+                                    # Process the image
+                                    try:
+                                        # Use the standardized preprocessing function
+                                        preprocessed_img = preprocess_face_image(img)
+                                        if preprocessed_img is None:
+                                            errors.append(f"Failed to preprocess face image for {filename}")
+                                            error_count += 1
+                                            continue
+                                            
+                                        # Convert back to BGR (color) for saving if it's grayscale
+                                        if len(preprocessed_img.shape) == 2:  # If grayscale
+                                            preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
+                                        else:
+                                            preprocessed_color = preprocessed_img
+                                        
+                                        # Save processed image to face_data directory
+                                        face_path = os.path.join(face_data_dir, f"{student_number}.jpg")
+                                        cv2.imwrite(face_path, preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                                        
+                                        # Save a debug copy
+                                        debug_dir = os.path.join(django_settings.MEDIA_ROOT, 'debug')
+                                        os.makedirs(debug_dir, exist_ok=True)
+                                        cv2.imwrite(os.path.join(debug_dir, f'import_{student_number}.jpg'), 
+                                                preprocessed_color, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                                        
+                                        # Try to update the student profile if it exists
+                                        try:
+                                            user_profile = UserProfile.objects.get(student_number=student_number)
+                                            # Store the image in binary format for the face_data field
+                                            _, buffer = cv2.imencode('.jpg', preprocessed_color)
+                                            face_bytes = buffer.tobytes()
+                                            user_profile.face_data = face_bytes
+                                            user_profile.save()
+                                        except UserProfile.DoesNotExist:
+                                            # Just continue - we've already saved the file
+                                            pass
+                                        
+                                        success_count += 1
+                                    except Exception as e:
+                                        errors.append(f"Error processing image {filename}: {str(e)}")
+                                        error_count += 1
+                                        continue
+                                    
+                            except Exception as e:
+                                errors.append(f"Error processing {filename}: {str(e)}")
                                 error_count += 1
-                                continue
                             
-                            # Preprocess the image
-                            preprocessed_img = preprocess_face_image(img)
+                            processed_files += 1
+                            progress = (processed_files / total_files) * 100
                             
-                            if preprocessed_img is None:
-                                errors.append(f"Error processing photo '{base_filename}': Preprocessing failed")
-                                error_count += 1
-                                continue
-                            
-                            # Convert back to BGR (color) for saving
-                            if len(preprocessed_img.shape) == 2:  # If grayscale
-                                preprocessed_color = cv2.cvtColor(preprocessed_img, cv2.COLOR_GRAY2BGR)
-                            else:
-                                preprocessed_color = preprocessed_img
-                            
-                            # Save processed image to face_data directory
-                            output_path = os.path.join(face_data_dir, f"{student_number}.jpg")
-                            cv2.imwrite(output_path, preprocessed_color)
-                            success_count += 1
-                            
-                            # Send progress update
                             yield json.dumps({
                                 'status': 'processing',
                                 'progress': progress,
-                                'current_file': base_filename,
+                                'current_file': filename,
                                 'success_count': success_count,
                                 'error_count': error_count
                             }) + '\n'
-                            
-                        except Exception as e:
-                            error_message = f"Error processing photo '{base_filename}': {str(e)}"
-                            print(error_message)
-                            print(traceback.format_exc())
-                            errors.append(error_message)
-                            error_count += 1
-                            continue
                     
-                    # Send final status
+                    # Log activity after completion
+                    AdminActivity.objects.create(
+                        admin_user=request.user,
+                        action='IMPORT_PHOTOS',
+                        details=f"Imported {success_count} student photos. {error_count} photos failed to import."
+                    )
+                    
+                    # Final status
                     yield json.dumps({
                         'status': 'completed',
                         'success_count': success_count,
                         'error_count': error_count,
-                        'errors': errors[:5] if len(errors) > 5 else errors,
-                        'additional_errors': len(errors) - 5 if len(errors) > 5 else 0
+                        'errors': errors[:10],  # Only include first 10 errors
+                        'additional_errors': max(0, len(errors) - 10)
                     }) + '\n'
                     
-            except zipfile.BadZipFile:
-                yield json.dumps({
-                    'status': 'error',
-                    'message': 'Invalid ZIP file. Please upload a valid ZIP file.'
-                }) + '\n'
-                
             except Exception as e:
                 yield json.dumps({
                     'status': 'error',
                     'message': str(e)
                 }) + '\n'
         
-        response = StreamingHttpResponse(generate_progress(), content_type='text/event-stream')
-        response['Cache-Control'] = 'no-cache'
-        return response
+        return StreamingHttpResponse(generate_progress(), content_type='text/event-stream')
     
-    return JsonResponse({
-        'status': 'error',
-        'message': 'No file uploaded or invalid request method.'
-    }, status=400)
+    return redirect('admin_panel:manage_users')
 
 def admin_panel_login(request):
     # Always logout any existing session when accessing admin login
@@ -1047,6 +1128,7 @@ def generate_report(request):
         'total_candidates': total_candidates,
         'votes_by_position': votes_by_position,
         'non_voters_by_college': non_voters_by_college,
+        'current_school_year': get_current_school_year()
     }
     
     if request.GET.get('format') == 'pdf':
@@ -1168,8 +1250,8 @@ def admin_results(request):
     try:
         election_settings = ElectionSettings.objects.get(id=1)
         current_time = timezone.now()
-        voting_ended = not election_settings.is_voting_open() and election_settings.voting_end and current_time > election_settings.voting_end
-        voting_status = "Active" if election_settings.is_voting_open() else "Not Started" if election_settings.voting_start and current_time < election_settings.voting_start else "Ended"
+        voting_ended = not election_settings.is_voting_open() and election_settings.voting_time_end and current_time > timezone.make_aware(timezone.datetime.combine(election_settings.voting_date, election_settings.voting_time_end))
+        voting_status = "Active" if election_settings.is_voting_open() else "Not Started" if election_settings.voting_time_start and current_time < timezone.make_aware(timezone.datetime.combine(election_settings.voting_date, election_settings.voting_time_start)) else "Ended"
     except ElectionSettings.DoesNotExist:
         voting_ended = False
         voting_status = "Not Configured"
@@ -1178,7 +1260,8 @@ def admin_results(request):
     if not voting_ended:
         context = {
             'voting_ended': False,
-            'voting_status': voting_status
+            'voting_status': voting_status,
+            'current_school_year': get_current_school_year()
         }
         return render(request, 'admin_panel/results.html', context)
     
@@ -1288,6 +1371,7 @@ def admin_results(request):
         'college_turnout': college_turnout,
         'total_non_voters': total_non_voters,
         'non_voter_percentage': non_voter_percentage,
+        'current_school_year': get_current_school_year()
     }
     
     return render(request, 'admin_panel/results.html', context)
@@ -1302,7 +1386,8 @@ def verification_codes_view(request):
     verification_codes = VerificationCode.objects.all().order_by('-created_at')
     return render(request, 'admin_panel/verification_codes.html', {
         'verification_codes': verification_codes,
-        'is_committee': CommitteeAccount.objects.filter(user=request.user).exists()
+        'is_committee': CommitteeAccount.objects.filter(user=request.user).exists(),
+        'current_school_year': get_current_school_year()
     })
 
 @login_required
@@ -1348,7 +1433,8 @@ def generate_code(request):
             'success': True,
             'student_number': student_number,
             'code': code,
-            'expires_at': expires_at.strftime('%Y-%m-%d %H:%M:%S')
+            'expires_at': expires_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'current_school_year': get_current_school_year()
         })
 
     except json.JSONDecodeError:
@@ -1386,7 +1472,8 @@ def regenerate_code(request, code_id):
                 'success': True,
                 'code': new_code,
                 'student_number': code.student_number,
-                'expires_at': code.expires_at.strftime('%Y-%m-%d %H:%M:%S')
+                'expires_at': code.expires_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'current_school_year': get_current_school_year()
             })
         except VerificationCode.DoesNotExist:
             return JsonResponse({'success': False, 'message': 'Code not found'}, status=404)
@@ -1418,7 +1505,8 @@ def settings(request):
     context = {
         'users_json': users_json,
         'committee_accounts': committee_accounts,
-        'users': users
+        'users': users,
+        'current_school_year': get_current_school_year()
     }
     return render(request, 'settings.html', context)
 
@@ -1452,6 +1540,13 @@ def create_committee(request):
             
             # Create committee account
             CommitteeAccount.objects.create(user=user)
+
+            # Log the activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='CREATE_COMMITTEE_ACCOUNT',
+                details=f'Created committee account for {user_profile.student_name} ({user_profile.student_number})'
+            )
             
             # Redirect with success parameters
             return redirect(f"{reverse('admin_panel:settings')}?success=true&student_name={user_profile.student_name}")
@@ -1520,8 +1615,7 @@ def change_password(request):
             AdminActivity.objects.create(
                 admin_user=request.user,
                 action='CHANGE_PASSWORD',
-                details='Admin password was changed',
-                ip_address=request.META.get('REMOTE_ADDR')
+                details='Admin password was changed'
             )
             
             # Update the session to prevent logout
@@ -1529,7 +1623,8 @@ def change_password(request):
             
             return JsonResponse({
                 'success': True,
-                'message': 'Password changed successfully.'
+                'message': 'Password changed successfully.',
+                'current_school_year': get_current_school_year()
             })
             
         except Exception as e:
@@ -1588,7 +1683,8 @@ def committee_change_password(request):
             
             return JsonResponse({
                 'success': True,
-                'message': 'Password changed successfully.'
+                'message': 'Password changed successfully.',
+                'current_school_year': get_current_school_year()
             })
             
         except Exception as e:
@@ -1602,26 +1698,20 @@ def committee_change_password(request):
 @login_required
 @user_passes_test(is_admin)
 def activity_logs(request):
-    """View for displaying activity logs"""
+    from .models import AdminActivity
+    from django.contrib.auth.models import User
     # Get all admin and committee users
     admin_users = User.objects.filter(is_superuser=True)
     committee_users = User.objects.filter(committee_profile__isnull=False)
-    all_users = admin_users | committee_users
-
-    # Get search query if any
-    search_query = request.GET.get('search', '')
-    if search_query:
-        all_users = all_users.filter(
-            Q(username__icontains=search_query) |
-            Q(first_name__icontains=search_query) |
-            Q(last_name__icontains=search_query)
-        )
-
+    users = admin_users | committee_users
+    users = users.distinct().order_by('username')
+    logs = AdminActivity.objects.all().order_by('-timestamp')
     context = {
-        'users': all_users,
-        'search_query': search_query
+        'users': users,
+        'logs': logs,
+        'current_school_year': get_current_school_year()
     }
-    return render(request, 'admin_panel/activity_logs.html', context)
+    return render(request, 'activity_logs.html', context)
 
 @login_required
 @user_passes_test(is_admin)
@@ -1639,5 +1729,45 @@ def user_activity_logs(request, user_id):
     
     return render(request, 'admin_panel/user_activity_logs.html', {
         'activities': activities,
-        'user': user
+        'user': user,
+        'current_school_year': get_current_school_year()
     })
+
+@login_required
+@user_passes_test(is_admin)
+def toggle_committee_status(request, committee_id):
+    if request.method == 'POST':
+        try:
+            committee = CommitteeAccount.objects.get(id=committee_id)
+            committee.is_active = not committee.is_active
+            committee.save()
+            
+            # Log the activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='TOGGLE_COMMITTEE_STATUS',
+                details=f'Committee account status changed to {"active" if committee.is_active else "inactive"} for {committee.user.username}'
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'is_active': committee.is_active,
+                'message': f'Committee account {"activated" if committee.is_active else "deactivated"} successfully.',
+                'current_school_year': get_current_school_year()
+            })
+        except CommitteeAccount.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Committee account not found.'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method.'
+    }, status=400)
+
