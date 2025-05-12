@@ -42,11 +42,11 @@
         </div>
 
         <div class="col-md-8">
-            <div class="admin-card">
+            <div class="admin-card" style="max-height: 500px; display: flex; flex-direction: column;">
                 <div class="card-header py-3" style="background-color: #1976D2;">
                     <h5 class="card-title mb-0 text-white">Activity Logs</h5>
                 </div>
-                <div class="card-body p-0">
+                <div class="card-body p-0 flex-grow-1 overflow-auto" style="max-height: 420px;">
                     <div class="table-responsive">
                         <table class="table table-hover mb-0" id="logsTable">
                             <thead class="table-header">
@@ -248,4 +248,3 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endblock %}
 {% endblock %}
-<｜tool▁call▁end｜><｜tool▁calls▁end｜>

@@ -91,6 +91,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'admin_panel.context_processors.role_flags',
             ],
         },
     },
@@ -105,7 +106,7 @@ WSGI_APPLICATION = 'smartvote.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE':'django.db.backends.mysql',
-        'NAME': 'testest',
+        'NAME': 'votest',
         'USER': 'root',
         'PASSWORD': '',
         'HOST': 'localhost',

@@ -1,8 +1,53 @@
 {% extends 'admin_base.html' %}
+{% load custom_filters %}
 
 {% block admin_content %}
 <div class="row">
-    <!-- Stats Cards -->
+    <!-- Election Status -->
+    <div class="col-12 mb-4">
+        <div class="admin-card p-4">
+            <h4 class="header-title">
+                <i class="fas fa-vote-yea me-2"></i>Election Status
+            </h4>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="election-timeline">
+                        <div class="timeline-item">
+                            <div class="timeline-date">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                Start Date
+                            </div>
+                            <div class="timeline-content">
+                                {{ election_status.voting_start|date:"F d, Y H:i" }}
+                            </div>
+                        </div>
+                        <div class="timeline-item">
+                            <div class="timeline-date">
+                                <i class="fas fa-calendar-alt me-2"></i>
+                                End Date
+                            </div>
+                            <div class="timeline-content">
+                                {{ election_status.voting_end|date:"F d, Y H:i" }}
+                            </div>
+                        </div>
+                        {% if election_status.is_voting_open %}
+                        <div class="timeline-item active">
+                            <div class="timeline-date">
+                                <i class="fas fa-clock me-2"></i>
+                                Time Remaining
+                            </div>
+                            <div class="timeline-content">
+                                <span id="countdown" class="countdown-timer">{{ election_status.time_to_next.total_seconds }}</span>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Statistics -->
     <div class="col-md-3 mb-4">
         <div class="admin-card p-4">
             <div class="d-flex align-items-center">
@@ -11,7 +56,7 @@
                 </div>
                 <div>
                     <h3 class="mb-0" style="color: #1976D2;">{{ total_users }}</h3>
-                    <p class="text-muted mb-0">Total Users</p>
+                    <p class="text-muted mb-0">Total Students</p>
                 </div>
             </div>
         </div>
@@ -54,54 +99,10 @@
                 <div>
                     <h3 class="mb-0" style="color: #1976D2;">{{ voter_turnout }}%</h3>
                     <p class="text-muted mb-0">Voter Turnout</p>
+                    <div class="progress mt-2" style="height: 4px;">
+                        <div class="progress-bar" role="progressbar" style="width: {{ voter_turnout }}%; background-color: #1976D2;"></div>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Vote Trends Graph -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="admin-card p-4">
-            <h4 class="mb-4 header-title">
-                <i class="fas fa-chart-line me-2"></i>National Candidates Vote Trends
-            </h4>
-            <div style="position: relative; height: 400px; width: 100%;">
-                <canvas id="voteTrendsChart"></canvas>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Recent Activity -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="admin-card p-4">
-            <h4 class="mb-4 header-title">Recent Activity</h4>
-            <div class="table-responsive">
-                <table class="table">
-                    <thead class="table-header">
-                        <tr>
-                            <th>Time</th>
-                            <th>Action</th>
-                            <th>Details</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for activity in recent_activities %}
-                        <tr>
-                            <td>{{ activity.created_at }}</td>
-                            <td>{{ activity.action }}</td>
-                            <td>{{ activity.details }}</td>
-                        </tr>
-                        {% empty %}
-                        <tr>
-                            <td colspan="3" class="text-center">No recent activity</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
             </div>
         </div>
     </div>
@@ -128,163 +129,80 @@
     font-weight: 700;
 }
 
-.table-header {
-    background-color: rgba(25, 118, 210, 0.1);
+.status-indicator {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 5px;
 }
 
-.table-header th {
+.status-healthy {
+    background: #2ecc71;
+}
+
+.status-warning {
+    background: #f1c40f;
+}
+
+.status-error {
+    background: #e74c3c;
+}
+
+.election-timeline {
+    position: relative;
+    padding: 20px 0;
+}
+
+.timeline-item {
+    position: relative;
+    padding: 15px;
+    margin-bottom: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.timeline-item.active {
+    background: #e3f2fd;
+    border-left: 4px solid #2196f3;
+}
+
+.timeline-date {
     color: #1976D2;
     font-weight: 600;
+    margin-bottom: 5px;
 }
 
-.table td {
-    border-color: rgba(25, 118, 210, 0.1);
+.timeline-content {
+    font-size: 1.1rem;
+    color: #333;
+}
+
+.countdown-timer {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #1976D2;
 }
 </style>
 
-<!-- Chart.js and Moment.js -->
-<script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
-
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const voteTrendsData = {{ vote_trends|safe }};
-    const ctx = document.getElementById('voteTrendsChart').getContext('2d');
-    
-    // Check if there's data to display
-    if (!voteTrendsData || Object.keys(voteTrendsData).length === 0) {
-        const noDataText = document.createElement('p');
-        noDataText.textContent = 'No vote data available for national candidates';
-        noDataText.style.textAlign = 'center';
-        noDataText.style.color = '#6c757d';
-        noDataText.style.marginTop = '20px';
-        ctx.canvas.parentNode.appendChild(noDataText);
-        return;
-    }
-    
-    // Generate colors for each candidate
-    const colors = [
-        '#1976D2', '#42A5F5', '#0D47A1', '#E3F2FD', '#BBDEFB',
-        '#1565C0', '#2196F3', '#0D47A1', '#B3E5FC', '#81D4FA'
-    ];
-    
-    // Prepare datasets
-    const datasets = [];
-    let colorIndex = 0;
-    
-    for (const [candidate, data] of Object.entries(voteTrendsData)) {
-        // Ensure data is properly formatted
-        const validData = data.filter(point => point.timestamp && point.count !== undefined);
+    // Countdown Timer
+    {% if election_status.is_voting_open %}
+    function updateCountdown() {
+        const totalSeconds = {{ election_status.time_to_next.total_seconds }};
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
         
-        datasets.push({
-            label: candidate,
-            data: validData.map(point => ({
-                x: moment(point.timestamp).toDate(),
-                y: parseInt(point.count) || 0
-            })),
-            borderColor: colors[colorIndex % colors.length],
-            backgroundColor: colors[colorIndex % colors.length] + '20',
-            borderWidth: 2,
-            tension: 0.4,
-            fill: true,
-            pointRadius: 4,
-            pointHoverRadius: 6
-        });
-        colorIndex++;
-    }     
-    // Create the chart
-    const chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            datasets: datasets
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: 'index'
-            },
-            scales: {
-                x: {
-                    type: 'time',
-                    time: {
-                        unit: 'hour',
-                        displayFormats: {
-                            hour: 'MMM D, HH:mm'
-                        },
-                        tooltipFormat: 'MMM D, HH:mm'
-                    },
-                    grid: {
-                        color: 'rgba(25, 118, 210, 0.1)'
-                    },
-                    title: {
-                        display: true,
-                        text: 'Time',
-                        color: '#1976D2',
-                        font: {
-                            size: 14,
-                            weight: 'bold'
-                        }
-                    }
-                },
-                y: {
-                    beginAtZero: true,
-                    grid: {
-                        color: 'rgba(25, 118, 210, 0.1)'
-                    },
-                    title: {
-                        display: true,
-                        text: 'Number of Votes',
-                        color: '#1976D2',
-                        font: {
-                            size: 14,
-                            weight: 'bold'
-                        }
-                    },
-                    ticks: {
-                        stepSize: 1,
-                        precision: 0
-                    }
-                }
-            },
-            plugins: {
-                legend: {
-                    position: 'top',
-                    labels: {
-                        usePointStyle: true,
-                        padding: 20,
-                        font: {
-                            size: 12
-                        },
-                        color: '#1976D2'
-                    }
-                },
-                tooltip: {
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                    titleColor: '#1976D2',
-                    titleFont: {
-                        weight: 'bold'
-                    },
-                    bodyColor: '#1976D2',
-                    borderColor: '#1976D2',
-                    borderWidth: 1,
-                    padding: 10,
-                    callbacks: {
-                        title: function(context) {
-                            return moment(context[0].parsed.x).format('MMM D, HH:mm');
-                        },
-                        label: function(context) {
-                            return `${context.dataset.label}: ${context.parsed.y} votes`;
-                        }
-                    }
-                }
-            }
-        }
-    });
+        document.getElementById('countdown').textContent = 
+            `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    setInterval(updateCountdown, 1000);
+    updateCountdown();
+    {% endif %}
 });
 </script>
 {% endblock %} 

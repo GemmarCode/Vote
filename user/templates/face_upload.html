@@ -1,0 +1,453 @@
+{% extends 'base.html' %}
+
+{% block title %}Face Verification Setup{% endblock %}
+
+{% block extra_css %}
+<style>
+    .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+    }
+
+    .loading-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        text-align: center;
+    }
+
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+    }
+
+    .capture-success-banner {
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        display: none;
+    }
+
+    .progress-steps {
+        margin-top: 1rem;
+    }
+
+    .progress-step {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+    }
+
+    .step-indicator {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background-color: #e9ecef;
+        color: #6c757d;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin-right: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    .step-indicator.completed {
+        background-color: #28a745;
+        color: white;
+    }
+
+    .step-indicator.active {
+        background-color: #007bff;
+        color: white;
+    }
+
+    /* Responsive styles */
+    @media (max-width: 767.98px) {
+        .container.mt-5 {
+            margin-top: 1rem !important;
+        }
+        .card.shadow, .card.shadow.mb-4 {
+            margin-bottom: 1rem !important;
+            padding: 0.5rem !important;
+        }
+        .card-header h3 {
+            font-size: 1.1rem;
+        }
+        .progress-steps {
+            margin-top: 0.5rem;
+        }
+        .progress-step {
+            margin-bottom: 0.25rem;
+            font-size: 0.95rem;
+        }
+        .step-indicator {
+            width: 20px;
+            height: 20px;
+            font-size: 0.7rem;
+        }
+        #dynamicStepInstruction {
+            font-size: 1rem;
+        }
+        #video {
+            width: 100% !important;
+            max-width: 100vw !important;
+            height: auto !important;
+        }
+        .d-flex.justify-content-center.gap-3 {
+            flex-direction: column !important;
+            gap: 0.5rem !important;
+        }
+        #captureButton, #submitButton {
+            width: 100% !important;
+            font-size: 1rem !important;
+        }
+        #capturedImages {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            display: flex !important;
+            gap: 0.5rem !important;
+        }
+        #capturedImages .col-md-4 {
+            flex: 0 0 120px !important;
+            max-width: 120px !important;
+            min-width: 100px !important;
+        }
+        #capturedImages img {
+            max-width: 100% !important;
+            height: auto !important;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-content">
+        <div class="spinner-border text-primary mb-3" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <h4 class="mb-3">Processing Photos</h4>
+        <p class="mb-0" id="loadingMessage">Please wait while we process your photos...</p>
+    </div>
+</div>
+
+<!-- Capture Success Banner -->
+<div class="alert alert-success alert-dismissible fade capture-success-banner" id="captureSuccessBanner" role="alert">
+    <strong>Success!</strong> <span id="captureSuccessMessage"></span>
+    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+</div>
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <!-- ID Verification Step -->
+            <div class="card shadow mb-4" id="idVerificationCard">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">ID Verification</h3>
+                </div>
+                <div class="card-body">
+                    <form id="idVerificationForm">
+                        <div class="mb-3">
+                            <label for="studentId" class="form-label">Enter your Student ID</label>
+                            <input type="text" class="form-control" id="studentId" name="student_id" required>
+                        </div>
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary" id="verifyIdButton">
+                                <i class="fas fa-check me-2"></i>Verify ID
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Camera Capture Step (Initially Hidden) -->
+            <div class="card shadow" id="cameraCaptureCard" style="display: none;">
+                <div class="card-header bg-primary text-white">
+                    <h3 class="mb-0">Face Capture</h3>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-12 col-md-6 mb-3 mb-md-0">
+                            <div class="alert alert-info mb-2">
+                                <h5 class="mb-2">Instructions:</h5>
+                                <ul class="mb-2">
+                                    <li>Position your face in the center of the frame</li>
+                                    <li>Ensure good lighting and no obstructions</li>
+                                </ul>
+                                <div id="dynamicStepInstruction" class="mb-2 fw-bold text-primary">
+                                    <!-- Dynamic step instruction will appear here -->
+                                </div>
+                                <!-- Progress Steps -->
+                                <div class="progress-steps" id="progressSteps">
+                                    <div class="progress-step">
+                                        <div class="step-indicator" id="step1">1</div>
+                                        <span>Front view</span>
+                                    </div>
+                                    <div class="progress-step">
+                                        <div class="step-indicator" id="step2">2</div>
+                                        <span>Left side</span>
+                                    </div>
+                                    <div class="progress-step">
+                                        <div class="step-indicator" id="step3">3</div>
+                                        <span>Right side</span>
+                                    </div>
+                                    <div class="progress-step">
+                                        <div class="step-indicator" id="step4">4</div>
+                                        <span>Tilted up</span>
+                                    </div>
+                                    <div class="progress-step">
+                                        <div class="step-indicator" id="step5">5</div>
+                                        <span>Tilted down</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <div class="text-center mb-3">
+                                <video id="video" autoplay playsinline style="max-width: 100%; border-radius: 8px; transform: scaleX(-1);"></video>
+                                <canvas id="canvas" style="display: none;"></canvas>
+                            </div>
+                            <div class="d-flex justify-content-center gap-3 mb-2">
+                                <button class="btn btn-primary" id="captureButton">
+                                    <i class="fas fa-camera me-2"></i>Capture
+                                </button>
+                                <button class="btn btn-success" id="submitButton" style="display:none;">
+                                    <i class="fas fa-check me-2"></i>Submit
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div id="capturedImages" class="row g-3">
+                            <!-- Captured images will be displayed here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const idVerificationForm = document.getElementById('idVerificationForm');
+    const idVerificationCard = document.getElementById('idVerificationCard');
+    const cameraCaptureCard = document.getElementById('cameraCaptureCard');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const captureButton = document.getElementById('captureButton');
+    const submitButton = document.getElementById('submitButton');
+    const capturedImages = document.getElementById('capturedImages');
+    let stream = null;
+    let capturedCount = 0;
+
+    const stepInstructions = [
+        'Step 1: Look straight at the camera with a neutral expression.',
+        'Step 2: Turn your head slightly to the left and look at the camera.',
+        'Step 3: Turn your head slightly to the right and look at the camera.',
+        'Step 4: Tilt your head slightly up and look at the camera.',
+        'Step 5: Tilt your head slightly down and look at the camera.'
+    ];
+    const dynamicStepInstruction = document.getElementById('dynamicStepInstruction');
+    function updateStepInstruction() {
+        if (capturedCount < stepInstructions.length) {
+            dynamicStepInstruction.textContent = stepInstructions[capturedCount];
+            submitButton.style.display = 'none';
+        } else {
+            dynamicStepInstruction.textContent = 'All required photos captured! You may submit.';
+            submitButton.style.display = 'inline-block';
+        }
+    }
+    // Initialize instruction on camera show
+    if (dynamicStepInstruction) updateStepInstruction();
+
+    // Handle ID verification
+    idVerificationForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const studentId = document.getElementById('studentId').value;
+        
+        try {
+            const response = await fetch('/api/verify-student-id/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ student_id: studentId })
+            });
+            
+            const data = await response.json();
+            
+            if (data.valid) {
+                idVerificationCard.style.display = 'none';
+                cameraCaptureCard.style.display = 'block';
+                startCamera();
+            } else {
+                alert('Invalid Student ID. Please try again.');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            alert('An error occurred. Please try again.');
+        }
+    });
+
+    // Start camera
+    async function startCamera() {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
+        } catch (err) {
+            console.error('Error accessing camera:', err);
+            alert('Could not access camera. Please ensure you have granted camera permissions.');
+        }
+    }
+
+    // Add new variables for UI elements
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const captureSuccessBanner = document.getElementById('captureSuccessBanner');
+    const captureSuccessMessage = document.getElementById('captureSuccessMessage');
+
+    function showLoading(message) {
+        document.getElementById('loadingMessage').textContent = message;
+        loadingOverlay.style.display = 'flex';
+    }
+
+    function hideLoading() {
+        loadingOverlay.style.display = 'none';
+    }
+
+    function showCaptureSuccess(stepNumber) {
+        captureSuccessMessage.textContent = `Step ${stepNumber} completed successfully!`;
+        captureSuccessBanner.classList.add('show');
+        captureSuccessBanner.style.display = 'block';
+        
+        // Update progress indicator
+        const stepIndicator = document.getElementById(`step${stepNumber}`);
+        if (stepIndicator) {
+            stepIndicator.classList.add('completed');
+            
+            // Update next step as active if available
+            if (stepNumber < 5) {
+                const nextStepIndicator = document.getElementById(`step${stepNumber + 1}`);
+                if (nextStepIndicator) {
+                    nextStepIndicator.classList.add('active');
+                }
+            }
+        }
+
+        // Auto-hide the banner after 3 seconds
+        setTimeout(() => {
+            captureSuccessBanner.classList.remove('show');
+            setTimeout(() => {
+                captureSuccessBanner.style.display = 'none';
+            }, 150);
+        }, 3000);
+    }
+
+    // Initialize first step as active
+    document.getElementById('step1').classList.add('active');
+
+    // Modify capture button click handler
+    captureButton.addEventListener('click', function() {
+        if (capturedCount >= 5) {
+            alert('You have captured the maximum number of images.');
+            return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0);
+        
+        const imageData = canvas.toDataURL('image/jpeg');
+        capturedCount++;
+        
+        // Display captured image
+        const col = document.createElement('div');
+        col.className = 'col-md-4';
+        col.innerHTML = `
+            <div class="position-relative">
+                <img src="${imageData}" class="img-thumbnail mb-2" style="max-height: 200px;">
+                <button class="btn btn-danger btn-sm position-absolute top-0 end-0 m-2" onclick="this.parentElement.parentElement.remove(); capturedCount--; updateStepInstruction();">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+        `;
+        capturedImages.appendChild(col);
+
+        updateStepInstruction();
+        showCaptureSuccess(capturedCount);
+
+        if (capturedCount >= 3) {
+            submitButton.disabled = false;
+        }
+    });
+
+    // Modify submit button click handler
+    submitButton.addEventListener('click', async function() {
+        if (capturedCount < 3) {
+            alert('Please capture at least 3 images.');
+            return;
+        }
+
+        const images = Array.from(capturedImages.getElementsByTagName('img')).map(img => img.src);
+        
+        try {
+            showLoading('Processing your photos. This may take a few moments...');
+            
+            const response = await fetch('/api/submit-face-images/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    student_id: document.getElementById('studentId').value,
+                    images: images
+                })
+            });
+            
+            const result = await response.json();
+            hideLoading();
+            
+            if (result.success) {
+                alert('Face images uploaded successfully!');
+                window.location.href = '/';  // Redirect to home page
+            } else {
+                alert(result.message || 'Error uploading images. Please try again.');
+            }
+        } catch (error) {
+            hideLoading();
+            console.error('Error:', error);
+            alert('An error occurred while uploading images. Please try again.');
+        }
+    });
+
+    // Clean up camera stream when leaving
+    window.addEventListener('beforeunload', function() {
+        if (stream) {
+            stream.getTracks().forEach(track => track.stop());
+        }
+    });
+
+    // Also update instruction on removal of a photo
+    capturedImages.addEventListener('click', function(e) {
+        if (e.target.closest('button')) {
+            setTimeout(updateStepInstruction, 100); // update after removal
+        }
+    });
+});
+</script>
+{% endblock %} 

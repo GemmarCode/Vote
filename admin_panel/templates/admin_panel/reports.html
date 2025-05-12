@@ -1,4 +1,5 @@
 {% extends 'admin_base.html' %}
+{% load custom_filters %}
 
 {% block title %}Election Report{% endblock %}
 
@@ -92,73 +93,154 @@
                             </div>
                         </div>
 
-                        <!-- Results by Position -->
-                        <div class="admin-card mb-4">
-                            <div class="card-header py-3" style="background-color: white; border-left: 4px solid #1976D2;">
-                                <h6 class="m-0 font-weight-bold header-title">Results by Position</h6>
-                            </div>
-                            <div class="card-body">
-                                <div class="mb-3 d-flex justify-content-end no-print">
-                                    <button class="btn btn-sm btn-outline-primary me-2" onclick="toggleAllSections()">
-                                        <i class="fas fa-expand-alt"></i> Expand/Collapse All
-                                    </button>
-                                    <div class="btn-group">
-                                        <button class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
-                                            <i class="fas fa-filter"></i> Filter
-                                        </button>
-                                        <ul class="dropdown-menu">
-                                            <li><a class="dropdown-item" href="#" onclick="filterPositions('all')">All Positions</a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="filterPositions('national')">National Only</a></li>
-                                            <li><a class="dropdown-item" href="#" onclick="filterPositions('college')">College Only</a></li>
-                                        </ul>
+                        <!-- National Positions -->
+                        <div class="position-section mb-4">
+                            <h4 class="section-title">National Positions</h4>
+                            {% for position, candidates in national_positions.items %}
+                                <div class="position-card mb-4">
+                                    <div class="position-header p-3" style="background-color: #1976D2; color: white; border-radius: 8px 8px 0 0;">
+                                        <h5 class="m-0">{{ position }}</h5>
                                     </div>
-                                </div>
-                                
-                                {% for position, candidates in votes_by_position.items %}
-                                <div class="position-section mb-4" data-position-type="{% if 'College' in position or 'Governor' in position %}college{% else %}national{% endif %}">
-                                    <div class="position-header d-flex align-items-center cursor-pointer" onclick="toggleSection(this)">
-                                        <i class="fas fa-chevron-down me-2 toggle-icon"></i>
-                                        <h5 class="font-weight-bold mb-0">{{ position }}</h5>
-                                        {% if candidates.0.is_winner %}
-                                            <span class="winner-badge ms-3">
-                                                <i class="fas fa-crown me-1"></i>Winner: {{ candidates.0.candidate.user_profile.student_name }}
-                                            </span>
-                                        {% endif %}
-                                    </div>
-                                    <div class="position-content mt-3">
-                                        <div class="candidates-row d-flex flex-row flex-wrap gap-2">
-                                            {% for candidate in candidates %}
-                                            <div class="candidate-card-sm {% if candidate.is_winner %}winner-card{% endif %}">
-                                                <div class="card-body p-2">
-                                                    <div class="d-flex justify-content-between align-items-start mb-2">
-                                                        <div>
-                                                            <div class="card-title mb-1" style="font-size: 1rem; font-weight: 600;">{{ candidate.candidate.user_profile.student_name }}</div>
-                                                            <div class="text-muted mb-1" style="font-size: 0.85rem;">{{ candidate.candidate.user_profile.student_number }}</div>
-                                                            <div class="text-muted mb-0" style="font-size: 0.85rem;">{{ candidate.candidate.user_profile.college }}</div>
-                                                        </div>
-                                                        {% if candidate.is_winner %}
-                                                        <span class="badge" style="background-color: #1976D2; font-size: 0.8rem;">Winner</span>
-                                                        {% else %}
-                                                        <span class="badge" style="background-color: #E3F2FD; color: #1976D2; font-size: 0.8rem;">Runner-up</span>
-                                                        {% endif %}
-                                                    </div>
-                                                    <div class="votes-info p-1" style="font-size: 0.85rem;">
-                                                        <div class="d-flex justify-content-between align-items-center mb-1">
-                                                            <span class="votes-count">{{ candidate.votes }} votes</span>
-                                                            <span class="votes-percentage">{{ candidate.percentage|floatformat:1 }}%</span>
-                                                        </div>
-                                                        <div class="progress" style="height: 6px;">
-                                                            <div class="progress-bar" style="width: {{ candidate.percentage }}%; background-color: {% if candidate.is_winner %}#1976D2{% else %}#42A5F5{% endif %}"></div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            {% endfor %}
+                                    <div class="position-body p-3" style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-top: none; border-radius: 0 0 8px 8px;">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover align-middle mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th style="width: 80px;">Rank</th>
+                                                        <th>Candidate</th>
+                                                        <th style="width: 120px;">Votes</th>
+                                                        <th style="width: 150px;">Percentage</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for candidate in candidates %}
+                                                    <tr class="{% if forloop.first %}table-primary{% endif %}">
+                                                        <td>
+                                                            <div class="rank-badge {% if forloop.first %}rank-first{% elif forloop.counter == 2 %}rank-second{% elif forloop.counter == 3 %}rank-third{% endif %}">
+                                                                {{ forloop.counter }}
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="d-flex align-items-center">
+                                                                <div class="candidate-info">
+                                                                    <div class="candidate-name fw-bold">{{ candidate.candidate.user_profile.student_name }}</div>
+                                                                    <div class="candidate-details text-muted small">
+                                                                        {{ candidate.candidate.user_profile.student_number }} | {{ candidate.candidate.user_profile.college }}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td class="text-center">
+                                                            <span class="votes-count fw-bold">{{ candidate.votes }}</span>
+                                                        </td>
+                                                        <td>
+                                                            <div class="progress" style="height: 20px;">
+                                                                <div class="progress-bar {% if forloop.first %}bg-primary{% else %}bg-info{% endif %}" 
+                                                                     role="progressbar" 
+                                                                     style="width: {{ candidate.percentage }}%;" 
+                                                                     aria-valuenow="{{ candidate.percentage }}" 
+                                                                     aria-valuemin="0" 
+                                                                     aria-valuemax="100">
+                                                                    {{ candidate.percentage|floatformat:1 }}%
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
                                         </div>
                                     </div>
                                 </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- College Positions -->
+                        <div class="position-section mb-4">
+                            <h4 class="section-title">College Positions</h4>
+                            {% for position, data in college_positions.items %}
+                                <h5 class="mt-4 mb-2" style="color: #1976D2;">{{ position }}</h5>
+                                <div class="table-responsive mb-4">
+                                    <table class="table table-bordered table-hover align-middle">
+                                        <thead class="table-primary">
+                                            <tr>
+                                                {% for college in data.colleges %}
+                                                    <th class="text-center">{{ college }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in data.rows %}
+                                                <tr>
+                                                    {% for candidate in row %}
+                                                        <td class="align-top">
+                                                            {% if candidate %}
+                                                                <div class="mb-1">
+                                                                    <span class="fw-bold text-primary">Rank {{ forloop.parentloop.counter }}:</span>
+                                                                    {{ candidate.candidate.user_profile.student_name }}<br>
+                                                                    <span class="votes-info">
+                                                                        Votes: <span class="votes-count">{{ candidate.votes }}</span> &nbsp;|&nbsp;
+                                                                        <span class="votes-percentage">{{ candidate.percentage|floatformat:1 }}%</span>
+                                                                    </span>
+                                                                </div>
+                                                            {% else %}
+                                                                <span class="text-muted">—</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    {% endfor %}
+                                                </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <!-- Department Positions -->
+                        <div class="position-section">
+                            <h4 class="section-title">Department Positions</h4>
+                            {% for dept, courses in department_positions.items %}
+                                <h5 class="dept-title mt-4 mb-2" style="color: #1976D2;">{{ dept }}</h5>
+                                {% for course, years in courses.items %}
+                                    <h6 class="ms-3 mb-2" style="color: #1565c0;">{{ course }}</h6>
+                                    {% for year, positions in years.items %}
+                                        <div class="mb-4 ms-4">
+                                            <h6 class="fw-bold mb-2" style="color: #0288d1;">
+                                                Year {{ year }}
+                                            </h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-bordered table-hover align-middle">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th style="width: 180px;">Position</th>
+                                                            <th>Candidates</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for pos_name, candidates in positions.items %}
+                                                            <tr>
+                                                                <td class="fw-semibold">{{ pos_name }}</td>
+                                                                <td>
+                                                                    {% for candidate in candidates %}
+                                                                        <div class="mb-2">
+                                                                            <span class="fw-bold text-primary">Rank {{ forloop.counter }}:</span>
+                                                                            {{ candidate.candidate.user_profile.student_name }}<br>
+                                                                            <span class="votes-info">
+                                                                                Votes: <span class="votes-count">{{ candidate.votes }}</span> &nbsp;|&nbsp;
+                                                                                <span class="votes-percentage">{{ candidate.percentage|floatformat:1 }}%</span>
+                                                                            </span>
+                                                                        </div>
+                                                                    {% endfor %}
+                                                                </td>
+                                                            </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    {% endfor %}
                                 {% endfor %}
-                            </div>
+                            {% endfor %}
                         </div>
                     </div>
                     <!-- ABSTENTION REPORT SECTION -->
@@ -486,6 +568,98 @@
             margin: 6px !important;
             min-width: unset !important;
             max-width: 100% !important;
+        }
+    }
+    
+    .candidate-card {
+        background: #f8fbff;
+        border-radius: 8px;
+        border: 1px solid #d0e2ff;
+        box-shadow: 0 2px 6px rgba(25,118,210,0.05);
+        margin-bottom: 0.5rem;
+    }
+    .candidate-card:hover {
+        box-shadow: 0 4px 12px rgba(25,118,210,0.12);
+        border-color: #1976D2;
+    }
+    .candidate-name {
+        color: #333;
+        transition: color 0.2s;
+    }
+
+    .position-card {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .rank-badge {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        margin: 0 auto;
+    }
+
+    .rank-first {
+        background-color: #FFD700;
+        color: #000;
+    }
+
+    .rank-second {
+        background-color: #C0C0C0;
+        color: #000;
+    }
+
+    .rank-third {
+        background-color: #CD7F32;
+        color: #fff;
+    }
+
+    .candidate-info {
+        padding: 4px 0;
+    }
+
+    .candidate-name {
+        color: #2c3e50;
+        margin-bottom: 2px;
+    }
+
+    .candidate-details {
+        font-size: 0.85rem;
+    }
+
+    .votes-count {
+        color: #1976D2;
+        font-size: 1.1rem;
+    }
+
+    .progress {
+        background-color: #E3F2FD;
+        border-radius: 10px;
+    }
+
+    .progress-bar {
+        font-size: 0.85rem;
+        font-weight: 600;
+        line-height: 20px;
+    }
+
+    @media print {
+        .position-card {
+            box-shadow: none;
+            border: 1px solid #dee2e6;
+        }
+
+        .rank-badge {
+            border: 1px solid #dee2e6;
+        }
+
+        .progress {
+            border: 1px solid #dee2e6;
         }
     }
 </style>

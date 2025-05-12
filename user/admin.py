@@ -2,23 +2,8 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 from django.utils.html import format_html
 from django.db.models import Q
-from .models import UserProfile, Vote, Candidate, VotingPhase, FaceData
+from .models import UserProfile, Vote, Candidate, VotingPhase
 from django import forms
-
-@admin.register(FaceData)
-class FaceDataAdmin(admin.ModelAdmin):
-    list_display = ('user', 'created_at', 'updated_at')
-    search_fields = ('user__username', 'user__first_name', 'user__last_name')
-    readonly_fields = ('created_at', 'updated_at')
-    fieldsets = (
-        (None, {
-            'fields': ('user', 'face_image')
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
 
 class CandidateAdminForm(forms.ModelForm):
     class Meta:

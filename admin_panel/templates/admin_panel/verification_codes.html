@@ -1,4 +1,5 @@
 {% extends 'admin_base.html' %}
+{% load static %}
 
 {% block admin_content %}
 <div class="container-fluid">
@@ -9,7 +10,7 @@
                     <h5 class="card-title mb-0 text-white">Verification Codes Management</h5>
                 </div>
                 <div class="card-body p-4">
-                    <!-- Generate New Code Form -->
+                    <!-- Student Search and Code Generation Form -->
                     <div class="mb-4 p-3 rounded" style="background-color: rgba(25, 118, 210, 0.05); border-left: 4px solid #1976D2;">
                         <h6 class="header-title mb-3">Generate New Code</h6>
                         <form id="generateCodeForm" class="row g-3">
@@ -20,14 +21,44 @@
                                         <i class="fas fa-id-card"></i>
                                     </span>
                                     <input type="text" class="form-control" id="studentNumber" required placeholder="Enter student number">
+                                    <button type="button" class="btn btn-primary" id="searchStudent">
+                                        <i class="fas fa-search me-2"></i>Search
+                                    </button>
                                 </div>
                             </div>
-                            <div class="col-md-6 d-flex align-items-end">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-key me-2"></i>Generate Code
+                        </form>
+
+                        <!-- Student Information Display (Initially Hidden) -->
+                        <div id="studentInfo" class="mt-4" style="display: none;">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3 text-primary">Student Details</h6>
+                                            <p class="mb-1"><strong>Name:</strong> <span id="studentName"></span></p>
+                                            <p class="mb-1"><strong>College:</strong> <span id="studentCollege"></span></p>
+                                            <p class="mb-1"><strong>Course:</strong> <span id="studentCourse"></span></p>
+                                            <p class="mb-0"><strong>Year Level:</strong> <span id="studentYear"></span></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-body">
+                                            <h6 class="card-subtitle mb-3 text-primary">Registered Photos</h6>
+                                            <div id="photoGallery" class="row g-2">
+                                                <!-- Photos will be displayed here -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-primary" id="generateCodeBtn">
+                                    <i class="fas fa-key me-2"></i>Generate Verification Code
                                 </button>
                             </div>
-                        </form>
+                        </div>
                     </div>
 
                     <!-- Active Codes Table -->
@@ -281,141 +312,167 @@
     border-color: #1976D2;
     box-shadow: 0 0 0 0.2rem rgba(25, 118, 210, 0.25);
 }
+
+.photo-gallery-item {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 8px;
+    border: 2px solid #E3F2FD;
+    transition: transform 0.2s;
+}
+
+.photo-gallery-item:hover {
+    transform: scale(1.1);
+    border-color: #1976D2;
+}
+
+.code-info-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.code-info-item i {
+    color: #1976D2;
+    width: 20px;
+}
+
+.verification-code-icon {
+    width: 60px;
+    height: 60px;
+    background-color: #E3F2FD;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto;
+}
+
+.verification-code-icon i {
+    font-size: 30px;
+    color: #1976D2;
+}
+
+.code-display {
+    background-color: #E3F2FD;
+    border: 2px dashed #1976D2;
+}
 </style>
 
+{% endblock %}
+
+{% block extra_js %}
 <script>
-document.getElementById('generateCodeForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    const studentNumber = document.getElementById('studentNumber').value;
-    
-    fetch('/admin-panel/generate-code/', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': getCookie('csrftoken')
-        },
-        body: JSON.stringify({
-            student_number: studentNumber
-        })
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Display the code in the modal
-            document.getElementById('displayCode').textContent = data.code;
-            document.getElementById('displayStudentNumber').textContent = data.student_number;
-            document.getElementById('displayExpiresAt').textContent = data.expires_at;
-            
-            // Show the modal
-            const codeModal = new bootstrap.Modal(document.getElementById('codeDisplayModal'));
-            codeModal.show();
-            
-            // Clear the form
-            document.getElementById('studentNumber').value = '';
-            
-            // Reload the page after the modal is closed
-            document.getElementById('codeDisplayModal').addEventListener('hidden.bs.modal', function() {
-                location.reload();
-            }, { once: true });
-        } else {
-            alert('Error: ' + data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error generating code');
-    });
-});
+document.addEventListener('DOMContentLoaded', function() {
+    const searchBtn = document.getElementById('searchStudent');
+    const studentNumberInput = document.getElementById('studentNumber');
+    const studentInfoDiv = document.getElementById('studentInfo');
+    const studentNameSpan = document.getElementById('studentName');
+    const studentCollegeSpan = document.getElementById('studentCollege');
+    const studentCourseSpan = document.getElementById('studentCourse');
+    const studentYearSpan = document.getElementById('studentYear');
+    const photoGalleryDiv = document.getElementById('photoGallery');
+    const generateCodeBtn = document.getElementById('generateCodeBtn');
 
-// Regenerate code functionality
-document.querySelectorAll('.regenerate-code').forEach(button => {
-    button.addEventListener('click', function() {
-        const codeId = this.dataset.id;
-        
-        fetch(`/admin-panel/regenerate-code/${codeId}/`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken')
+    let currentStudentNumber = null;
+
+    if (searchBtn) {
+        searchBtn.addEventListener('click', function() {
+            const studentNumber = studentNumberInput.value.trim();
+            if (!studentNumber) {
+                alert('Please enter a student number.');
+                return;
             }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Display the code in the modal
-                document.getElementById('displayCode').textContent = data.code;
-                document.getElementById('displayStudentNumber').textContent = data.student_number;
-                document.getElementById('displayExpiresAt').textContent = data.expires_at;
-                
-                // Show the modal
-                const codeModal = new bootstrap.Modal(document.getElementById('codeDisplayModal'));
-                codeModal.show();
-                
-                // Reload the page after the modal is closed
-                document.getElementById('codeDisplayModal').addEventListener('hidden.bs.modal', function() {
-                    location.reload();
-                }, { once: true });
-            } else {
-                alert('Error: ' + data.message);
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error regenerating code');
+            fetch('/admin-panel/search-student/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({ student_number: studentNumber })
+            })
+            .then(response => response.text())
+            .then(text => {
+                try {
+                    const data = JSON.parse(text);
+                    if (data.success) {
+                        studentInfoDiv.style.display = 'block';
+                        studentNameSpan.textContent = data.student.name;
+                        studentCollegeSpan.textContent = data.student.college;
+                        studentCourseSpan.textContent = data.student.course;
+                        studentYearSpan.textContent = data.student.year_level;
+                        photoGalleryDiv.innerHTML = '';
+                        if (data.photos && data.photos.length > 0) {
+                            data.photos.forEach(url => {
+                                const img = document.createElement('img');
+                                img.src = url;
+                                img.className = 'img-thumbnail';
+                                img.style.maxWidth = '80px';
+                                img.style.marginRight = '8px';
+                                photoGalleryDiv.appendChild(img);
+                            });
+                        } else {
+                            photoGalleryDiv.innerHTML = '<span class="text-muted">No photos registered.</span>';
+                        }
+                        currentStudentNumber = studentNumber;
+                    } else {
+                        alert(data.message || 'Student not found.');
+                        studentInfoDiv.style.display = 'none';
+                    }
+                } catch (e) {
+                    alert('Your session has expired or you are not logged in. Please log in again.');
+                    window.location.href = '/admin-panel/login/';
+                }
+            })
+            .catch(error => {
+                alert('Error searching for student');
+                studentInfoDiv.style.display = 'none';
+            });
         });
-    });
+    }
+
+    if (generateCodeBtn) {
+        generateCodeBtn.addEventListener('click', function() {
+            if (!currentStudentNumber) {
+                alert('Please search for a student first.');
+                return;
+            }
+            fetch('/admin-panel/generate-code/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken(),
+                },
+                body: JSON.stringify({ student_number: currentStudentNumber })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show code in modal or alert
+                    alert(`Verification code for ${data.student_number}: ${data.code}\nExpires at: ${data.expires_at}`);
+                    // Optionally reload the page or update the codes table
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to generate code.');
+                }
+            })
+            .catch(error => {
+                alert('Error generating code');
+            });
+        });
+    }
 });
 
-// Copy code to clipboard
-document.getElementById('copyCodeBtn').addEventListener('click', function() {
-    const code = document.getElementById('displayCode').textContent;
-    navigator.clipboard.writeText(code).then(function() {
-        // Change button text temporarily
-        const originalText = this.innerHTML;
-        this.innerHTML = '<i class="fas fa-check me-2"></i>Copied!';
-        setTimeout(() => {
-            this.innerHTML = originalText;
-        }, 2000);
-    }.bind(this)).catch(function(err) {
-        console.error('Could not copy text: ', err);
-    });
-});
-
-// Search functionality
-function searchCodes() {
-    const searchTerm = document.getElementById('codeSearch').value.toLowerCase();
-    const statusFilter = document.getElementById('statusFilter').value;
-    const rows = document.querySelectorAll('.code-row');
-    
-    rows.forEach(row => {
-        const studentNumber = row.getAttribute('data-student').toLowerCase();
-        const status = row.getAttribute('data-status');
-        
-        const matchesSearch = studentNumber.includes(searchTerm);
-        const matchesFilter = statusFilter === 'all' || status === statusFilter;
-        
-        if (matchesSearch && matchesFilter) {
-            row.style.display = '';
-        } else {
-            row.style.display = 'none';
-        }
-    });
-}
-
-// Filter by status
-function filterCodes() {
-    searchCodes(); // Reuse the search function which also handles filtering
-}
-
-// Helper function to get CSRF token
-function getCookie(name) {
+function getCSRFToken() {
     let cookieValue = null;
     if (document.cookie && document.cookie !== '') {
         const cookies = document.cookie.split(';');
         for (let i = 0; i < cookies.length; i++) {
             const cookie = cookies[i].trim();
-            if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+            if (cookie.substring(0, 10) === 'csrftoken=') {
+                cookieValue = decodeURIComponent(cookie.substring(10));
                 break;
             }
         }

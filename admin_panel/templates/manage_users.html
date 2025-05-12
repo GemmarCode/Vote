@@ -2,64 +2,62 @@
 
 {% block admin_content %}
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1 style="color: #34729C;">Manage Users</h1>
-        <div>
-            <button class="btn btn-success me-2" data-bs-toggle="modal" data-bs-target="#importExcelModal">
-                <i class="fas fa-file-excel me-2"></i>Import Excel Data
-            </button>
-            <button class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#importPhotosModal">
-                <i class="fas fa-images me-2"></i>Import Photos
-            </button>
-            <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#registerUserModal">
-                <i class="fas fa-user-plus me-2"></i>Register Single User
-            </button>
-        </div>
+    <div class="d-flex justify-content-end mb-4" style="gap: 12px;">
+        <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#importStudentsModal">
+            <i class="fas fa-file-import me-2"></i>Import Students
+        </button>
+        <button type="button" class="btn btn-info" data-bs-toggle="modal" data-bs-target="#importCandidatesModal">
+            <i class="fas fa-user-tie me-2"></i>Import Candidates
+        </button>
+        <button type="button" class="btn btn-primary" id="registerUserBtn" data-bs-toggle="modal" data-bs-target="#registerUserModal" style="background-color: #1976D2;">
+            <i class="fas fa-user-plus me-2"></i>Register Student
+        </button>
     </div>
-
-    <!-- Search Bar -->
-    <div class="admin-card p-3 mb-4">
-        <div class="row align-items-center">
-            <div class="col-md-6">
-                <div class="search-wrapper">
-                    <i class="fas fa-search search-icon"></i>
-                    <input type="text" id="searchInput" class="form-control search-input" placeholder="Search users...">
-                </div>
+    <!-- Search and Filter Bar -->
+    <div class="row g-3 align-items-center mb-4">
+        <div class="col-md-7">
+            <div class="input-group">
+                <span class="input-group-text bg-white border-end-0">
+                    <i class="fas fa-search text-primary"></i>
+                </span>
+                <input type="text" id="searchInput" class="form-control border-start-0" placeholder="Search users...">
             </div>
-            <div class="col-md-3">
-                <select class="form-select glassmorphism-input" id="filterCollege">
-                    <option value="">All Colleges</option>
-                    <option value="CAS">College of Arts and Sciences</option>
-                    <option value="CAF">College of Agriculture and Forestry</option>
-                    <option value="CCJE">College of Criminal Justice Education</option>
-                    <option value="CBA">College of Business Administration</option>
-                    <option value="CTED">College of Teacher Education</option>
-                    <option value="CIT">College of Industrial Technology</option>
-                </select>
-            </div>
+        </div>
+        <div class="col-md-3">
+            <select class="form-select" id="filterCollege">
+                <option value="">All Colleges</option>
+                <option value="CAS">College of Arts and Sciences</option>
+                <option value="CAF">College of Agriculture and Forestry</option>
+                <option value="CCJE">College of Criminal Justice Education</option>
+                <option value="CBA">College of Business Administration</option>
+                <option value="CTED">College of Teacher Education</option>
+                <option value="CIT">College of Industrial Technology</option>
+            </select>
         </div>
     </div>
 
     <!-- Messages -->
-    {% if messages %}
+    <!-- {% if messages %}
         {% for message in messages %}
             <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
                 {{ message }}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         {% endfor %}
-    {% endif %}
+    {% endif %} -->
 
-    <!-- All Users Section -->
-    <div class="admin-card">
-        <div class="card-body p-4">
-            <h5 class="mb-4" style="color: #34729C;">
+    <!-- All Users Section as White Card with Blue Header -->
+    <div class="admin-card mb-4">
+        <div class="card-header py-3" style="background-color: #1976D2; border-radius: 12px 12px 0 0;">
+            <h5 class="card-title mb-0 text-white">
                 <i class="fas fa-users me-2"></i>All Users
-                <span class="badge rounded-pill bg-primary ms-2">{{ all_users|length }}</span>
+                <span class="badge rounded-pill bg-light text-primary ms-2">{{ all_users|length }}</span>
             </h5>
+        </div>
+        <div class="card-body p-4">
             <div class="table-responsive">
                 <table class="table table-hover align-middle">
-                    <thead>
+                    <thead class="table-header">
                         <tr>
                             <th>Student Number</th>
                             <th>Full Name</th>
@@ -96,56 +94,76 @@
     </div>
 </div>
 
-<!-- Import Excel Modal -->
-<div class="modal fade" id="importExcelModal" tabindex="-1">
+<!-- Import Students Modal -->
+<div class="modal fade" id="importStudentsModal" tabindex="-1" aria-labelledby="importStudentsModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Import Student Data from Excel</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header" style="background-color: #1976D2; color: white;">
+                <h5 class="modal-title" id="importStudentsModalLabel">Import Students from Excel</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <form id="excelImportForm" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="form-group mb-3">
-                        <label for="excel_file">Excel File</label>
-                        <input type="file" class="form-control" id="excel_file" name="excel_file" accept=".xlsx, .xls" required>
-                        <small class="form-text text-muted">
-                            Excel file should have columns: student_number, student_name, sex, year_level, course, college
-                        </small>
+            <form id="importStudentsForm" method="post" enctype="multipart/form-data" action="{% url 'admin_panel:import_users' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="studentsExcelFile" class="form-label">Select Excel file (.xlsx or .xls)</label>
+                        <input type="file" class="form-control" id="studentsExcelFile" name="excel_file" accept=".xlsx,.xls" required>
                     </div>
-                    <button type="submit" class="btn btn-success" id="importExcelBtn">
-                        <i class="fas fa-file-excel me-2"></i>Import Student Data
-                    </button>
-                </form>
-            </div>
+                    <div class="alert alert-info small">
+                        <p><strong>Required columns:</strong></p>
+                        <ul>
+                            <li><code>student_number</code> - Student's ID number</li>
+                            <li><code>student_name</code> - Student's full name</li>
+                            <li><code>sex</code> - M or F</li>
+                            <li><code>year_level</code> - 1, 2, 3, 4, or 5</li>
+                            <li><code>course</code> - Student's course/program</li>
+                            <li><code>college</code> - College code (CAS, CAF, CCJE, CBA, CTED, CIT)</li>
+                        </ul>
+                        <p><strong>Note:</strong> The file will be processed for the current active school year.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import Students</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
 
-<!-- Import Photos Modal -->
-<div class="modal fade" id="importPhotosModal" tabindex="-1">
+<!-- Import Candidates Modal -->
+<div class="modal fade" id="importCandidatesModal" tabindex="-1" aria-labelledby="importCandidatesModalLabel" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Import Student Photos</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-header" style="background-color: #0dcaf0; color: white;">
+                <h5 class="modal-title" id="importCandidatesModalLabel">Import Candidates from Excel</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body">
-                <form id="photoImportForm" enctype="multipart/form-data">
-                    {% csrf_token %}
-                    <div class="form-group mb-3">
-                        <label for="photos_zip">Student Photos (ZIP file)</label>
-                        <input type="file" class="form-control" id="photos_zip" name="photos_zip" accept=".zip" required>
-                        <small class="form-text text-muted">
-                            Upload a ZIP file containing photos named as student_id.jpg/png (e.g., 2020-0001.jpg)
-                        </small>
+            <form id="importCandidatesForm" method="post" enctype="multipart/form-data" action="{% url 'admin_panel:import_candidates' %}">
+                {% csrf_token %}
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="candidatesExcelFile" class="form-label">Select Excel file (.xlsx or .xls)</label>
+                        <input type="file" class="form-control" id="candidatesExcelFile" name="excel_file" accept=".xlsx,.xls" required>
                     </div>
-                    <button type="submit" class="btn btn-primary" id="importPhotosBtn">
-                        <i class="fas fa-images me-2"></i>Import Student Photos
-                    </button>
-                </form>
-            </div>
+                    <div class="alert alert-info small">
+                        <p><strong>Required columns:</strong></p>
+                        <ul>
+                            <li><code>position</code> - Position running for</li>
+                            <li><code>platform</code> - Candidate's platform</li>
+                            <li><code>achievements</code> - Candidate's achievements</li>
+                            <li><code>photo</code> - Photo filename (must be in the same directory)</li>
+                            <li><code>school_year</code> - School year</li>
+                            <li><code>user_profile_id</code> - ID of the user profile (must match a registered user)</li>
+                        </ul>
+                        <p><strong>Note:</strong> <code>created_at</code> and <code>updated_at</code> are set automatically by the system and do not need to be included in the file.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-info">Import Candidates</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -267,60 +285,37 @@
 .user-avatar {
     width: 35px;
     height: 35px;
-    background: rgba(52, 114, 156, 0.1);
+    background: var(--admin-primary-light, #e3f2fd);
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #34729C;
+    color: var(--admin-primary, #1976d2);
+    font-size: 1.2rem;
 }
-
 .admin-card {
-    background: rgba(255, 255, 255, 0.9);
+    background: #fff;
     border-radius: 15px;
-    border: 1px solid rgba(52, 114, 156, 0.1);
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    border: 1px solid var(--admin-primary-light, #e3f2fd);
+    box-shadow: 0 4px 16px rgba(33,150,243,0.07);
+    margin-bottom: 24px;
 }
-
-.table th {
-    border-bottom: 1px solid rgba(52, 114, 156, 0.1);
-    color: #34729C;
+.card-header {
+    border-bottom: none;
+}
+.table-header {
+    background-color: var(--admin-primary-light, #e3f2fd);
+}
+.table-header th {
+    color: #1976D2;
     font-weight: 600;
-    padding: 1rem;
 }
-
-.table td {
-    padding: 1rem;
-    border-bottom: 1px solid rgba(52, 114, 156, 0.05);
+.input-group-text {
+    background: #fff;
+    border-right: 0;
 }
-
-.table tr:hover {
-    background: rgba(52, 114, 156, 0.02);
-}
-
-.search-wrapper {
-    position: relative;
-}
-
-.search-icon {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: #34729C;
-}
-
-.search-input {
-    padding-left: 35px;
-    background: rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(52, 114, 156, 0.1);
+.form-control, .form-select {
     border-radius: 8px;
-}
-
-.search-input:focus {
-    background: white;
-    border-color: #34729C;
-    box-shadow: 0 0 0 0.2rem rgba(52, 114, 156, 0.25);
 }
 </style>
 
@@ -353,22 +348,18 @@ document.addEventListener('DOMContentLoaded', function() {
         updateProgress(0);
     }
 
-    // Handle Excel Import
-    document.getElementById('excelImportForm').addEventListener('submit', async function(e) {
+    // Handle Excel Import (Students)
+    document.getElementById('importStudentsForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
         const formData = new FormData(this);
         currentController = new AbortController();
-        
         try {
             showLoadingModal('Importing Student Data', 'Processing Excel file...');
-            
             const response = await fetch('{% url "admin_panel:import_users" %}', {
                 method: 'POST',
                 body: formData,
                 signal: currentController.signal
             });
-            
             if (response.ok) {
                 hideLoadingModal();
                 location.reload();
@@ -386,86 +377,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Handle Photo Import
-    document.getElementById('photoImportForm').addEventListener('submit', async function(e) {
+    // Handle Import Candidates (AJAX with loading modal and JSON response handling)
+    document.getElementById('importCandidatesForm').addEventListener('submit', async function(e) {
         e.preventDefault();
-        
         const formData = new FormData(this);
         currentController = new AbortController();
-        let isCancelled = false;
-        
         try {
-            showLoadingModal('Importing Student Photos', 'Processing ZIP file...');
-            
-            const response = await fetch('{% url "admin_panel:import_photos" %}', {
+            showLoadingModal('Importing Candidate Data', 'Processing Excel file...');
+            const response = await fetch('{% url "admin_panel:import_candidates" %}', {
                 method: 'POST',
                 body: formData,
-                signal: currentController.signal
+                signal: currentController.signal,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
             });
-            
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            
-            while (true) {
-                const { value, done } = await reader.read();
-                if (done) break;
-                
-                const chunk = decoder.decode(value);
-                const lines = chunk.split('\n').filter(line => line.trim());
-                
-                for (const line of lines) {
-                    try {
-                        const data = JSON.parse(line);
-                        
-                        switch (data.status) {
-                            case 'processing':
-                                updateProgress(data.progress / 100);
-                                document.getElementById('loadingMessage').textContent = 
-                                    `Processing: ${data.current_file}\nSuccess: ${data.success_count}, Errors: ${data.error_count}`;
-                                break;
-                                
-                            case 'completed':
-                                hideLoadingModal();
-                                let message = `Successfully imported ${data.success_count} photos.`;
-                                if (data.error_count > 0) {
-                                    message += `\nFailed to import ${data.error_count} photos.`;
-                                    if (data.errors.length > 0) {
-                                        message += `\nErrors: ${data.errors.join('; ')}`;
-                                        if (data.additional_errors > 0) {
-                                            message += `\nand ${data.additional_errors} more errors.`;
-                                        }
-                                    }
-                                }
-                                alert(message);
-                                location.reload();
-                                break;
-                                
-                            case 'error':
-                                throw new Error(data.message);
-                                
-                            case 'cancelled':
-                                isCancelled = true;
-                                hideLoadingModal();
-                                alert('Import cancelled by user.');
-                                break;
-                        }
-                    } catch (error) {
-                        console.error('Error parsing progress data:', error);
+            const result = await response.json();
+            hideLoadingModal();
+            if (result.success) {
+                alert(result.message || 'Candidates imported successfully!');
+                location.reload();
+            } else {
+                let msg = result.error || 'Error importing candidates';
+                if (result.errors && result.errors.length > 0) {
+                    msg += '\n\nDetails:\n' + result.errors.slice(0, 10).join('\n');
+                    if (result.errors.length > 10) {
+                        msg += `\n...and ${result.errors.length - 10} more.`;
                     }
                 }
-            }
-            
-            if (!isCancelled) {
-                hideLoadingModal();
-                location.reload();
+                alert(msg);
             }
         } catch (error) {
-            if (error.name === 'AbortError') {
-                alert('Import cancelled by user.');
-            } else {
-                alert('Error importing photos: ' + error.message);
-            }
             hideLoadingModal();
+            alert('Error importing candidate data: ' + error.message);
         }
     });
 

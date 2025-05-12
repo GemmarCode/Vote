@@ -13,6 +13,7 @@ urlpatterns = [
     path('users/import/', views.import_users, name='import_users'),
     path('users/import-photos/', views.import_photos, name='import_photos'),
     path('candidates/', views.manage_candidates, name='manage_candidates'),
+    path('candidates/import/', views.import_candidates, name='import_candidates'),
     path('elections/', views.manage_elections, name='manage_elections'),
     path('reports/', views.generate_report, name='generate_report'),
     path('verification-codes/', views.verification_codes_view, name='verification_codes'),
@@ -27,4 +28,6 @@ urlpatterns = [
     path('user-activity-logs/<int:user_id>/', views.user_activity_logs, name='user_activity_logs'),
     path('toggle-committee-status/<int:committee_id>/', views.toggle_committee_status, name='toggle_committee_status'),
     path('activity-logs/', views.activity_logs, name='activity_logs'),
+    path('search-student/', views.search_student, name='search_student'),
+    path('create-chairman/', views.create_chairman, name='create_chairman'),
 ]

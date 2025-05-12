@@ -93,6 +93,12 @@ class UserProfile(models.Model):
         except:
             return None
 
+class Photo(models.Model):
+    user_profile = models.ForeignKey(UserProfile, on_delete=models.CASCADE, related_name='face_photos')
+    photo = models.ImageField(upload_to='face_data/')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
 class Candidate(models.Model):
     # Position Constants
     NATIONAL_POSITIONS = [
@@ -260,40 +266,6 @@ class VotingPhase(models.Model):
         now = timezone.now()
         return self.start_date <= now <= self.end_date
 
-class FaceData(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='face_data')
-    face_embedding = models.BinaryField()  # Store face embedding as binary data
-    face_image = models.ImageField(upload_to='face_data/')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    def save(self, *args, **kwargs):
-        if not self.face_embedding and self.face_image:
-            # Initialize face analyzer
-            app = FaceAnalysis(name='buffalo_l')
-            app.prepare(ctx_id=-1, det_size=(640, 640))
-            
-            # Read and process the image
-            img = insightface.data.load_image(self.face_image.path)
-            faces = app.get(img)
-            
-            if len(faces) == 1:
-                # Get the face embedding
-                face = faces[0]
-                self.face_embedding = face.embedding.tobytes()
-            else:
-                raise ValueError("Image must contain exactly one face")
-        
-        super().save(*args, **kwargs)
-
-    def get_embedding(self):
-        if self.face_embedding:
-            return np.frombuffer(self.face_embedding, dtype=np.float32)
-        return None
-
-    def __str__(self):
-        return f"Face data for {self.user.username}"
-
 # Deprecated - Use Candidate model instead
 # This model is kept for backward compatibility but should not be used for new code
 class CandidateProfile(models.Model):
@@ -318,6 +290,7 @@ class VerificationCode(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     expires_at = models.DateTimeField()
     is_used = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name='generated_codes')
 
     def __str__(self):
         return f"Code for {self.student_number}"

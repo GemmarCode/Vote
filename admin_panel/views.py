@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 from django.contrib.auth.decorators import login_required, user_passes_test
-from user.models import Candidate, Vote, UserProfile, VerificationCode
+from user.models import Candidate, Vote, UserProfile, VerificationCode, Photo
 from .decorators import superuser_required
 from django.contrib import messages
 from django.db.models import Count, Q, F, ExpressionWrapper, FloatField
@@ -42,8 +42,19 @@ from facenet_pytorch import InceptionResnetV1
 from PIL import Image
 import torch
 from torchvision import transforms
+from collections import defaultdict, OrderedDict
 
 model = InceptionResnetV1(pretrained='vggface2').eval()
+
+# Add this mapping near the top of the file (after imports)
+COLLEGE_COURSES = {
+    'CAS': ['BSINT', 'BSCS'],
+    'CBA': ['BSBA', 'BSOA', 'BSHM'],
+    'CCJE': ['BSCRIM'],
+    'CAF': ['BSA', 'BSF', 'BS ANSCI'],
+    'CIT': ['BSIT'],
+    'CTED': ['BEED', 'BSED major in english', 'BSED major in math', 'BSED major in science'],
+}
 
 def preprocess_face_image(img):
     # Resize to 160x160 as required by facenet-pytorch
@@ -65,6 +76,9 @@ def is_admin(user):
 def is_committee(user):
     return CommitteeAccount.objects.filter(user=user).exists()
 
+def is_admin_or_chairman(user):
+    return is_admin(user) or is_chairman(user)
+
 def committee_required(function):
     actual_decorator = user_passes_test(is_committee)
     if function:
@@ -76,8 +90,12 @@ def get_current_school_year():
     active_settings = ElectionSettings.objects.filter(is_active=True).first()
     return active_settings.school_year if active_settings else None
 
+def is_chairman(user):
+    from .models import ChairmanAccount
+    return ChairmanAccount.objects.filter(user=user).exists()
+
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def dashboard(request):
     # Get active election settings
     active_settings = ElectionSettings.objects.filter(is_active=True).first()
@@ -101,43 +119,6 @@ def dashboard(request):
         position='National',
         school_year=active_settings.school_year
     )
-
-    # Vote Trends for National Candidates (last 24 hours)
-    if active_settings.is_voting_open:
-        twenty_four_hours_ago = timezone.now() - timedelta(hours=24)
-
-        for candidate in national_candidates:
-            votes = Vote.objects.filter(
-                candidate=candidate,
-                created_at__gte=twenty_four_hours_ago,
-                school_year=active_settings.school_year
-            ).annotate(
-                hour=TruncHour('created_at')
-            ).values('hour').annotate(
-                count=Count('id')
-            ).order_by('hour')
-            
-            vote_trends[candidate.user_profile.student_name] = [
-                {'timestamp': vote['hour'].isoformat(), 'count': vote['count']}
-                for vote in votes
-            ]
-    
-    # School Year Statistics
-    school_years = ElectionSettings.objects.all().order_by('-school_year')
-    school_year_stats = {}
-    
-    for year in school_years:
-        year_users = UserProfile.objects.filter(school_year=year.school_year).count()
-        year_candidates = Candidate.objects.filter(school_year=year.school_year).count()
-        year_votes = Vote.objects.filter(school_year=year.school_year).count()
-        year_turnout = round((year_votes / year_users * 100) if year_users > 0 else 0, 1)
-        
-        school_year_stats[year.school_year] = {
-            'total_students': year_users,
-            'total_candidates': year_candidates,
-            'total_votes': year_votes,
-            'voter_turnout': year_turnout
-        }
     
     # Election Status
     election_status = {
@@ -147,188 +128,19 @@ def dashboard(request):
         'is_voting_open': active_settings.is_voting_open if active_settings else False
     }
     
-    # Calculate time to next milestone only if we have valid dates
-    if active_settings:
-        if active_settings.is_voting_open and active_settings.voting_time_end:
-            voting_end = timezone.make_aware(timezone.datetime.combine(
-                active_settings.voting_date,
-                active_settings.voting_time_end
-            ))
-            time_remaining = voting_end - timezone.now()
-            if time_remaining.total_seconds() > 0:
-                election_status['time_to_next'] = {
-                    'total_seconds': int(time_remaining.total_seconds())
-                }
-        elif not active_settings.is_voting_open and active_settings.voting_time_start:
-            voting_start = timezone.make_aware(timezone.datetime.combine(
-                active_settings.voting_date,
-                active_settings.voting_time_start
-            ))
-            time_remaining = voting_start - timezone.now()
-            if time_remaining.total_seconds() > 0:
-                election_status['time_to_next'] = {
-                    'total_seconds': int(time_remaining.total_seconds())
-                }
-    
-    # Predictive Analytics
-    if active_settings and active_settings.is_voting_open:
-        # Calculate average votes per hour
-        votes_per_hour = Vote.objects.filter(
-            created_at__gte=timezone.now() - timedelta(hours=24)
-        ).count() / 24
-        
-        # Predict additional votes until end
-        if active_settings.voting_time_end:
-            voting_end = timezone.make_aware(timezone.datetime.combine(
-                active_settings.voting_date,
-                active_settings.voting_time_end
-            ))
-            hours_remaining = (voting_end - timezone.now()).total_seconds() / 3600
-            predicted_votes = int(votes_per_hour * hours_remaining)
-        else:
-            predicted_votes = 0
-        
-        # Predict final turnout
-        current_turnout = (total_votes / total_users * 100) if total_users > 0 else 0
-        predicted_turnout = min(100, round(current_turnout + (current_turnout * 0.2), 1))  # Assume 20% increase
-    else:
-        predicted_votes = 0
-        predicted_turnout = 0
-    
-    # Geographic Distribution (simulated data)
-    regions = ['North', 'South', 'East', 'West', 'Central']
-    voter_counts = [random.randint(100, 500) for _ in range(5)]
-    turnout_percentages = [random.randint(60, 95) for _ in range(5)]
-    
-    geographic_data = {
-        'regions': regions,
-        'voter_counts': voter_counts,
-        'turnout_percentages': turnout_percentages
-    }
-    
-    # Voting Activity by Hour
-    voting_by_hour = [0] * 24
-    if active_settings and active_settings.is_voting_open:
-        hourly_votes = Vote.objects.filter(
-            created_at__gte=timezone.now() - timedelta(days=1)
-        ).annotate(
-            hour=TruncHour('created_at')
-        ).values('hour').annotate(
-            count=Count('id')
-        ).order_by('hour')
-        
-        for vote in hourly_votes:
-            hour = vote['hour'].hour
-            voting_by_hour[hour] = vote['count']
-    
-    # System Health (simulated data)
-    system_health = {
-        'server_status': 'Healthy',
-        'database_status': 'Healthy',
-        'face_verification_success_rate': 95.5,
-        'error_rate': 0.5,
-        'average_response_time': 150
-    }
-    
-    # Candidate Performance
-    candidate_performance = []
-    if active_settings and active_settings.is_voting_open:
-        # Get candidates with vote counts
-        candidates = Candidate.objects.annotate(
-            vote_count=Count('vote')
-        ).order_by('-vote_count')[:5]
-        
-        # Calculate percentages manually
-        for candidate in candidates:
-            percentage = 0
-            if total_votes > 0:
-                percentage = (candidate.vote_count / total_votes) * 100
-                
-            candidate_performance.append({
-                'name': candidate.user_profile.student_name,
-                'position': candidate.position,
-                'votes': candidate.vote_count,
-                'percentage': round(percentage, 1)
-            })
-    
-    # Anomalies and Warnings
-    anomalies = []
-    if active_settings and active_settings.is_voting_open:
-        # Check for unusual voting patterns
-        recent_votes = Vote.objects.filter(
-            created_at__gte=timezone.now() - timedelta(hours=1)
-        ).count()
-        
-        if recent_votes > 100:  # Threshold for high activity
-            anomalies.append({
-                'type': 'High Voting Activity',
-                'description': f'Unusually high number of votes ({recent_votes}) in the last hour',
-                'severity': 'Medium'
-            })
-        
-        # Check for system performance
-        if system_health['error_rate'] > 1:
-            anomalies.append({
-                'type': 'System Performance',
-                'description': 'Error rate above normal threshold',
-                'severity': 'High'
-            })
-    
-    # Device Usage (simulated data)
-    device_usage = {
-        'mobile': 65,
-        'desktop': 30,
-        'tablet': 5
-    }
-    
-    # Accessibility Metrics (simulated data)
-    accessibility_metrics = {
-        'face_verification_success_rate': 95.5,
-        'average_verification_time': 2.5,
-        'failed_attempts': 45
-    }
-    
-    # Recent Activity
-    recent_activities = []
-    if active_settings:
-        recent_votes = Vote.objects.select_related(
-            'user_profile',
-            'candidate__user_profile'
-        ).order_by('-created_at')[:10]
-        
-        for vote in recent_votes:
-            recent_activities.append({
-                'created_at': vote.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-                'action': 'Vote Cast',
-                'details': f"{vote.user_profile.student_name} voted for {vote.candidate.user_profile.student_name}"
-            })
     
     context = {
         'total_users': total_users,
         'total_candidates': total_candidates,
         'total_votes': total_votes,
         'voter_turnout': voter_turnout,
-        'vote_trends': json.dumps(vote_trends),
-        'school_years': school_years,
-        'school_year_stats': school_year_stats,
-        'election_status': election_status,
-        'predicted_votes': predicted_votes,
-        'predicted_turnout': predicted_turnout,
-        'geographic_data': json.dumps(geographic_data),
-        'voting_by_hour': json.dumps(voting_by_hour),
-        'system_health': system_health,
-        'candidate_performance': candidate_performance,
-        'anomalies': anomalies,
-        'device_usage': device_usage,
-        'accessibility_metrics': accessibility_metrics,
-        'recent_activities': recent_activities,
         'current_school_year': get_current_school_year()
     }
     
     return render(request, 'dashboard.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def manage_users(request):
     active_settings = ElectionSettings.objects.filter(is_active=True).first()
     if not active_settings:
@@ -443,7 +255,7 @@ def process_photo_from_path(photo_path, student_number):
         raise ValueError(f"Error processing photo: {str(e)}")
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def register_user(request):
     if request.method == 'POST':
         try:
@@ -504,7 +316,7 @@ def register_user(request):
     return redirect('admin_panel:manage_users')
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def manage_candidates(request):
     active_settings = ElectionSettings.objects.filter(is_active=True).first()
     if not active_settings:
@@ -662,7 +474,7 @@ def manage_candidates(request):
     return render(request, 'manage_candidates.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def manage_elections(request):
     # Get all school years
     all_settings = ElectionSettings.objects.all().order_by('-school_year')
@@ -775,7 +587,7 @@ def manage_elections(request):
     return render(request, 'manage_elections.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def results(request):
     # Get active election settings
     active_settings = ElectionSettings.objects.filter(is_active=True).first()
@@ -810,7 +622,7 @@ def results(request):
     return render(request, 'results.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def import_users(request):
     if request.method == 'POST' and request.FILES.get('excel_file'):
         file = request.FILES['excel_file']
@@ -996,7 +808,7 @@ def import_users(request):
     return redirect('admin_panel:manage_users')
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def import_photos(request):
     """Import student photos from ZIP file"""
     if request.method == 'POST' and request.FILES.get('photos_zip'):
@@ -1136,6 +948,10 @@ def admin_panel_login(request):
                 login(request, user)
                 messages.success(request, 'Welcome to Committee Panel!')
                 return redirect('admin_panel:verification_codes')
+            elif is_chairman(user):
+                login(request, user)
+                messages.success(request, 'Welcome to Chairman Panel!')
+                return redirect('admin_panel:dashboard')
             else:
                 messages.error(request, 'You do not have permission to access this panel.')
                 return redirect('admin_panel:admin_panel_login')
@@ -1154,22 +970,22 @@ def generate_report(request):
             'total_votes_cast': 0,
             'voter_turnout': 0,
             'total_candidates': 0,
-            'votes_by_position': {},
+            'national_positions': {},
+            'college_positions': {},
+            'department_positions': {},
             'non_voters_by_college': {},
             'current_school_year': None,
             'no_active_year': True,
-            'no_active_year_message': 'No active school year yet.'
+            'no_active_year_message': 'No active school year yet.',
+            'rank_range': range(2),
         }
         return render(request, 'admin_panel/reports.html', context)
     current_school_year = active_settings.school_year
-    # Get all candidates and their votes for the active school year
     candidates = Candidate.objects.filter(school_year=current_school_year).select_related('user_profile')
     votes = Vote.objects.filter(school_year=current_school_year)
-    # Get all users who haven't voted for the active school year
     non_voters = UserProfile.objects.filter(school_year=current_school_year).exclude(
         id__in=votes.values('user_profile')
     ).order_by('college', 'student_name')
-    # Calculate statistics
     total_voters = UserProfile.objects.filter(school_year=current_school_year).count()
     total_votes_cast = votes.count()
     total_candidates = candidates.count()
@@ -1180,28 +996,97 @@ def generate_report(request):
         if voter.college not in non_voters_by_college:
             non_voters_by_college[voter.college] = []
         non_voters_by_college[voter.college].append(voter)
-    # Group votes by position
-    votes_by_position = {}
-    for candidate in candidates:
-        position = candidate.position
-        if position not in votes_by_position:
-            votes_by_position[position] = []
-        vote_count = votes.filter(candidate=candidate).count()
-        votes_by_position[position].append({
-            'candidate': candidate,
-            'votes': vote_count,
-            'percentage': (vote_count / total_votes_cast * 100) if total_votes_cast > 0 else 0
-        })
-        # Sort by vote count
-        votes_by_position[position].sort(key=lambda x: x['votes'], reverse=True)
+
+    # --- Build National, College, and Department/Year Position Structures ---
+    # National Positions
+    national_positions = OrderedDict()
+    for pos_code, pos_name in Candidate.NATIONAL_POSITIONS:
+        pos_candidates = candidates.filter(position=pos_code)
+        ranked_candidates = []
+        for c in pos_candidates:
+            vote_count = votes.filter(candidate=c).count()
+            ranked_candidates.append({
+                'candidate': c,
+                'votes': vote_count,
+                'percentage': (vote_count / total_votes_cast * 100) if total_votes_cast > 0 else 0
+            })
+        ranked_candidates.sort(key=lambda x: x['votes'], reverse=True)
+        if ranked_candidates:
+            national_positions[pos_name] = ranked_candidates
+
+    # College Positions
+    college_positions = OrderedDict()
+    colleges = [c[0] for c in UserProfile.COLLEGES]
+    for pos_code, pos_name in Candidate.COLLEGE_POSITIONS:
+        college_positions[pos_name] = OrderedDict()
+        for college in colleges:
+            pos_candidates = candidates.filter(position=pos_code, user_profile__college=college)
+            ranked_candidates = []
+            for c in pos_candidates:
+                vote_count = votes.filter(candidate=c).count()
+                ranked_candidates.append({
+                    'candidate': c,
+                    'votes': vote_count,
+                    'percentage': (vote_count / total_votes_cast * 100) if total_votes_cast > 0 else 0
+                })
+            ranked_candidates.sort(key=lambda x: x['votes'], reverse=True)
+            college_positions[pos_name][college] = ranked_candidates
+        # Refactor for row-wise access
+        colleges_list = list(college_positions[pos_name].keys())
+        max_candidates = max((len(candidates_list) for candidates_list in college_positions[pos_name].values()), default=0)
+        rows = []
+        for i in range(max_candidates):
+            row = []
+            for college in colleges_list:
+                candidates_list = college_positions[pos_name][college]
+                row.append(candidates_list[i] if i < len(candidates_list) else None)
+            rows.append(row)
+        college_positions[pos_name] = {
+            'colleges': colleges_list,
+            'rows': rows,
+        }
+
+    # Department/Year Positions
+    department_positions = OrderedDict()
+    departments = [c[0] for c in UserProfile.COLLEGES]
+    years = [y[0] for y in UserProfile.YEAR_LEVEL_CHOICES if y[0] in ['1', '2', '3']]
+    for dept in departments:
+        department_positions[dept] = OrderedDict()
+        valid_courses = COLLEGE_COURSES.get(dept, [])
+        for course in valid_courses:
+            department_positions[dept][course] = OrderedDict()
+            for year in years:
+                department_positions[dept][course][year] = OrderedDict()
+                for pos_code, pos_name in Candidate.LOCAL_POSITIONS:
+                    pos_candidates = candidates.filter(
+                        position=pos_code,
+                        user_profile__college=dept,
+                        user_profile__course=course,
+                        user_profile__year_level=year
+                    )
+                    ranked_candidates = []
+                    for c in pos_candidates:
+                        vote_count = votes.filter(candidate=c).count()
+                        ranked_candidates.append({
+                            'candidate': c,
+                            'votes': vote_count,
+                            'percentage': (vote_count / total_votes_cast * 100) if total_votes_cast > 0 else 0
+                        })
+                    ranked_candidates.sort(key=lambda x: x['votes'], reverse=True)
+                    if ranked_candidates:
+                        department_positions[dept][course][year][pos_name] = ranked_candidates
+
     context = {
         'total_voters': total_voters,
         'total_votes_cast': total_votes_cast,
         'voter_turnout': voter_turnout,
         'total_candidates': total_candidates,
-        'votes_by_position': votes_by_position,
+        'national_positions': national_positions,
+        'college_positions': college_positions,
+        'department_positions': department_positions,
         'non_voters_by_college': non_voters_by_college,
-        'current_school_year': current_school_year
+        'current_school_year': current_school_year,
+        'rank_range': range(2),
     }
     if request.GET.get('format') == 'pdf':
         # Create PDF
@@ -1241,7 +1126,7 @@ def generate_report(request):
         elements.append(Spacer(1, 20))
         
         # Results by Position
-        for position, candidates in votes_by_position.items():
+        for position, candidates in national_positions.items():
             elements.append(Paragraph(f"Results for {position}", styles['Heading2']))
             position_data = [["Candidate", "Student Number", "College", "Votes", "Percentage"]]
             for candidate_info in candidates:
@@ -1268,6 +1153,72 @@ def generate_report(request):
             ]))
             elements.append(position_table)
             elements.append(Spacer(1, 20))
+        
+        for position, college_positions in college_positions.items():
+            for college, candidates in college_positions.items():
+                elements.append(Paragraph(f"Results for {position} - {college}", styles['Heading2']))
+                college_data = [["Candidate", "Student Number", "College", "Votes", "Percentage"]]
+                for candidate_info in candidates:
+                    college_data.append([
+                        candidate_info['candidate'].user_profile.student_name,
+                        candidate_info['candidate'].user_profile.student_number,
+                        candidate_info['candidate'].user_profile.college,
+                        str(candidate_info['votes']),
+                        f"{candidate_info['percentage']:.1f}%"
+                    ])
+                college_table = Table(college_data, colWidths=[1.5*inch, 1*inch, 1.5*inch, 0.75*inch, 0.75*inch])
+                college_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 12),
+                    ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                    ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                    ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                    ('FONTSIZE', (0, 1), (-1, -1), 10),
+                    ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                ]))
+                elements.append(college_table)
+                elements.append(Spacer(1, 20))
+        
+        for dept, years in department_positions.items():
+            for year, positions in years.items():
+                elements.append(Paragraph(f"Results for {dept} - {year}", styles['Heading2']))
+                department_data = [["Candidate", "Student Number", "College", "Votes", "Percentage"]]
+                for position, candidates in positions.items():
+                    department_data.append([
+                        candidates[0]['candidate'].user_profile.student_name,
+                        candidates[0]['candidate'].user_profile.student_number,
+                        candidates[0]['candidate'].user_profile.college,
+                        str(candidates[0]['votes']),
+                        f"{candidates[0]['percentage']:.1f}%"
+                    ])
+                    for candidate_info in candidates[1:]:
+                        department_data.append([
+                            candidate_info['candidate'].user_profile.student_name,
+                            candidate_info['candidate'].user_profile.student_number,
+                            candidate_info['candidate'].user_profile.college,
+                            str(candidate_info['votes']),
+                            f"{candidate_info['percentage']:.1f}%"
+                        ])
+                    department_table = Table(department_data, colWidths=[1.5*inch, 1*inch, 1.5*inch, 0.75*inch, 0.75*inch])
+                    department_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                        ('FONTSIZE', (0, 0), (-1, 0), 12),
+                        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+                        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+                        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+                        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+                        ('FONTSIZE', (0, 1), (-1, -1), 10),
+                        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+                    ]))
+                    elements.append(department_table)
+                    elements.append(Spacer(1, 20))
         
         # Non-voters by College
         elements.append(Paragraph("Non-Voters by College", styles['Heading2']))
@@ -1470,7 +1421,7 @@ def verification_codes_view(request):
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('admin_panel:admin_panel_login')
         
-    verification_codes = VerificationCode.objects.all().order_by('-created_at')
+    verification_codes = VerificationCode.objects.filter(created_by=request.user).order_by('-created_at')
     return render(request, 'admin_panel/verification_codes.html', {
         'verification_codes': verification_codes,
         'is_committee': CommitteeAccount.objects.filter(user=request.user).exists(),
@@ -1514,11 +1465,19 @@ def generate_code(request):
                 break
         expires_at = timezone.now() + timedelta(hours=1)
 
-        # Create new verification code
+        # Create new verification code with created_by
         verification_code = VerificationCode.objects.create(
             student_number=student_number,
             code=code,
-            expires_at=expires_at
+            expires_at=expires_at,
+            created_by=request.user
+        )
+
+        # Log activity
+        AdminActivity.objects.create(
+            admin_user=request.user,
+            action='GENERATE_VERIFICATION_CODE',
+            details=f"Generated code {code} for student {student_number}"
         )
 
         return JsonResponse({
@@ -1574,6 +1533,7 @@ def regenerate_code(request, code_id):
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=400)
 
 @login_required
+@user_passes_test(is_admin_or_chairman)
 def settings(request):
     # Get all users who are not already committee members
     committee_usernames = CommitteeAccount.objects.values_list('user__username', flat=True)
@@ -1593,12 +1553,117 @@ def settings(request):
     admin_users = User.objects.filter(is_superuser=True)
     committee_users = User.objects.filter(committee_profile__isnull=False)
     users = admin_users | committee_users
+
+    # Get all school years and active settings
+    all_settings = ElectionSettings.objects.all().order_by('-school_year')
+    active_settings = ElectionSettings.objects.filter(is_active=True).first()
+
+    # Get statistics for each school year
+    school_year_stats = {}
+    for setting in all_settings:
+        stats = {
+            'total_students': UserProfile.objects.filter(school_year=setting.school_year).count(),
+            'total_candidates': Candidate.objects.filter(school_year=setting.school_year).count(),
+            'total_votes': Vote.objects.filter(school_year=setting.school_year).count(),
+        }
+        school_year_stats[setting.school_year] = stats
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        try:
+            if action == 'create_school_year':
+                # Create new school year
+                school_year = request.POST.get('school_year')
+                if not school_year:
+                    raise ValueError("School year is required")
+                
+                # Validate school year format
+                try:
+                    start_year, end_year = map(int, school_year.split('-'))
+                    if end_year != start_year + 1:
+                        raise ValueError("End year must be start year + 1")
+                except ValueError:
+                    raise ValueError("School year must be in YYYY-YYYY format")
+                
+                # Check if school year already exists
+                if ElectionSettings.objects.filter(school_year=school_year).exists():
+                    raise ValueError("This school year already exists")
+                
+                # Create new settings for the school year
+                new_settings = ElectionSettings.objects.create(
+                    school_year=school_year,
+                    is_active=True  # This will automatically deactivate other years
+                )
+                # Inactivate all committee accounts for the new school year
+                CommitteeAccount.objects.all().update(is_active=False)
+                # Log activity
+                AdminActivity.objects.create(
+                    admin_user=request.user,
+                    action='CREATE_SCHOOL_YEAR',
+                    details=f'Created new school year: {school_year}'
+                )
+                
+                messages.success(request, f'New school year {school_year} created successfully.')
+                return redirect('admin_panel:settings')
+            
+            elif action == 'update_settings':
+                # Get the active settings
+                settings = ElectionSettings.objects.get(is_active=True)
+                
+                # Parse datetime strings from the form
+                voting_date = request.POST.get('voting_date')
+                voting_time_start = request.POST.get('voting_time_start')
+                voting_time_end = request.POST.get('voting_time_end')
+                
+                # Helper to parse time string
+                def parse_time_string(time_str):
+                    try:
+                        return datetime.strptime(time_str, '%H:%M').time()
+                    except ValueError:
+                        return datetime.strptime(time_str, '%H:%M:%S').time()
+                
+                # Update settings with parsed datetime objects
+                if voting_date:
+                    settings.voting_date = timezone.make_aware(datetime.strptime(voting_date, '%Y-%m-%d')).date()
+                if voting_time_start:
+                    settings.voting_time_start = parse_time_string(voting_time_start)
+                if voting_time_end:
+                    settings.voting_time_end = parse_time_string(voting_time_end)
+                
+                settings.save()
+                # Log activity
+                AdminActivity.objects.create(
+                    admin_user=request.user,
+                    action='UPDATE_ELECTION_TIMELINE',
+                    details=f'Updated election timeline for school year {settings.school_year}: Date={settings.voting_date}, Start={settings.voting_time_start}, End={settings.voting_time_end}'
+                )
+                messages.success(request, 'Election settings updated successfully.')
+                return redirect('admin_panel:settings')
+            
+            elif action == 'activate_school_year':
+                school_year_id = request.POST.get('school_year_id')
+                if not school_year_id:
+                    raise ValueError("School year ID is required")
+                
+                settings = ElectionSettings.objects.get(id=school_year_id)
+                settings.is_active = True
+                settings.save()  # This will automatically deactivate other years
+                
+                messages.success(request, f'School year {settings.school_year} activated successfully.')
+                return redirect('admin_panel:settings')
+            
+        except Exception as e:
+            messages.error(request, f'Error updating settings: {str(e)}')
+            return redirect('admin_panel:settings')
     
     context = {
         'users_json': users_json,
         'committee_accounts': committee_accounts,
         'users': users,
-        'current_school_year': get_current_school_year()
+        'current_school_year': get_current_school_year(),
+        'all_settings': all_settings,
+        'active_settings': active_settings,
+        'school_year_stats': school_year_stats
     }
     return render(request, 'settings.html', context)
 
@@ -1669,7 +1734,7 @@ def delete_committee(request, committee_id):
     return redirect('admin_panel:settings')
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def change_password(request):
     """Change the admin's password"""
     if request.method == 'POST':
@@ -1788,14 +1853,15 @@ def committee_change_password(request):
     return render(request, 'admin_panel/committee_settings.html')
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def activity_logs(request):
     from .models import AdminActivity
     from django.contrib.auth.models import User
-    # Get all admin and committee users
+    # Get all admin, committee, and chairman users
     admin_users = User.objects.filter(is_superuser=True)
     committee_users = User.objects.filter(committee_profile__isnull=False)
-    users = admin_users | committee_users
+    chairman_users = User.objects.filter(chairman_profile__isnull=False)
+    users = admin_users | committee_users | chairman_users
     users = users.distinct().order_by('username')
     logs = AdminActivity.objects.all().order_by('-timestamp')
     context = {
@@ -1806,7 +1872,7 @@ def activity_logs(request):
     return render(request, 'activity_logs.html', context)
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def user_activity_logs(request, user_id):
     user = get_object_or_404(User, id=user_id)
     activities = AdminActivity.objects.filter(admin_user=user).order_by('-created_at')
@@ -1826,7 +1892,7 @@ def user_activity_logs(request, user_id):
     })
 
 @login_required
-@user_passes_test(is_admin)
+@user_passes_test(is_admin_or_chairman)
 def toggle_committee_status(request, committee_id):
     if request.method == 'POST':
         try:
@@ -1862,4 +1928,242 @@ def toggle_committee_status(request, committee_id):
         'success': False,
         'message': 'Invalid request method.'
     }, status=400)
+
+@login_required
+@user_passes_test(lambda u: u.is_superuser or CommitteeAccount.objects.filter(user=u).exists())
+def search_student(request):
+    """Search for a student and return their details along with registered photos"""
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            student_number = data.get('student_number')
+
+            if not student_number:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Student number is required'
+                }, status=400)
+
+            # Get student profile
+            try:
+                student = UserProfile.objects.get(student_number=student_number)
+            except UserProfile.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'message': 'Student not found'
+                }, status=404)
+
+            # Get student's photos
+            photos = Photo.objects.filter(user_profile=student)
+            photo_urls = [photo.photo.url for photo in photos] if photos else []
+
+            return JsonResponse({
+                'success': True,
+                'student': {
+                    'name': student.student_name,
+                    'college': dict(UserProfile.COLLEGES).get(student.college, student.college),
+                    'course': student.course,
+                    'year_level': dict(UserProfile.YEAR_LEVEL_CHOICES).get(student.year_level, student.year_level)
+                },
+                'photos': photo_urls
+            })
+
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method'
+    }, status=405)
+
+@login_required
+@user_passes_test(is_admin_or_chairman)
+def import_candidates(request):
+    is_ajax = request.headers.get('x-requested-with') == 'XMLHttpRequest'
+    if request.method == 'POST' and request.FILES.get('excel_file'):
+        file = request.FILES['excel_file']
+        try:
+            # Read file based on extension
+            file_ext = os.path.splitext(file.name)[1].lower()
+            if file_ext in ['.xlsx', '.xls']:
+                df = pd.read_excel(file)
+            else:
+                df = pd.read_csv(file)
+
+            # --- Get current active school year ---
+            try:
+                active_settings = ElectionSettings.objects.get(is_active=True)
+                current_school_year = active_settings.school_year
+            except ElectionSettings.DoesNotExist:
+                msg = "No active school year is set. Please activate a school year in Election Settings before importing candidates."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': msg}, status=400)
+                messages.error(request, msg)
+                return redirect('admin_panel:manage_candidates')
+            except ElectionSettings.MultipleObjectsReturned:
+                msg = "Multiple active school years found. Please ensure only one school year is active in Election Settings."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': msg}, status=400)
+                messages.error(request, msg)
+                return redirect('admin_panel:manage_candidates')
+
+            # Validate required columns
+            required_columns = ['position', 'platform', 'school_year', 'user_profile_id']
+            missing_columns = [col for col in required_columns if col not in df.columns]
+            if missing_columns:
+                msg = f"Missing required columns: {', '.join(missing_columns)}"
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': msg}, status=400)
+                messages.error(request, msg)
+                return redirect('admin_panel:manage_candidates')
+
+            success_count = 0
+            error_count = 0
+            error_logs = []
+
+            # Process each row
+            for index, row in df.iterrows():
+                try:
+                    user_profile_id = int(row['user_profile_id'])
+                    try:
+                        user_profile = UserProfile.objects.get(id=user_profile_id)
+                    except UserProfile.DoesNotExist:
+                        error_logs.append(f"Row {index + 2}: No user found with ID {user_profile_id}")
+                        error_count += 1
+                        continue
+
+                    # Use school_year from file, fallback to current active
+                    school_year = row.get('school_year', current_school_year)
+                    if pd.isna(school_year) or not str(school_year).strip():
+                        school_year = current_school_year
+                    else:
+                        school_year = str(school_year).strip()
+
+                    # Safely get and clean all string fields
+                    def safe_str(val):
+                        return str(val).strip() if not pd.isna(val) else ''
+
+                    position = safe_str(row.get('position', ''))
+                    platform = safe_str(row.get('platform', ''))
+                    achievements = safe_str(row.get('achievements', ''))
+                    photo_value = safe_str(row.get('photo', ''))
+
+                    # Check if candidate already exists for this school year
+                    if Candidate.objects.filter(user_profile=user_profile, school_year=school_year).exists():
+                        error_logs.append(f"Row {index + 2}: Candidate already exists for user ID {user_profile_id} in school year {school_year}")
+                        error_count += 1
+                        continue
+
+                    candidate = Candidate(
+                        user_profile=user_profile,
+                        position=position,
+                        platform=platform,
+                        achievements=achievements,
+                        photo=photo_value,
+                        school_year=school_year
+                    )
+                    candidate.save()
+                    success_count += 1
+
+                except ValueError as e:
+                    error_logs.append(f"Row {index + 2}: Invalid user_profile_id - must be a number")
+                    error_count += 1
+                except Exception as e:
+                    error_logs.append(f"Row {index + 2}: {str(e)}")
+                    error_count += 1
+
+            # Log activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='IMPORT_CANDIDATES',
+                details=f"Imported {success_count} candidate records from Excel file. {error_count} records failed to import."
+            )
+
+            # Show import results
+            if is_ajax:
+                if success_count == 0:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No candidate records were imported.',
+                        'errors': error_logs
+                    }, status=400)
+                return JsonResponse({
+                    'success': True,
+                    'message': f"Successfully imported {success_count} candidate records.",
+                    'errors': error_logs
+                })
+            else:
+                if success_count > 0:
+                    messages.success(request, f"Successfully imported {success_count} candidate records.")
+                if error_count > 0:
+                    messages.warning(request, f"Failed to import {error_count} records. Check the error log below:")
+                    for error in error_logs[:5]:  # Show first 5 errors
+                        messages.error(request, error)
+                    if len(error_logs) > 5:
+                        messages.error(request, f"...and {len(error_logs) - 5} more errors.")
+                return redirect('admin_panel:manage_candidates')
+
+        except Exception as e:
+            if is_ajax:
+                return JsonResponse({'success': False, 'error': str(e)}, status=400)
+            messages.error(request, f"Error processing file: {str(e)}")
+            return redirect('admin_panel:manage_candidates')
+
+    if is_ajax:
+        return JsonResponse({'success': False, 'error': "No file was uploaded."}, status=400)
+    messages.error(request, "No file was uploaded.")
+    return redirect('admin_panel:manage_candidates')
+
+@login_required
+def create_chairman(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        full_name = request.POST.get('full_name')
+        try:
+            if User.objects.filter(username=username).exists():
+                messages.error(request, 'Username already exists.')
+                return redirect('admin_panel:settings')
+            user = User.objects.create_user(
+                username=username,
+                password=password,
+                first_name=full_name
+            )
+            from .models import ChairmanAccount
+            ChairmanAccount.objects.create(user=user)
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='CREATE_CHAIRMAN_ACCOUNT',
+                details=f'Created chairman account for {full_name} ({username})'
+            )
+            return redirect(f"{reverse('admin_panel:settings')}?success_chairman=true&chairman_name={full_name}")
+        except Exception as e:
+            messages.error(request, f'Error creating chairman account: {str(e)}')
+        return redirect('admin_panel:settings')
+    return redirect('admin_panel:settings')
+
+def add_student(request):
+    if request.method == 'POST':
+        form = StudentForm(request.POST)
+        if form.is_valid():
+            student = form.save()
+            messages.success(request, 'Student added successfully!')
+            # Log the activity
+            ActivityLog.objects.create(
+                user=request.user,
+                action_type='add_student',
+                details=f'Added student: {student.student_number} - {student.get_full_name()}'
+            )
+            return redirect('admin_panel:manage_users')
+    else:
+        form = StudentForm()
+    return render(request, 'add_student.html', {'form': form})
 

@@ -5,36 +5,34 @@
     <!-- Main Content -->
     <div class="flex-grow-1 p-4" style="background-color: white;">
         <div class="container-fluid">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1 class="header-title mb-0">Add Candidates</h1>
+            <div class="d-flex justify-content-end mb-4" style="gap: 12px;">
                 <button type="button" class="btn btn-primary" id="manageCandidatesBtn" data-bs-toggle="modal" data-bs-target="#manageCandidatesModal" style="background-color: #1976D2;">
                     <i class="fas fa-users me-2"></i>Manage Candidates
                 </button>
             </div>
 
             <!-- Add Candidate Form -->
-            <div class="admin-card">
-                <div class="card-header py-3" style="background-color: #1976D2;">
-                    <h5 class="card-title mb-0 text-white">Add New Candidate</h5>
+            <div class="admin-card" style="max-width: 900px; margin: 0 auto;">
+                <div class="card-header py-2" style="background-color: #1976D2; min-height: 40px;">
+                    <h5 class="card-title mb-0 text-white" style="font-size: 1.2rem;">Add New Candidate</h5>
                 </div>
-                <div class="card-body p-4">
+                <div class="card-body p-3">
                     <form method="POST" enctype="multipart/form-data" id="candidateForm">
                         {% csrf_token %}
-                        <div class="row g-3">
+                        <div class="row g-2">
                             <!-- User Selection -->
                             <div class="col-md-6">
-                                <label class="form-label" style="color: #1976D2;">Search Student Number</label>
+                                <label class="form-label" style="color: #1976D2; font-size: 0.95rem;">Search Student Number</label>
                                 <div class="input-group">
-                                    <input type="text" class="form-control" id="userSearch" placeholder="Enter student number..." autocomplete="off">
+                                    <input type="text" class="form-control form-control-sm" id="userSearch" placeholder="Enter student number..." autocomplete="off">
                                     <input type="hidden" name="user_profile_id" id="selectedUserId" required>
                                 </div>
-                                <div id="searchResults" class="position-absolute bg-white shadow-sm rounded-bottom border" style="display: none; z-index: 1000; width: calc(100% - 24px); max-height: 200px; overflow-y: auto;"></div>
+                                <div id="searchResults" class="position-absolute bg-white shadow-sm rounded-bottom border" style="display: none; z-index: 1000; width: calc(100% - 24px); max-height: 150px; overflow-y: auto;"></div>
                             </div>
-
                             <!-- Position -->
                             <div class="col-md-6">
-                                <label class="form-label" style="color: #1976D2;">Position</label>
-                                <select class="form-select" name="position" id="positionSelect" required>
+                                <label class="form-label" style="color: #1976D2; font-size: 0.95rem;">Position</label>
+                                <select class="form-select form-select-sm" name="position" id="positionSelect" required>
                                     <option value="">Select position...</option>
                                     <optgroup label="National Positions">
                                         {% for position in national_positions %}
@@ -52,30 +50,26 @@
                                         {% endfor %}
                                     </optgroup>
                                 </select>
-                                <div class="form-text mt-1" id="positionHelp">Select a position to see required fields</div>
+                                <div class="form-text mt-1" id="positionHelp" style="font-size: 0.85rem;">Select a position to see required fields</div>
                             </div>
-
                             <!-- Photo Upload -->
-                            <div class="col-12">
-                                <label class="form-label" style="color: #1976D2;">Candidate Photo</label>
-                                <input type="file" class="form-control" name="photo" accept="image/*">
+                            <div class="col-md-6">
+                                <label class="form-label" style="color: #1976D2; font-size: 0.95rem;">Candidate Photo</label>
+                                <input type="file" class="form-control form-control-sm" name="photo" accept="image/*">
                             </div>
-
                             <!-- Platform -->
-                            <div class="col-12">
-                                <label class="form-label" style="color: #1976D2;">Platform</label>
-                                <textarea class="form-control" name="platform" rows="4"></textarea>
+                            <div class="col-md-6">
+                                <label class="form-label" style="color: #1976D2; font-size: 0.95rem;">Platform</label>
+                                <textarea class="form-control form-control-sm" name="platform" rows="2" style="min-height: 38px; max-height: 60px;"></textarea>
                             </div>
-
                             <!-- Achievements -->
-                            <div class="col-12">
-                                <label class="form-label" style="color: #1976D2;">Achievements</label>
-                                <textarea class="form-control" name="achievements" rows="4"></textarea>
+                            <div class="col-md-6">
+                                <label class="form-label" style="color: #1976D2; font-size: 0.95rem;">Achievements</label>
+                                <textarea class="form-control form-control-sm" name="achievements" rows="2" style="min-height: 38px; max-height: 60px;"></textarea>
                             </div>
-
                             <!-- Submit Button -->
-                            <div class="col-12 mt-4">
-                                <button type="button" id="submitBtn" class="btn btn-lg w-100" style="background-color: #1976D2; color: white;">
+                            <div class="col-md-6 d-flex align-items-end">
+                                <button type="button" id="submitBtn" class="btn btn-primary w-100 py-2" style="background-color: #1976D2; color: white; font-size: 1rem;">
                                     <i class="fas fa-plus-circle me-2"></i>Add Candidate
                                 </button>
                             </div>

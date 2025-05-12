@@ -1,0 +1,23 @@
+<div class="admin-page-header d-flex justify-content-between align-items-center mb-4">
+    <h1 class="page-title">{{ title }}</h1>
+    <div class="header-actions d-flex align-items-center">
+        {% block header_actions %}{% endblock %}
+    </div>
+</div>
+<style>
+.admin-page-header {
+    background: var(--light);
+    border-radius: 12px;
+    padding: 24px 24px 16px 24px;
+    box-shadow: 0 2px 8px rgba(33,150,243,0.07);
+}
+.page-title {
+    color: var(--primary);
+    font-weight: 700;
+    font-size: 2.2rem;
+    margin: 0;
+}
+.header-actions > * {
+    margin-left: 12px;
+}
+</style> 

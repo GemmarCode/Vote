@@ -74,3 +74,17 @@ def set_committee_permissions(sender, instance, created, **kwargs):
         instance.user.is_staff = True
         instance.user.is_superuser = False
         instance.user.save()
+
+class ChairmanAccount(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='chairman_profile')
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"Chairman Account for {self.user.username}"
+
+@receiver(post_save, sender=ChairmanAccount)
+def set_chairman_permissions(sender, instance, created, **kwargs):
+    if created:
+        instance.user.is_staff = True
+        instance.user.is_superuser = False
+        instance.user.save()
