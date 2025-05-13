@@ -172,9 +172,9 @@
 <div class="modal fade" id="registerUserModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <div class="modal-header">
+            <div class="modal-header" style="background-color: #1976D2; color: white;">
                 <h5 class="modal-title">Register Single User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="registerUserForm" class="needs-validation" novalidate>
@@ -222,14 +222,6 @@
                     </div>
                     
                     <div class="form-group mb-3">
-                        <label for="course">Course</label>
-                        <input type="text" class="form-control" id="course" name="course" required>
-                        <div class="invalid-feedback">
-                            Please provide the course.
-                        </div>
-                    </div>
-
-                    <div class="form-group mb-3">
                         <label for="college">College</label>
                         <select class="form-select" id="college" name="college" required>
                             <option value="">Select College</option>
@@ -244,8 +236,18 @@
                             Please select a college.
                         </div>
                     </div>
+                    
+                    <div class="form-group mb-3">
+                        <label for="course">Course</label>
+                        <select class="form-select" id="course" name="course" required>
+                            <option value="">Select Course</option>
+                        </select>
+                        <div class="invalid-feedback">
+                            Please provide the course.
+                        </div>
+                    </div>
 
-                    <button type="button" class="btn btn-info" onclick="submitRegistration()">Register User</button>
+                    <button type="button" class="btn btn-primary" onclick="submitRegistration()">Register User</button>
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 </form>
             </div>
@@ -456,6 +458,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
     searchInput.addEventListener('input', filterTables);
     filterCollege.addEventListener('change', filterTables);
+
+    // Dynamic course options based on college
+    const collegeToCourses = {
+        'CAS': ['BSINT', 'BSCS'],
+        'CAF': ['BS ANIMAL SCIENCE', 'BS AGRONOMY', 'BS FORESTRY'],
+        'CCJE': ['BS CRIM'],
+        'CBA': ['BSOA', 'BSBA', 'BSHM'],
+        'CIT': ['BS ELECTRICAL', 'BS AUTOMOTIVE', 'BS COMPTECH'],
+        'CTED': ['BEED', 'BS ENGLISH', 'BS MATH', 'BS SCIENCE']
+    };
+    const collegeSelect = document.getElementById('college');
+    const courseSelect = document.getElementById('course');
+    collegeSelect.addEventListener('change', function() {
+        const selectedCollege = this.value;
+        // Clear current options
+        courseSelect.innerHTML = '<option value="">Select Course</option>';
+        if (collegeToCourses[selectedCollege]) {
+            collegeToCourses[selectedCollege].forEach(function(course) {
+                const opt = document.createElement('option');
+                opt.value = course;
+                opt.textContent = course;
+                courseSelect.appendChild(opt);
+            });
+        }
+    });
 });
 
 function submitRegistration() {
@@ -472,8 +499,8 @@ function submitRegistration() {
     formData.append('student_name', document.getElementById('student_name').value);
     formData.append('sex', document.getElementById('sex').value);
     formData.append('year_level', document.getElementById('year_level').value);
-    formData.append('course', document.getElementById('course').value);
     formData.append('college', document.getElementById('college').value);
+    formData.append('course', document.getElementById('course').value);
     
     fetch('{% url "admin_panel:register_user" %}', {
         method: 'POST',

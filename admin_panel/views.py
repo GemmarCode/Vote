@@ -43,6 +43,7 @@ from PIL import Image
 import torch
 from torchvision import transforms
 from collections import defaultdict, OrderedDict
+import pytz
 
 model = InceptionResnetV1(pretrained='vggface2').eval()
 
@@ -74,7 +75,7 @@ def is_admin(user):
     return user.is_superuser
 
 def is_committee(user):
-    return CommitteeAccount.objects.filter(user=user).exists()
+    return CommitteeAccount.objects.filter(user=user, is_active=True).exists()
 
 def is_admin_or_chairman(user):
     return is_admin(user) or is_chairman(user)
@@ -92,7 +93,7 @@ def get_current_school_year():
 
 def is_chairman(user):
     from .models import ChairmanAccount
-    return ChairmanAccount.objects.filter(user=user).exists()
+    return ChairmanAccount.objects.filter(user=user, is_active=True).exists()
 
 @login_required
 @user_passes_test(is_admin_or_chairman)
@@ -120,21 +121,59 @@ def dashboard(request):
         school_year=active_settings.school_year
     )
     
-    # Election Status
+    # Election Status logic
+    voting_not_set_up = False
+    status_message = ''
+    countdown_seconds = None
+    is_voting_open = False
+    now = timezone.now()
+    if not active_settings or not active_settings.voting_date or not active_settings.voting_time_start or not active_settings.voting_time_end:
+        voting_not_set_up = True
+        status_message = 'Voting has not been set up yet.'
+    else:
+        # Compose datetime objects for start and end
+        tz = timezone.get_current_timezone()
+        voting_start = timezone.make_aware(datetime.combine(active_settings.voting_date, active_settings.voting_time_start), tz)
+        voting_end = timezone.make_aware(datetime.combine(active_settings.voting_date, active_settings.voting_time_end), tz)
+        if now < voting_start:
+            status_message = 'Voting starts in:'
+            countdown_seconds = int((voting_start - now).total_seconds())
+            is_voting_open = False
+        elif voting_start <= now <= voting_end:
+            status_message = 'Voting ends in:'
+            countdown_seconds = int((voting_end - now).total_seconds())
+            is_voting_open = True
+        else:
+            status_message = 'Voting has ended.'
+            countdown_seconds = None
+            is_voting_open = False
     election_status = {
-        'current_phase': 'Voting Period' if active_settings and active_settings.is_voting_open else 'Setup Period',
-        'next_milestone': 'Voting Period Ends' if active_settings and active_settings.is_voting_open else 'Voting Period Starts',
-        'time_to_next': None,
-        'is_voting_open': active_settings.is_voting_open if active_settings else False
+        'status_message': status_message,
+        'countdown_seconds': countdown_seconds,
+        'is_voting_open': is_voting_open,
+        'voting_not_set_up': voting_not_set_up,
     }
     
+    # Distinct students who have voted (unique voters)
+    total_votes = Vote.objects.filter(school_year=active_settings.school_year).values('user_profile').distinct().count()
+    # Voting Activity by College (unique students from each college who have voted)
+    votes_per_college = {}
+    for college_code, college_name in UserProfile.COLLEGES:
+        unique_voters = UserProfile.objects.filter(
+            college=college_code,
+            school_year=active_settings.school_year,
+            id__in=Vote.objects.filter(school_year=active_settings.school_year).values('user_profile')
+        ).count()
+        votes_per_college[college_name] = unique_voters
     
     context = {
         'total_users': total_users,
         'total_candidates': total_candidates,
         'total_votes': total_votes,
         'voter_turnout': voter_turnout,
-        'current_school_year': get_current_school_year()
+        'current_school_year': get_current_school_year(),
+        'votes_per_college': votes_per_college,
+        'election_status': election_status,
     }
     
     return render(request, 'dashboard.html', context)
@@ -574,7 +613,7 @@ def manage_elections(request):
         stats = {
             'total_students': UserProfile.objects.filter(school_year=setting.school_year).count(),
             'total_candidates': Candidate.objects.filter(school_year=setting.school_year).count(),
-            'total_votes': Vote.objects.filter(school_year=setting.school_year).count(),
+            'total_votes': Vote.objects.filter(school_year=setting.school_year).values('user_profile').distinct().count(),
         }
         school_year_stats[setting.school_year] = stats
     
@@ -987,7 +1026,7 @@ def generate_report(request):
         id__in=votes.values('user_profile')
     ).order_by('college', 'student_name')
     total_voters = UserProfile.objects.filter(school_year=current_school_year).count()
-    total_votes_cast = votes.count()
+    total_votes_cast = votes.values('user_profile').distinct().count()
     total_candidates = candidates.count()
     voter_turnout = (total_votes_cast / total_voters * 100) if total_voters > 0 else 0
     # Group non-voters by college
@@ -1076,6 +1115,17 @@ def generate_report(request):
                     if ranked_candidates:
                         department_positions[dept][course][year][pos_name] = ranked_candidates
 
+    # Get the active chairman (if any)
+    from .models import ChairmanAccount
+    chairman_account = ChairmanAccount.objects.filter(is_active=True).select_related('user').first()
+    chairman_name = chairman_account.user.get_full_name() if chairman_account else ''
+    # Determine if voting has ended
+    voting_ended = False
+    if active_settings and active_settings.voting_time_end and active_settings.voting_date:
+        tz = timezone.get_current_timezone()
+        voting_end = timezone.make_aware(datetime.combine(active_settings.voting_date, active_settings.voting_time_end), tz)
+        now = timezone.now()
+        voting_ended = now > voting_end
     context = {
         'total_voters': total_voters,
         'total_votes_cast': total_votes_cast,
@@ -1087,6 +1137,8 @@ def generate_report(request):
         'non_voters_by_college': non_voters_by_college,
         'current_school_year': current_school_year,
         'rank_range': range(2),
+        'chairman_name': chairman_name,
+        'voting_ended': voting_ended,
     }
     if request.GET.get('format') == 'pdf':
         # Create PDF
@@ -1301,7 +1353,7 @@ def admin_results(request):
     
     # Calculate statistics - Filter by active school year
     total_voters = UserProfile.objects.filter(school_year=active_settings.school_year).count()
-    total_votes_cast = votes.count()
+    total_votes_cast = votes.values('user_profile').distinct().count()
     total_candidates = candidates.count()
     voter_turnout = (total_votes_cast / total_voters * 100) if total_voters > 0 else 0
     
@@ -1548,7 +1600,10 @@ def settings(request):
     
     # Get existing committee accounts
     committee_accounts = CommitteeAccount.objects.all().select_related('user')
-    
+    # Get existing chairman accounts
+    from .models import ChairmanAccount
+    chairman_accounts = ChairmanAccount.objects.all().select_related('user')
+
     # Get all admin and committee users for activity logs
     admin_users = User.objects.filter(is_superuser=True)
     committee_users = User.objects.filter(committee_profile__isnull=False)
@@ -1564,7 +1619,7 @@ def settings(request):
         stats = {
             'total_students': UserProfile.objects.filter(school_year=setting.school_year).count(),
             'total_candidates': Candidate.objects.filter(school_year=setting.school_year).count(),
-            'total_votes': Vote.objects.filter(school_year=setting.school_year).count(),
+            'total_votes': Vote.objects.filter(school_year=setting.school_year).values('user_profile').distinct().count(),
         }
         school_year_stats[setting.school_year] = stats
 
@@ -1659,6 +1714,7 @@ def settings(request):
     context = {
         'users_json': users_json,
         'committee_accounts': committee_accounts,
+        'chairman_accounts': chairman_accounts,
         'users': users,
         'current_school_year': get_current_school_year(),
         'all_settings': all_settings,
@@ -2166,4 +2222,39 @@ def add_student(request):
     else:
         form = StudentForm()
     return render(request, 'add_student.html', {'form': form})
+
+@login_required
+@user_passes_test(is_admin_or_chairman)
+def toggle_chairman_status(request, chairman_id):
+    if request.method == 'POST':
+        try:
+            from .models import ChairmanAccount
+            chairman = ChairmanAccount.objects.get(id=chairman_id)
+            chairman.is_active = not chairman.is_active
+            chairman.save()
+            # Log the activity
+            AdminActivity.objects.create(
+                admin_user=request.user,
+                action='TOGGLE_CHAIRMAN_STATUS',
+                details=f'Chairman account status changed to {"active" if chairman.is_active else "inactive"} for {chairman.user.username}'
+            )
+            return JsonResponse({
+                'success': True,
+                'is_active': chairman.is_active,
+                'message': f'Chairman account {"activated" if chairman.is_active else "deactivated"} successfully.'
+            })
+        except ChairmanAccount.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'message': 'Chairman account not found.'
+            }, status=404)
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'message': str(e)
+            }, status=500)
+    return JsonResponse({
+        'success': False,
+        'message': 'Invalid request method.'
+    }, status=400)
 

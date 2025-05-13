@@ -12,269 +12,191 @@
 
 {% block admin_content %}
 <div class="container-fluid">
-    <!-- Success/Error Messages -->
-    {% if messages %}
-    <div class="row mb-4">
-        <div class="col-12">
-            {% for message in messages %}
-                <div class="alert {% if message.tags == 'success' %}alert-success{% else %}alert-danger{% endif %} alert-dismissible fade show" role="alert">
-                    <i class="fas {% if message.tags == 'success' %}fa-check-circle{% else %}fa-exclamation-circle{% endif %} me-2"></i>
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
-    <div class="row mb-4">
-        <div class="col-12 text-end">
-            <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
-                <i class="fas fa-key me-2"></i>Change Admin Password
-            </button>
-            <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#electionTimelineModal">
-                <i class="fas fa-calendar-alt me-2"></i>Set Election Timeline
-            </button>
-            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newSchoolYearModal">
-                <i class="fas fa-plus me-2"></i>Create New School Year
-            </button>
-        </div>
-    </div>
-
-    <!-- School Year Section -->
-    <div class="admin-card mb-4">
-        <div class="card-header py-3" style="background-color: #1976D2;">
-            <h5 class="card-title mb-0 text-white">School Years</h5>
-        </div>
-        <div class="card-body p-4">
-            {% if active_settings %}
-                <div class="alert alert-info">
-                    <h4 class="mb-3">Active School Year: {{ active_settings.school_year }}</h4>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <i class="fas fa-users"></i>
-                                <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_students' }}</h5>
-                                <p>Students</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <i class="fas fa-user-tie"></i>
-                                <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_candidates' }}</h5>
-                                <p>Candidates</p>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="stat-card">
-                                <i class="fas fa-vote-yea"></i>
-                                <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_votes' }}</h5>
-                                <p>Votes Cast</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            {% else %}
-                <div class="alert alert-warning">
-                    No active school year. Please create a new school year to begin.
-                </div>
-            {% endif %}
-
-            {% if all_settings %}
-                <div class="mt-4">
-                    <h6 class="mb-3">All School Years:</h6>
-                    <div class="table-responsive">
-                        <table class="table table-hover">
-                            <thead>
-                                <tr>
-                                    <th>School Year</th>
-                                    <th>Students</th>
-                                    <th>Candidates</th>
-                                    <th>Votes</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for setting in all_settings %}
-                                    <tr>
-                                        <td>{{ setting.school_year }}</td>
-                                        <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_students' }}</td>
-                                        <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_candidates' }}</td>
-                                        <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_votes' }}</td>
-                                        <td>
-                                            {% if setting.is_active %}
-                                                <span class="badge bg-success">Active</span>
-                                            {% else %}
-                                                <span class="badge bg-secondary">Inactive</span>
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if not setting.is_active %}
-                                                <form method="POST" class="d-inline">
-                                                    {% csrf_token %}
-                                                    <input type="hidden" name="action" value="activate_school_year">
-                                                    <input type="hidden" name="school_year_id" value="{{ setting.id }}">
-                                                    <button type="submit" class="btn btn-sm btn-outline-primary">
-                                                        Activate
-                                                    </button>
-                                                </form>
-                                            {% endif %}
-                                            <a href="{% url 'admin_panel:generate_report' %}?school_year={{ setting.school_year }}" 
-                                               class="btn btn-sm btn-outline-info">
-                                                <i class="fas fa-file-alt"></i> View Report
-                                            </a>
-                                        </td>
-                                    </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            {% endif %}
-        </div>
-    </div>
-
-    <!-- Committee Account Section -->
-    <div class="row">
-        <div class="col-md-6">
-            <div class="admin-card">
-                <div class="card-header py-3" style="background-color: #1976D2;">
-                    <h5 class="card-title mb-0 text-white">Create Committee Account</h5>
-                </div>
-                <div class="card-body p-4">
-                    <form method="post" action="{% url 'admin_panel:create_committee' %}" class="needs-validation" novalidate>
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="user_profile" class="form-label" style="color: #1976D2; font-weight: 600;">Select Student</label>
-                            <div class="input-group position-relative">
-                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                                    <i class="fas fa-user"></i>
-                                </span>
-                                <select class="form-select" id="user_profile" name="user_profile_id" required>
-                                    <option value="">Search for a student...</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="username" class="form-label" style="color: #1976D2; font-weight: 600;">Username</label>
-                            <div class="input-group">
-                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                                    <i class="fas fa-id-card"></i>
-                                </span>
-                                <input type="text" class="form-control" id="username" name="username" readonly required>
-                            </div>
-                        </div>
-                        <div class="mb-3">
-                            <label for="password" class="form-label" style="color: #1976D2; font-weight: 600;">Password</label>
-                            <div class="input-group">
-                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                                    <i class="fas fa-lock"></i>
-                                </span>
-                                <input type="password" class="form-control" id="password" name="password" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-user-plus me-2"></i>Create Committee Account
-                        </button>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-4">
-        <div class="col-12">
-            <div class="admin-card">
-                <div class="card-header py-3" style="background-color: #1976D2;">
-                    <h5 class="card-title mb-0 text-white">Existing Committee Accounts</h5>
-                </div>
-                <div class="card-body p-4">
-                    <div class="table-responsive">
-                        <table class="table">
-                            <thead class="table-header">
-                                <tr>
-                                    <th>Username</th>
-                                    <th>Full Name</th>
-                                    <th>Last Activity</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for committee in committee_accounts %}
-                                <tr>
-                                    <td>{{ committee.user.username }}</td>
-                                    <td>{{ committee.user.get_full_name }}</td>
-                                    <td>{{ committee.user.last_login|date:"Y-m-d H:i" }}</td>
-                                    <td>
-                                        <span class="badge {% if committee.is_active %}bg-success{% else %}bg-danger{% endif %}">
-                                            {% if committee.is_active %}Active{% else %}Inactive{% endif %}
-                                        </span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-info toggle-status" 
-                                                data-committee-id="{{ committee.id }}"
-                                                data-status="{{ committee.is_active|lower }}">
-                                            {% if committee.is_active %}Deactivate{% else %}Activate{% endif %}
-                                        </button>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Chairman Account Section -->
     {% if request.user.is_superuser %}
-    <div class="row">
-        <div class="col-md-6">
-            <div class="admin-card">
-                <div class="card-header py-3" style="background-color: #1976D2;">
-                    <h5 class="card-title mb-0 text-white">Create Chairman Account</h5>
-                </div>
-                <div class="card-body p-4">
-                    <form method="post" action="{% url 'admin_panel:create_chairman' %}" class="needs-validation" novalidate>
-                        {% csrf_token %}
-                        <div class="mb-3">
-                            <label for="chairman_full_name" class="form-label" style="color: #1976D2; font-weight: 600;">Full Name</label>
-                            <div class="input-group">
-                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+        <div class="row mt-4 mb-3">
+            <div class="col-12 text-end">
+                <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newSchoolYearModal">
+                    <i class="fas fa-plus me-2"></i>Create New School Year
+                </button>
+                <button class="btn btn-success ms-2" data-bs-toggle="modal" data-bs-target="#createChairmanModal">
+                    <i class="fas fa-user-tie me-2"></i>Create Chairman Account
+                </button>
+                <button class="btn btn-danger ms-2" data-bs-toggle="modal" data-bs-target="#deactivateChairmanModal">
+                    <i class="fas fa-user-slash me-2"></i>Manage Accounts
+                </button>
+            </div>
+        </div>
+        <!-- School Year Section (Admins Only) -->
+        <div class="admin-card mb-4">
+            <div class="card-header py-3" style="background-color: #1976D2;">
+                <h5 class="card-title mb-0 text-white">School Years</h5>
+            </div>
+            <div class="card-body p-4">
+                {% if active_settings %}
+                    <div class="alert alert-info">
+                        <h4 class="mb-3">Active School Year: {{ active_settings.school_year }}</h4>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <i class="fas fa-users"></i>
+                                    <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_students' }}</h5>
+                                    <p>Students</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card">
                                     <i class="fas fa-user-tie"></i>
-                                </span>
-                                <input type="text" class="form-control" id="chairman_full_name" name="full_name" required>
+                                    <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_candidates' }}</h5>
+                                    <p>Candidates</p>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="stat-card">
+                                    <i class="fas fa-vote-yea"></i>
+                                    <h5>{{ school_year_stats|get_item:active_settings.school_year|get_item:'total_votes' }}</h5>
+                                    <p>Votes Cast</p>
+                                </div>
                             </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="chairman_username" class="form-label" style="color: #1976D2; font-weight: 600;">Username</label>
-                            <div class="input-group">
-                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                                    <i class="fas fa-id-card"></i>
-                                </span>
-                                <input type="text" class="form-control" id="chairman_username" name="username" required>
-                            </div>
+                    </div>
+                {% else %}
+                    <div class="alert alert-warning">
+                        No active school year. Please create a new school year to begin.
+                    </div>
+                {% endif %}
+                {% if all_settings %}
+                    <div class="mt-4">
+                        <h6 class="mb-3">All School Years:</h6>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>School Year</th>
+                                        <th>Students</th>
+                                        <th>Candidates</th>
+                                        <th>Votes</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for setting in all_settings %}
+                                        <tr>
+                                            <td>{{ setting.school_year }}</td>
+                                            <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_students' }}</td>
+                                            <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_candidates' }}</td>
+                                            <td>{{ school_year_stats|get_item:setting.school_year|get_item:'total_votes' }}</td>
+                                            <td>
+                                                {% if setting.is_active %}
+                                                    <span class="badge bg-success">Active</span>
+                                                {% else %}
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                {% endif %}
+                                            </td>
+                                            <td>
+                                                {% if not setting.is_active %}
+                                                    <form method="POST" class="d-inline">
+                                                        {% csrf_token %}
+                                                        <input type="hidden" name="action" value="activate_school_year">
+                                                        <input type="hidden" name="school_year_id" value="{{ setting.id }}">
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">
+                                                            Activate
+                                                        </button>
+                                                    </form>
+                                                {% endif %}
+                                                <a href="{% url 'admin_panel:generate_report' %}?school_year={{ setting.school_year }}" 
+                                                   class="btn btn-sm btn-outline-info">
+                                                    <i class="fas fa-file-alt"></i> View Report
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
-                        <div class="mb-3">
-                            <label for="chairman_password" class="form-label" style="color: #1976D2; font-weight: 600;">Password</label>
-                            <div class="input-group">
-                                <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
-                                    <i class="fas fa-lock"></i>
-                                </span>
-                                <input type="password" class="form-control" id="chairman_password" name="password" required>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <!-- Success/Error Messages -->
+        {% if messages %}
+        <div class="row mb-4">
+            <div class="col-12">
+                {% for message in messages %}
+                    <div class="alert {% if message.tags == 'success' %}alert-success{% else %}alert-danger{% endif %} alert-dismissible fade show" role="alert">
+                        <i class="fas {% if message.tags == 'success' %}fa-check-circle{% else %}fa-exclamation-circle{% endif %} me-2"></i>
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row mt-4 mb-3">
+            <div class="col-12 text-end">
+                <button type="button" class="btn btn-primary me-2" data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                    <i class="fas fa-key me-2"></i>Change Admin Password
+                </button>
+                <button class="btn btn-info" data-bs-toggle="modal" data-bs-target="#electionTimelineModal">
+                    <i class="fas fa-calendar-alt me-2"></i>Set Election Timeline
+                </button>
+                {% if request.user.is_superuser %}
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#newSchoolYearModal">
+                        <i class="fas fa-plus me-2"></i>Create New School Year
+                    </button>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Committee Account Section -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="admin-card">
+                    <div class="card-header py-3" style="background-color: #1976D2;">
+                        <h5 class="card-title mb-0 text-white">Create Committee Account</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <form method="post" action="{% url 'admin_panel:create_committee' %}" class="needs-validation" novalidate>
+                            {% csrf_token %}
+                            <div class="mb-3">
+                                <label for="user_profile" class="form-label" style="color: #1976D2; font-weight: 600;">Select Student</label>
+                                <div class="input-group position-relative">
+                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                        <i class="fas fa-user"></i>
+                                    </span>
+                                    <select class="form-select" id="user_profile" name="user_profile_id" required>
+                                        <option value="">Search for a student...</option>
+                                    </select>
+                                </div>
                             </div>
-                        </div>
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-user-tie me-2"></i>Create Chairman Account
-                        </button>
-                    </form>
+                            <div class="mb-3">
+                                <label for="username" class="form-label" style="color: #1976D2; font-weight: 600;">Username</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                        <i class="fas fa-id-card"></i>
+                                    </span>
+                                    <input type="text" class="form-control" id="username" name="username" readonly required>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="password" class="form-label" style="color: #1976D2; font-weight: 600;">Password</label>
+                                <div class="input-group">
+                                    <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                        <i class="fas fa-lock"></i>
+                                    </span>
+                                    <input type="password" class="form-control" id="password" name="password" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-user-plus me-2"></i>Create Committee Account
+                            </button>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
     {% endif %}
 </div>
 
@@ -395,6 +317,7 @@
     </div>
 </div>
 
+{% if request.user.is_superuser %}
 <!-- New School Year Modal -->
 <div class="modal fade" id="newSchoolYearModal" tabindex="-1">
     <div class="modal-dialog">
@@ -407,12 +330,10 @@
                 <form method="POST" id="newSchoolYearForm">
                     {% csrf_token %}
                     <input type="hidden" name="action" value="create_school_year">
-                    
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         Creating a new school year will archive all existing student data, candidates, and votes. Old data will be kept for reference but only the current school year's data will be shown.
                     </div>
-                    
                     <div class="mb-3">
                         <label for="school_year" class="form-label">School Year</label>
                         <input type="text" 
@@ -426,7 +347,6 @@
                             Format: YYYY-YYYY (e.g., 2023-2024)
                         </div>
                     </div>
-                    
                     <div class="d-flex justify-content-end">
                         <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-primary">Create School Year</button>
@@ -436,6 +356,7 @@
         </div>
     </div>
 </div>
+{% endif %}
 
 <!-- Success Modal -->
 <div class="modal fade" id="successModal" tabindex="-1" aria-labelledby="successModalLabel" aria-hidden="true">
@@ -498,6 +419,130 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-success" data-bs-dismiss="modal">Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deactivate Accounts Modal (Admins Only) -->
+<div class="modal fade" id="deactivateChairmanModal" tabindex="-1" aria-labelledby="deactivateChairmanModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="deactivateChairmanModalLabel">
+                    <i class="fas fa-user-slash me-2"></i>Deactivate/Activate Accounts
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead>
+                            <tr>
+                                <th>Username</th>
+                                <th>Full Name</th>
+                                <th>Role</th>
+                                <th>Last Activity</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for chairman in chairman_accounts %}
+                            <tr>
+                                <td>{{ chairman.user.username }}</td>
+                                <td>{{ chairman.user.get_full_name }}</td>
+                                <td><span class="badge bg-primary">Chairman</span></td>
+                                <td>{{ chairman.user.last_login|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if chairman.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                        {% if chairman.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-warning toggle-account-status" 
+                                            data-account-id="{{ chairman.id }}"
+                                            data-role="chairman"
+                                            data-status="{% if chairman.is_active %}true{% else %}false{% endif %}">
+                                        {% if chairman.is_active %}Deactivate{% else %}Activate{% endif %}
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% for committee in committee_accounts %}
+                            <tr>
+                                <td>{{ committee.user.username }}</td>
+                                <td>{{ committee.user.get_full_name }}</td>
+                                <td><span class="badge bg-info">Committee</span></td>
+                                <td>{{ committee.user.last_login|date:"Y-m-d H:i" }}</td>
+                                <td>
+                                    <span class="badge {% if committee.is_active %}bg-success{% else %}bg-danger{% endif %}">
+                                        {% if committee.is_active %}Active{% else %}Inactive{% endif %}
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-warning toggle-account-status" 
+                                            data-account-id="{{ committee.id }}"
+                                            data-role="committee"
+                                            data-status="{% if committee.is_active %}true{% else %}false{% endif %}">
+                                        {% if committee.is_active %}Deactivate{% else %}Activate{% endif %}
+                                    </button>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Chairman Account Modal -->
+<div class="modal fade" id="createChairmanModal" tabindex="-1" aria-labelledby="createChairmanModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header" style="background-color: #1976D2;">
+                <h5 class="modal-title text-white" id="createChairmanModalLabel">Create Chairman Account</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <form method="post" action="{% url 'admin_panel:create_chairman' %}" class="needs-validation" novalidate>
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="chairman_full_name" class="form-label" style="color: #1976D2; font-weight: 600;">Full Name</label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                <i class="fas fa-user-tie"></i>
+                            </span>
+                            <input type="text" class="form-control" id="chairman_full_name" name="full_name" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="chairman_username" class="form-label" style="color: #1976D2; font-weight: 600;">Username</label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                <i class="fas fa-id-card"></i>
+                            </span>
+                            <input type="text" class="form-control" id="chairman_username" name="username" required>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="chairman_password" class="form-label" style="color: #1976D2; font-weight: 600;">Password</label>
+                        <div class="input-group">
+                            <span class="input-group-text" style="background-color: #E3F2FD; color: #1976D2;">
+                                <i class="fas fa-lock"></i>
+                            </span>
+                            <input type="password" class="form-control" id="chairman_password" name="password" required>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-user-tie me-2"></i>Create Chairman Account
+                    </button>
+                </form>
             </div>
         </div>
     </div>
@@ -792,6 +837,58 @@
                 },
                 error: function() {
                     alert('Error updating committee account status');
+                }
+            });
+        });
+
+        // Handle chairman/committee status toggle
+        $('.toggle-account-status').click(function() {
+            const button = $(this);
+            const accountId = button.data('account-id');
+            const role = button.data('role');
+            const actionText = button.text().trim(); // "Deactivate" or "Activate"
+            const actionLower = actionText.toLowerCase();
+
+            Swal.fire({
+                title: `${actionText} ${role.charAt(0).toUpperCase() + role.slice(1)} Account?`,
+                text: `Are you sure you want to ${actionLower} this ${role} account?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: actionText
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    let currentStatus = button.data('status');
+                    const newStatus = currentStatus === 'true' ? 'false' : 'true';
+                    const url = role === 'chairman'
+                        ? `/admin-panel/toggle-chairman-status/${accountId}/`
+                        : `/admin-panel/toggle-committee-status/${accountId}/`;
+                    $.ajax({
+                        url: url,
+                        method: 'POST',
+                        data: {
+                            csrfmiddlewaretoken: '{{ csrf_token }}'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                // Update button text and data attributes
+                                button.text(newStatus === 'true' ? 'Deactivate' : 'Activate');
+                                button.data('status', newStatus);
+                                // Update status badge
+                                const statusBadge = button.closest('tr').find('.badge').last();
+                                statusBadge.removeClass('bg-success bg-danger')
+                                          .addClass(newStatus === 'true' ? 'bg-success' : 'bg-danger')
+                                          .text(newStatus === 'true' ? 'Active' : 'Inactive');
+                                Swal.fire('Success', response.message, 'success');
+                            } else {
+                                Swal.fire('Error', response.message, 'error');
+                            }
+                        },
+                        error: function() {
+                            Swal.fire('Error', 'Error updating account status', 'error');
+                        }
+                    });
                 }
             });
         });

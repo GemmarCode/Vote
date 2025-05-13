@@ -10,38 +10,21 @@
                 <i class="fas fa-vote-yea me-2"></i>Election Status
             </h4>
             <div class="row">
-                <div class="col-md-6">
-                    <div class="election-timeline">
-                        <div class="timeline-item">
-                            <div class="timeline-date">
-                                <i class="fas fa-calendar-alt me-2"></i>
-                                Start Date
-                            </div>
-                            <div class="timeline-content">
-                                {{ election_status.voting_start|date:"F d, Y H:i" }}
-                            </div>
+                <div class="col-12">
+                    {% if election_status.voting_not_set_up %}
+                        <div class="text-center py-5">
+                            <span class="fw-bold" style="font-size: 1.5rem; color: #e53935;">Voting has not been set up yet.</span>
                         </div>
-                        <div class="timeline-item">
-                            <div class="timeline-date">
-                                <i class="fas fa-calendar-alt me-2"></i>
-                                End Date
-                            </div>
-                            <div class="timeline-content">
-                                {{ election_status.voting_end|date:"F d, Y H:i" }}
-                            </div>
+                    {% elif election_status.countdown_seconds %}
+                        <div class="text-center py-4">
+                            <span class="fw-bold" style="font-size: 1.3rem; color: #1976D2;">{{ election_status.status_message }}</span>
+                            <div id="countdown-timer" class="mt-3" style="font-size: 3.5rem; font-weight: 900; color: #1565c0; letter-spacing: 2px;"></div>
                         </div>
-                        {% if election_status.is_voting_open %}
-                        <div class="timeline-item active">
-                            <div class="timeline-date">
-                                <i class="fas fa-clock me-2"></i>
-                                Time Remaining
-                            </div>
-                            <div class="timeline-content">
-                                <span id="countdown" class="countdown-timer">{{ election_status.time_to_next.total_seconds }}</span>
-                            </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <span class="fw-bold" style="font-size: 1.5rem; color: #1976D2;">Voting has ended.</span>
                         </div>
-                        {% endif %}
-                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -84,7 +67,7 @@
                 </div>
                 <div>
                     <h3 class="mb-0" style="color: #1976D2;">{{ total_votes }}</h3>
-                    <p class="text-muted mb-0">Total Votes</p>
+                    <p class="text-muted mb-0">Students Voted</p>
                 </div>
             </div>
         </div>
@@ -106,8 +89,29 @@
             </div>
         </div>
     </div>
+
+    <!-- Votes Per College as Cards -->
+    <div class="row mb-4">
+        {% for college, count in votes_per_college.items %}
+        <div class="col-md-3 mb-4">
+            <div class="admin-card p-4">
+                <div class="d-flex align-items-center">
+                    <div class="rounded-circle p-3 me-3" style="background: rgba(25, 118, 210, 0.1);">
+                        <i class="fas fa-university fa-2x" style="color: #1976D2;"></i>
+                    </div>
+                    <div>
+                        <h3 class="mb-0" style="color: #1976D2;">{{ count }}</h3>
+                        <p class="text-muted mb-0">{{ college }}</p>
+                        <span class="text-muted" style="font-size: 0.95rem;">Students Voted</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
 </div>
 
+<!-- Styles -->
 <style>
 .admin-card {
     background: white;
@@ -117,18 +121,15 @@
     border: 1px solid rgba(25, 118, 210, 0.08);
     overflow: hidden;
 }
-
 .admin-card:hover {
     transform: translateY(-5px);
     box-shadow: 0 12px 24px rgba(25, 118, 210, 0.25);
 }
-
 .header-title {
     color: #1976D2;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
     font-weight: 700;
 }
-
 .status-indicator {
     display: inline-block;
     width: 10px;
@@ -136,24 +137,19 @@
     border-radius: 50%;
     margin-right: 5px;
 }
-
 .status-healthy {
     background: #2ecc71;
 }
-
 .status-warning {
     background: #f1c40f;
 }
-
 .status-error {
     background: #e74c3c;
 }
-
 .election-timeline {
     position: relative;
     padding: 20px 0;
 }
-
 .timeline-item {
     position: relative;
     padding: 15px;
@@ -162,23 +158,19 @@
     border-radius: 8px;
     transition: all 0.3s ease;
 }
-
 .timeline-item.active {
     background: #e3f2fd;
     border-left: 4px solid #2196f3;
 }
-
 .timeline-date {
     color: #1976D2;
     font-weight: 600;
     margin-bottom: 5px;
 }
-
 .timeline-content {
     font-size: 1.1rem;
     color: #333;
 }
-
 .countdown-timer {
     font-size: 1.2rem;
     font-weight: 600;
@@ -186,22 +178,31 @@
 }
 </style>
 
+<!-- Scripts -->
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // Countdown Timer
-    {% if election_status.is_voting_open %}
-    function updateCountdown() {
-        const totalSeconds = {{ election_status.time_to_next.total_seconds }};
-        const hours = Math.floor(totalSeconds / 3600);
-        const minutes = Math.floor((totalSeconds % 3600) / 60);
-        const seconds = totalSeconds % 60;
-        
-        document.getElementById('countdown').textContent = 
-            `${hours}h ${minutes}m ${seconds}s`;
+    // Election Status Countdown
+    {% if election_status.countdown_seconds %}
+    let countdown = {{ election_status.countdown_seconds }};
+    function updateCountdownDisplay() {
+        let days = Math.floor(countdown / 86400);
+        let hours = Math.floor((countdown % 86400) / 3600);
+        let minutes = Math.floor((countdown % 3600) / 60);
+        let seconds = countdown % 60;
+        let display = '';
+        if (days > 0) display += days + 'd ';
+        display += hours.toString().padStart(2, '0') + 'h ';
+        display += minutes.toString().padStart(2, '0') + 'm ';
+        display += seconds.toString().padStart(2, '0') + 's';
+        document.getElementById('countdown-timer').textContent = display;
     }
-
-    setInterval(updateCountdown, 1000);
-    updateCountdown();
+    updateCountdownDisplay();
+    setInterval(function() {
+        if (countdown > 0) {
+            countdown--;
+            updateCountdownDisplay();
+        }
+    }, 1000);
     {% endif %}
 });
 </script>

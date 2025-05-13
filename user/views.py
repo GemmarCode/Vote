@@ -261,7 +261,7 @@ def results_view(request):
         context = {
             'voting_ongoing': True,
             'total_voters': UserProfile.objects.count(),
-            'total_votes_cast': Vote.objects.count(),
+            'total_votes_cast': Vote.objects.values('user_profile').distinct().count(),
         }
         return render(request, 'results.html', context)
     # ... existing results logic ...
@@ -272,7 +272,7 @@ def results_view(request):
     candidates = Candidate.objects.all().select_related('user_profile')
     votes = Vote.objects.all()
     total_voters = UserProfile.objects.count()
-    total_votes_cast = votes.count()
+    total_votes_cast = votes.values('user_profile').distinct().count()
     national_results = OrderedDict()
     for pos_code, pos_name in Candidate.NATIONAL_POSITIONS:
         pos_candidates = candidates.filter(position=pos_code)

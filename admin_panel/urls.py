@@ -30,4 +30,5 @@ urlpatterns = [
     path('activity-logs/', views.activity_logs, name='activity_logs'),
     path('search-student/', views.search_student, name='search_student'),
     path('create-chairman/', views.create_chairman, name='create_chairman'),
+    path('toggle-chairman-status/<int:chairman_id>/', views.toggle_chairman_status, name='toggle_chairman_status'),
 ]

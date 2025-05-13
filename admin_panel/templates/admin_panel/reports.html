@@ -4,6 +4,7 @@
 {% block title %}Election Report{% endblock %}
 
 {% block content %}
+{% if voting_ended %}
 <div class="container-fluid mt-4">
     <div class="row">
         <div class="col-12">
@@ -273,20 +274,27 @@
                                             </button>
                                         </h2>
                                         <div id="collapseA{{ forloop.counter }}" class="accordion-collapse collapse" data-bs-parent="#abstentionAccordion">
-                                            <div class="accordion-body p-0">
-                                                <div class="row">
-                                                    {% for voter in voters %}
-                                                    <div class="col-md-6 col-lg-4 mb-3 abstention-card" data-student-number="{{ voter.student_number }}" data-name="{{ voter.student_name|lower }}">
-                                                        <div class="student-card">
-                                                            <div class="card-body">
-                                                                <h6 class="card-title mb-1">{{ voter.student_name }}</h6>
-                                                                <p class="text-muted mb-1">{{ voter.student_number }}</p>
-                                                                <p class="text-muted mb-0">{{ voter.course }} - Year {{ voter.year_level }}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    {% endfor %}
-                                                </div>
+                                            <div class="table-responsive">
+                                                <table class="table table-bordered table-hover align-middle abstention-table">
+                                                    <thead class="table-light">
+                                                        <tr>
+                                                            <th>Student Number</th>
+                                                            <th>Name</th>
+                                                            <th>Course</th>
+                                                            <th>Year Level</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        {% for voter in voters|dictsort:'course'|dictsort:'year_level' %}
+                                                        <tr class="abstention-row" data-student-number="{{ voter.student_number }}" data-name="{{ voter.student_name|lower }}">
+                                                            <td>{{ voter.student_number }}</td>
+                                                            <td>{{ voter.student_name }}</td>
+                                                            <td>{{ voter.course }}</td>
+                                                            <td>{{ voter.year_level }}</td>
+                                                        </tr>
+                                                        {% endfor %}
+                                                    </tbody>
+                                                </table>
                                             </div>
                                         </div>
                                     </div>
@@ -297,6 +305,16 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- Signature Section at the end of the report -->
+<div class="row mt-5 mb-4">
+    <div class="col-12 text-center" style="margin-top: 80px;">
+        <div style="width: 300px; margin: 0 auto; border-top: 2px solid #333; padding-top: 6px;">
+            <span style="font-weight: 600; font-size: 1.1rem;">{{ chairman_name }}</span><br>
+            <span style="font-size: 0.95rem; color: #555;">Chairman</span>
         </div>
     </div>
 </div>
@@ -774,7 +792,7 @@
     // Add search for abstention
     function searchAbstention(query) {
         query = query.toLowerCase();
-        const cards = document.querySelectorAll('.abstention-card');
+        const cards = document.querySelectorAll('.abstention-row');
         const collegeItems = document.querySelectorAll('#abstentionAccordion .college-item');
         cards.forEach(card => {
             const studentNumber = card.dataset.studentNumber.toLowerCase();
@@ -791,7 +809,7 @@
             }
         });
         collegeItems.forEach(item => {
-            const visibleCards = item.querySelectorAll('.abstention-card[style=""]').length;
+            const visibleCards = item.querySelectorAll('.abstention-row[style=""]').length;
             if (visibleCards === 0 && query !== '') {
                 item.style.display = 'none';
             } else {
@@ -800,4 +818,16 @@
         });
     }
 </script>
+{% else %}
+<div class="container-fluid mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 text-center">
+            <div class="alert alert-warning p-5 mt-5">
+                <h2 class="mb-3" style="color: #1976D2;">Results unavailable</h2>
+                <p class="lead">Voting is still in progress.</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 {% endblock %} 
